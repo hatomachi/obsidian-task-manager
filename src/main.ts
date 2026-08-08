@@ -1,0 +1,62 @@
+import { Plugin } from "obsidian";
+import { DEFAULT_SETTINGS, TaskManagerSettings } from "./types";
+import { TaskManagerSettingTab } from "./settings";
+import { TaskManagerView, VIEW_TYPE_TASK_MANAGER } from "./views/TaskManagerView";
+
+export default class TaskManagerPlugin extends Plugin {
+	settings: TaskManagerSettings;
+
+	async onload(): Promise<void> {
+		await this.loadSettings();
+
+		// Register Main Panel ItemView
+		this.registerView(
+			VIEW_TYPE_TASK_MANAGER,
+			(leaf) => new TaskManagerView(leaf, this)
+		);
+
+		// Add Ribbon Icon to open view in main leaf
+		this.addRibbonIcon("kanban", "Open Task Manager (JIRA)", () => {
+			this.activateView();
+		});
+
+		// Add Command
+		this.addCommand({
+			id: "open-jira-task-manager",
+			name: "Open JIRA Task Manager",
+			callback: () => {
+				this.activateView();
+			},
+		});
+
+		// Settings Tab
+		this.addSettingTab(new TaskManagerSettingTab(this.app, this));
+	}
+
+	async activateView(): Promise<void> {
+		const { workspace } = this.app;
+
+		let leaf = workspace.getLeavesOfType(VIEW_TYPE_TASK_MANAGER)[0];
+
+		if (!leaf) {
+			// Create a view in the main workspace area (center)
+			leaf = workspace.getLeaf("tab");
+			await leaf.setViewState({
+				type: VIEW_TYPE_TASK_MANAGER,
+				active: true,
+			});
+		}
+
+		workspace.revealLeaf(leaf);
+	}
+
+	onunload(): void {}
+
+	async loadSettings(): Promise<void> {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	}
+
+	async saveSettings(): Promise<void> {
+		await this.saveData(this.settings);
+	}
+}

@@ -1,0 +1,21 @@
+{
+  "name": "obsidian-task-manager",
+  "version": "1.0.0",
+  "description": "JIRA-style 1-task-1-note Task Manager plugin for Obsidian",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production"
+  },
+  "keywords": ["obsidian", "obsidian-plugin", "jira", "task-manager", "kanban"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "0.19.11",
+    "obsidian": "latest",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.3"
+  }
+}

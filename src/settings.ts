@@ -1,0 +1,44 @@
+import { App, PluginSettingTab, Setting } from "obsidian";
+import TaskManagerPlugin from "./main";
+
+export class TaskManagerSettingTab extends PluginSettingTab {
+	plugin: TaskManagerPlugin;
+
+	constructor(app: App, plugin: TaskManagerPlugin) {
+		super(app, plugin);
+		this.plugin = plugin;
+	}
+
+	display(): void {
+		const { containerEl } = this;
+		containerEl.empty();
+
+		containerEl.createEl("h2", { text: "JIRA-style Task Manager Settings" });
+
+		new Setting(containerEl)
+			.setName("Task Folder")
+			.setDesc("Folder path where 1-task-1-note files are stored (e.g. 'tasks'). Leaves empty for root vault.")
+			.addText((text) =>
+				text
+					.setPlaceholder("tasks")
+					.setValue(this.plugin.settings.taskFolder)
+					.onChange(async (value) => {
+						this.plugin.settings.taskFolder = value.trim();
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("ID Prefix")
+			.setDesc("Prefix used when generating new ticket IDs (e.g. 'TASK-').")
+			.addText((text) =>
+				text
+					.setPlaceholder("TASK-")
+					.setValue(this.plugin.settings.idPrefix)
+					.onChange(async (value) => {
+						this.plugin.settings.idPrefix = value.trim();
+						await this.plugin.saveSettings();
+					})
+			);
+	}
+}

@@ -1,0 +1,9 @@
+{
+	"id": "obsidian-task-manager",
+	"name": "Task Manager (JIRA Style)",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Manage 1-task-1-note ticket style workflow with a dedicated Jira-like board view.",
+	"author": "Antigravity",
+	"isDesktopOnly": false
+}

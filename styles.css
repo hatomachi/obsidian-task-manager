@@ -1,0 +1,286 @@
+/* JIRA Task Manager Plugin Styles */
+
+.jira-task-manager-container {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+	padding: 16px;
+	box-sizing: border-box;
+	overflow: hidden;
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+	font-family: var(--font-interface);
+}
+
+/* Header Section */
+.jira-tm-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding-bottom: 16px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	margin-bottom: 16px;
+}
+
+.jira-tm-title-group h2 {
+	margin: 0;
+	font-size: 1.5rem;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+	color: var(--text-normal);
+}
+
+.jira-tm-create-form {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 1;
+	max-width: 450px;
+}
+
+.jira-tm-input {
+	flex: 1;
+	padding: 8px 12px;
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	font-size: 0.9rem;
+	transition: all 0.2s ease;
+}
+
+.jira-tm-input:focus {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+	outline: none;
+}
+
+.jira-tm-btn {
+	padding: 8px 16px;
+	border-radius: 6px;
+	font-weight: 600;
+	cursor: pointer;
+	white-space: nowrap;
+	transition: transform 0.1s ease, background-color 0.2s ease;
+}
+
+.jira-tm-btn:hover {
+	transform: translateY(-1px);
+}
+
+.jira-tm-controls {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.jira-tm-search-input {
+	padding: 6px 12px;
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	font-size: 0.85rem;
+}
+
+.jira-tm-btn-secondary {
+	padding: 6px 12px;
+	border-radius: 6px;
+	background: var(--background-secondary-alt);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: 0.85rem;
+}
+
+.jira-tm-btn-secondary:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+/* Kanban Board Container */
+.jira-board-container {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 16px;
+	flex: 1;
+	overflow-x: auto;
+	overflow-y: hidden;
+	align-items: stretch;
+}
+
+/* Kanban Column */
+.jira-column {
+	display: flex;
+	flex-direction: column;
+	background: var(--background-secondary);
+	border-radius: 8px;
+	border: 1px solid var(--background-modifier-border);
+	padding: 12px;
+	height: 100%;
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.jira-column-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding-bottom: 10px;
+	margin-bottom: 8px;
+	border-bottom: 2px solid var(--background-modifier-border);
+}
+
+.jira-column[data-status="todo"] .jira-column-header {
+	border-bottom-color: var(--text-muted);
+}
+.jira-column[data-status="in_progress"] .jira-column-header {
+	border-bottom-color: #3b82f6;
+}
+.jira-column[data-status="done"] .jira-column-header {
+	border-bottom-color: #10b981;
+}
+
+.jira-column-title {
+	font-size: 0.85rem;
+	font-weight: 700;
+	letter-spacing: 0.05em;
+	color: var(--text-muted);
+}
+
+.jira-column-count {
+	font-size: 0.75rem;
+	font-weight: 600;
+	background: var(--background-primary);
+	padding: 2px 8px;
+	border-radius: 12px;
+	color: var(--text-muted);
+}
+
+/* Card List */
+.jira-card-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	flex: 1;
+	overflow-y: auto;
+	padding-right: 4px;
+	min-height: 100px;
+	transition: background-color 0.2s ease;
+}
+
+.jira-card-list.jira-drag-over {
+	background-color: var(--background-modifier-hover);
+	border-radius: 6px;
+}
+
+/* Task Card */
+.jira-task-card {
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	padding: 12px;
+	cursor: grab;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+	transition: all 0.2s ease-in-out;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.jira-task-card:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+	border-color: var(--interactive-accent);
+}
+
+.jira-task-card:active {
+	cursor: grabbing;
+}
+
+.jira-card-title {
+	font-size: 0.95rem;
+	font-weight: 500;
+	color: var(--text-normal);
+	line-height: 1.4;
+	word-break: break-word;
+}
+
+/* Card Footer */
+.jira-card-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	font-size: 0.75rem;
+	margin-top: 4px;
+	gap: 6px;
+}
+
+.jira-card-id {
+	font-family: var(--font-monospace);
+	font-weight: 600;
+	color: var(--interactive-accent);
+	cursor: pointer;
+	padding: 2px 6px;
+	border-radius: 4px;
+	background: rgba(var(--interactive-accent-rgb), 0.1);
+	transition: background 0.2s ease;
+}
+
+.jira-card-id:hover {
+	text-decoration: underline;
+	background: rgba(var(--interactive-accent-rgb), 0.2);
+}
+
+.jira-priority-badge {
+	font-size: 0.65rem;
+	font-weight: 700;
+	padding: 2px 6px;
+	border-radius: 4px;
+	letter-spacing: 0.03em;
+}
+
+.jira-priority-badge.priority-low {
+	background: #94a3b8;
+	color: #ffffff;
+}
+
+.jira-priority-badge.priority-medium {
+	background: #3b82f6;
+	color: #ffffff;
+}
+
+.jira-priority-badge.priority-high {
+	background: #f97316;
+	color: #ffffff;
+}
+
+.jira-priority-badge.priority-highest {
+	background: #ef4444;
+	color: #ffffff;
+}
+
+.jira-card-actions {
+	display: flex;
+	gap: 4px;
+}
+
+.jira-action-btn {
+	background: var(--background-secondary-alt);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 2px 6px;
+	font-size: 0.65rem;
+	cursor: pointer;
+	color: var(--text-muted);
+	transition: all 0.15s ease;
+}
+
+.jira-action-btn:hover {
+	background: var(--interactive-accent);
+	color: #ffffff;
+	border-color: var(--interactive-accent);
+}
