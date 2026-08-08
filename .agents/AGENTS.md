@@ -8,3 +8,6 @@
   - `main.js`
   - `manifest.json`
   - `styles.css`
+
+## 2. 設計思想ドキュメント (DESIGN_PHILOSOPHY.md) の同期更新ルール
+新機能の追加、UI/UXの変更、データ構造やAI協調機能のアップデートを行った際は、言われなくても必ず `DESIGN_PHILOSOPHY.md` も併せて最新の設計思想・仕様に同期更新すること。
