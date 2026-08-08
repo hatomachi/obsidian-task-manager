@@ -7,6 +7,11 @@ import { normalizePath, TFile } from "obsidian";
 import { TaskItem } from "../types";
 import TaskManagerPlugin from "../main";
 import { TaskTreeNode } from "./TaskService";
+import {
+	buildTaskBreakdownPrompt,
+	buildTaskRefinePrompt,
+	buildTaskReschedulePrompt,
+} from "../prompts";
 
 const execAsync = promisify(exec);
 
@@ -82,39 +87,21 @@ export class AIService {
 	constructor(private plugin: TaskManagerPlugin) {}
 
 	/**
-	 * Get custom user rules from settings and optional rule file in Vault
+	 * Retrieve custom rule contents from vault file if specified
 	 */
-	private async getCustomSystemRules(): Promise<string> {
-		const rules: string[] = [];
-
-		// Default Next Physical Action Rules
-		rules.push(
-			"MANDATORY SCRUM MASTER RULES:",
-			"1. Each action/subtask MUST be a 15-30 minute Next Physical Action (NPA).",
-			"2. Titles MUST start with a concrete physical verb (e.g., 'Open file...', 'Write line...', 'Search URL...').",
-			"3. PROHIBIT vague or abstract verbs such as 'Consider', 'Investigate', 'Coordinate', 'Check', 'Study', 'Discuss'. Force them into immediate physical steps."
-		);
-
-		// Direct Settings Prompt
-		if (this.plugin.settings.customTaskRules?.trim()) {
-			rules.push("\nUSER CUSTOM RULES:", this.plugin.settings.customTaskRules.trim());
-		}
-
-		// Rule File in Vault
+	private async getVaultRuleContent(): Promise<string | undefined> {
 		const rulePath = this.plugin.settings.customRuleFilePath?.trim();
-		if (rulePath) {
-			try {
-				const file = this.plugin.app.vault.getAbstractFileByPath(normalizePath(rulePath));
-				if (file && file instanceof TFile) {
-					const fileContent = await this.plugin.app.vault.read(file);
-					rules.push(`\nCUSTOM RULES FROM VAULT FILE (${rulePath}):`, fileContent.trim());
-				}
-			} catch (e) {
-				console.warn("[TaskManager AI] Could not read rule file from vault:", e);
-			}
-		}
+		if (!rulePath) return undefined;
 
-		return rules.join("\n");
+		try {
+			const file = this.plugin.app.vault.getAbstractFileByPath(normalizePath(rulePath));
+			if (file && file instanceof TFile) {
+				return await this.plugin.app.vault.read(file);
+			}
+		} catch (e) {
+			console.warn("[TaskManager AI] Could not read rule file from vault:", e);
+		}
+		return undefined;
 	}
 
 	/**
@@ -125,44 +112,14 @@ export class AIService {
 		subtree: TaskTreeNode[],
 		instruction: string
 	): Promise<AIRefineResult> {
-		const todayStr = new Date().toISOString().split("T")[0];
-		const customRules = await this.getCustomSystemRules();
-
-		const treeLines = [
-			`- ${rootTask.id}: ${rootTask.title} [Status: ${rootTask.status}, Scheduled: ${rootTask.scheduled || "none"}]`,
-		];
-
-		for (const node of subtree) {
-			const indent = "  ".repeat(node.depth);
-			treeLines.push(
-				`${indent}- ${node.task.id}: ${node.task.title} (Parent: ${node.task.parent}) [Status: ${node.task.status}, Scheduled: ${node.task.scheduled || "none"}]`
-			);
-		}
-
-		const prompt = `You are an AI Scrum Master & Execution Partner.
-Today is ${todayStr}.
-
-${customRules}
-
-Root Task and Subtask Tree:
-${treeLines.join("\n")}
-
-User Instruction: "${instruction}"
-
-Analyze the instruction and propose additions or modifications. Ensure all subtasks are 15-30 minute Next Physical Actions.
-Respond ONLY with a valid JSON object matching this structure:
-{
-  "explanation": "Brief 1-sentence explanation of changes made.",
-  "subtasksToAdd": [
-    { "title": "Open editor and write first function signature", "parentId": "${rootTask.id}" }
-  ],
-  "subtaskIdsToRemove": ["TASK-XXX"],
-  "subtaskUpdates": [
-    { "id": "TASK-YYY", "title": "Updated Physical Title", "scheduled": "${todayStr}" }
-  ]
-}
-Note: If parentId is not specified in subtasksToAdd, default it to "${rootTask.id}".
-Do not output markdown code blocks or text outside this JSON.`;
+		const vaultRule = await this.getVaultRuleContent();
+		const prompt = buildTaskRefinePrompt(
+			rootTask,
+			subtree,
+			instruction,
+			this.plugin.settings.customTaskRules,
+			vaultRule
+		);
 
 		try {
 			const output = await this.runCLI(prompt);
@@ -177,7 +134,7 @@ Do not output markdown code blocks or text outside this JSON.`;
 				});
 
 				return {
-					explanation: parsed.explanation || "Updated task tree into Next Physical Actions.",
+					explanation: parsed.explanation || "タスク構造を日本語の具体的物理行動に更新しました。",
 					subtasksToAdd: normalizedToAdd,
 					subtaskIdsToRemove: parsed.subtaskIdsToRemove || [],
 					subtaskUpdates: parsed.subtaskUpdates || [],
@@ -188,8 +145,8 @@ Do not output markdown code blocks or text outside this JSON.`;
 		}
 
 		return {
-			explanation: `Added physical actions based on: "${instruction}"`,
-			subtasksToAdd: [{ title: `Open note and write points for: ${instruction}`, parentId: rootTask.id }],
+			explanation: `指示に基づき日本語の物理行動タスクを追加しました: "${instruction}"`,
+			subtasksToAdd: [{ title: `ノートを開き「${instruction}」のメモを1行作成する`, parentId: rootTask.id }],
 			subtaskIdsToRemove: [],
 			subtaskUpdates: [],
 		};
@@ -199,14 +156,12 @@ Do not output markdown code blocks or text outside this JSON.`;
 	 * Ask AI (Antigravity CLI) to break down a parent task into subtask titles
 	 */
 	async breakdownTask(task: TaskItem): Promise<string[]> {
-		const customRules = await this.getCustomSystemRules();
-		const prompt = `You are an AI Scrum Master. Break down the task titled "${task.title}" into 3 to 5 concrete 15-30 minute Next Physical Actions.
-
-${customRules}
-
-Respond ONLY with a valid JSON array of strings representing the subtask titles, for example:
-["Open terminal and run git status", "Write 3 bullet points in README", "Search npm package for esbuild"]
-Do not include any explanation or markdown code block syntax outside the JSON array.`;
+		const vaultRule = await this.getVaultRuleContent();
+		const prompt = buildTaskBreakdownPrompt(
+			task,
+			this.plugin.settings.customTaskRules,
+			vaultRule
+		);
 
 		try {
 			const output = await this.runCLI(prompt);
@@ -219,9 +174,9 @@ Do not include any explanation or markdown code block syntax outside the JSON ar
 		}
 
 		return [
-			`Open editor and write outline for: ${task.title}`,
-			`Draft implementation steps in note: ${task.title}`,
-			`Run test script and check log for: ${task.title}`,
+			`ノートを開き「${task.title}」のアウトラインを1行書く`,
+			`ブラウザを開き「${task.title}」の関連資料を検索する`,
+			`ターミナルを開き実行ログを確認する`,
 		];
 	}
 
@@ -229,21 +184,12 @@ Do not include any explanation or markdown code block syntax outside the JSON ar
 	 * Ask AI (Antigravity CLI) to reschedule overdue/unscheduled tasks
 	 */
 	async rescheduleTasks(tasks: TaskItem[]): Promise<Record<string, string>> {
-		const todayStr = new Date().toISOString().split("T")[0];
-		const taskSummaries = tasks.map((t) => ({
-			id: t.id,
-			title: t.title,
-			status: t.status,
-			due: t.due || "none",
-			scheduled: t.scheduled || "none",
-		}));
-
-		const prompt = `You are a smart AI task scheduler. Today is ${todayStr}.
-Analyze these tasks:
-${JSON.stringify(taskSummaries, null, 2)}
-
-For any tasks that are OVERDUE or UNSCHEDULED and not 'done', assign a recommended scheduled date (format YYYY-MM-DD) starting from today.
-Respond ONLY with a valid JSON object mapping task IDs to new scheduled date strings.`;
+		const vaultRule = await this.getVaultRuleContent();
+		const prompt = buildTaskReschedulePrompt(
+			tasks,
+			this.plugin.settings.customTaskRules,
+			vaultRule
+		);
 
 		try {
 			const output = await this.runCLI(prompt);
@@ -255,6 +201,7 @@ Respond ONLY with a valid JSON object mapping task IDs to new scheduled date str
 			console.warn("[TaskManager AI] CLI execution failed, using fallback:", err);
 		}
 
+		const todayStr = new Date().toISOString().split("T")[0];
 		const result: Record<string, string> = {};
 		for (const t of tasks) {
 			if (t.status !== "done" && (!t.scheduled || t.scheduled < todayStr)) {

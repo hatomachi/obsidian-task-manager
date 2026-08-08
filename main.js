@@ -297,6 +297,129 @@ var os = __toESM(require("os"));
 var path = __toESM(require("path"));
 var fs = __toESM(require("fs"));
 var import_obsidian3 = require("obsidian");
+
+// src/prompts/systemRules.ts
+function getBaseSystemRules() {
+  return `\u3010AI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC \u7D76\u5BFE\u9075\u5B88\u30EB\u30FC\u30EB\u3011
+1. \u3010\u65E5\u672C\u8A9E\u51FA\u529B\u306E\u7D76\u5BFE\u5F37\u5236\u3011:
+   - \u751F\u6210\u30FB\u51FA\u529B\u3059\u308B\u3059\u3079\u3066\u306E\u30BF\u30B9\u30AF\u30BF\u30A4\u30C8\u30EB\u3001\u30B5\u30D6\u30BF\u30B9\u30AF\u540D\u3001\u304A\u3088\u3073\u89E3\u8AAC\u6587\u306F\u3001\u5FC5\u305A\u81EA\u7136\u306A\u65E5\u672C\u8A9E\u3067\u8A18\u8FF0\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u82F1\u8A9E\u3067\u306E\u51FA\u529B\u306F\u7981\u6B62\u3067\u3059\u3002
+
+2. \u301015\u301C30\u5206 Next Physical Action (\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5) \u3078\u306E\u5F37\u5236\u5206\u89E3\u3011:
+   - \u3059\u3079\u3066\u306E\u30BF\u30B9\u30AF/\u30B5\u30D6\u30BF\u30B9\u30AF\u306F\u300115\u301C30\u5206\u4EE5\u5185\u3067\u7D42\u308F\u308B\u6700\u5C0F\u9650\u306E\u884C\u52D5\u5358\u4F4D\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - \u30BF\u30A4\u30C8\u30EB\u306E\u52D5\u8A5E\u306F\u3001\u4EBA\u9593\u304C\u5373\u5EA7\u306B\u4F53\u3092\u52D5\u304B\u305B\u308B\u300C\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u300D\u3067\u59CB\u3081\u3066\u304F\u3060\u3055\u3044\u3002
+     (\u4F8B: \u300C\u301C\u306E\u753B\u9762\u3092\u958B\u304F\u300D\u300C\u301C\u306E\u30D5\u30A1\u30A4\u30EB\u30921\u884C\u4F5C\u6210\u3059\u308B\u300D\u300C\u301C\u306EURL\u3092\u30D6\u30E9\u30A6\u30B6\u3067\u691C\u7D22\u3059\u308B\u300D\u300C\u301C\u3092\u5165\u529B\u3059\u308B\u300D)
+
+3. \u3010\u62BD\u8C61\u7684\u30FB\u66D6\u6627\u306A\u8868\u73FE\u306E\u7D76\u5BFE\u7981\u6B62\u3011:
+   - \u4EE5\u4E0B\u306E\u62BD\u8C61\u7684\u30FB\u66D6\u6627\u306A\u8A00\u8449\u3092\u30BF\u30B9\u30AF\u540D\u306B\u4F7F\u7528\u3059\u308B\u3053\u3068\u3092\u56FA\u304F\u7981\u6B62\u3057\u307E\u3059\u3002
+     \xD7 \u7981\u6B62\u8A9E: \u300C\u691C\u8A0E\u3059\u308B\u300D\u300C\u8ABF\u6574\u3059\u308B\u300D\u300C\u8ABF\u67FB\u3059\u308B\u300D\u300C\u78BA\u8A8D\u3059\u308B\u300D\u300C\u5BFE\u5FDC\u3059\u308B\u300D\u300C\u5B9F\u65BD\u3059\u308B\u300D\u300C\u8003\u3048\u308B\u300D\u300C\u628A\u63E1\u3059\u308B\u300D\u300C\u9032\u3081\u308B\u300D
+   - \u4E0A\u8A18\u306E\u3088\u3046\u306A\u66D6\u6627\u306A\u4F5C\u696D\u306F\u3001\u5FC5\u305A\u300C\u3069\u3053\u3092\u958B\u304D\u3001\u4F55\u3092\u5165\u529B/\u66F8\u304F\u304B\u300D\u3068\u3044\u3046\u5177\u4F53\u884C\u52D5\u306B\u843D\u3068\u3057\u8FBC\u3093\u3067\u304F\u3060\u3055\u3044\u3002
+`;
+}
+function buildFullSystemRules(customSettingsPrompt, vaultRuleContent) {
+  const rules = [getBaseSystemRules()];
+  if (customSettingsPrompt == null ? void 0 : customSettingsPrompt.trim()) {
+    rules.push(`\u3010\u30E6\u30FC\u30B6\u30FC\u5B9A\u7FA9\u30AB\u30B9\u30BF\u30E0\u30EB\u30FC\u30EB (\u8A2D\u5B9A\u753B\u9762)\u3011:
+${customSettingsPrompt.trim()}`);
+  }
+  if (vaultRuleContent == null ? void 0 : vaultRuleContent.trim()) {
+    rules.push(`\u3010\u30E6\u30FC\u30B6\u30FC\u5B9A\u7FA9\u30AB\u30B9\u30BF\u30E0\u30EB\u30FC\u30EB (Vault\u5185\u30D5\u30A1\u30A4\u30EB)\u3011:
+${vaultRuleContent.trim()}`);
+  }
+  return rules.join("\n\n");
+}
+
+// src/prompts/taskBreakdownPrompt.ts
+function buildTaskBreakdownPrompt(task, customSettingsPrompt, vaultRuleContent) {
+  const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
+  return `\u3042\u306A\u305F\u306FAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
+\u89AA\u30BF\u30B9\u30AF\u300C${task.title}\u300D\u3092\u300115\u301C30\u5206\u3067\u5B9F\u884C\u53EF\u80FD\u306A3\u301C5\u500B\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF08Next Physical Action\uFF09\u306E\u30B5\u30D6\u30BF\u30B9\u30AF\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+${systemRules}
+
+\u3010\u51FA\u529B\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
+\u4EE5\u4E0B\u306E\u5F62\u5F0F\u306E\u6709\u52B9\u306AJSON\u914D\u5217\uFF08\u6587\u5B57\u5217\u306E\u914D\u5217\uFF09\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u5FC5\u305A\u3059\u3079\u3066\u65E5\u672C\u8A9E\u3067\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002JSON\u306E\u5916\u5074\u306B\u306F\u8AAC\u660E\u6587\u3084Markdown\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u4E00\u5207\u542B\u3081\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
+
+\u4F8B:
+["Chrome\u3092\u958B\u3044\u3066\u516C\u5F0F\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8URL\u306B\u30A2\u30AF\u30BB\u30B9\u3059\u308B", "\u30A8\u30C7\u30A3\u30BF\u3092\u958B\u304Dsrc/main.ts\u306E1\u884C\u76EE\u306B\u30B3\u30E1\u30F3\u30C8\u3092\u66F8\u304F", "\u30BF\u30FC\u30DF\u30CA\u30EB\u3092\u958B\u304Dnpm run test\u30B3\u30DE\u30F3\u30C9\u3092\u5B9F\u884C\u3059\u308B"]`;
+}
+
+// src/prompts/taskRefinePrompt.ts
+function buildTaskRefinePrompt(rootTask, subtree, instruction, customSettingsPrompt, vaultRuleContent) {
+  const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
+  const treeLines = [
+    `- ${rootTask.id}: ${rootTask.title} [\u30B9\u30C6\u30FC\u30BF\u30B9: ${rootTask.status}, \u5B9F\u65BD\u4E88\u5B9A\u65E5: ${rootTask.scheduled || "\u672A\u8A2D\u5B9A"}]`
+  ];
+  for (const node of subtree) {
+    const indent = "  ".repeat(node.depth);
+    treeLines.push(
+      `${indent}- ${node.task.id}: ${node.task.title} (\u89AAID: ${node.task.parent}) [\u30B9\u30C6\u30FC\u30BF\u30B9: ${node.task.status}, \u5B9F\u65BD\u4E88\u5B9A\u65E5: ${node.task.scheduled || "\u672A\u8A2D\u5B9A"}]`
+    );
+  }
+  return `\u3042\u306A\u305F\u306F\u4F34\u8D70\u578B\u306EAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
+\u672C\u65E5\u306E\u65E5\u4ED8: ${todayStr}
+
+${systemRules}
+
+\u3010\u73FE\u5728\u306E\u30BF\u30B9\u30AF\u30FB\u30B5\u30D6\u30BF\u30B9\u30AF\u968E\u5C64\u30C4\u30EA\u30FC\u3011:
+${treeLines.join("\n")}
+
+\u3010\u30E6\u30FC\u30B6\u30FC\u304B\u3089\u306E\u58C1\u6253\u3061\u30FB\u4FEE\u6B63\u6307\u793A\u3011:
+"${instruction}"
+
+\u6307\u793A\u3092\u5206\u6790\u3057\u3001\u30BF\u30B9\u30AF\u30C4\u30EA\u30FC\u306B\u5BFE\u3059\u308B\u8FFD\u52A0\u30FB\u5909\u66F4\u6848\u3092\u4F5C\u6210\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u8FFD\u52A0\u30FB\u5909\u66F4\u3059\u308B\u30B5\u30D6\u30BF\u30B9\u30AF\u540D\u306F\u5FC5\u305A15\u301C30\u5206\u3067\u5B8C\u4E86\u3059\u308B\u65E5\u672C\u8A9E\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u306B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u3010\u30EC\u30B9\u30DD\u30F3\u30B9\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
+\u4EE5\u4E0B\u306E\u69CB\u9020\u306B\u4E00\u81F4\u3059\u308B\u6709\u52B9\u306AJSON\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u5FC5\u305A\u3059\u3079\u3066\u65E5\u672C\u8A9E\u3067\u8A18\u8FF0\u3057\u3066\u304F\u3060\u3055\u3044\u3002JSON\u306E\u5916\u5074\u306BMarkdown\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3084\u8AAC\u660E\u6587\u3092\u4E00\u5207\u542B\u3081\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
+
+{
+  "explanation": "\u884C\u3063\u305F\u5909\u66F4\u5185\u5BB9\u306E\u7C21\u6F54\u306A\u8AAC\u660E\uFF08\u65E5\u672C\u8A9E1\u6587\uFF09",
+  "subtasksToAdd": [
+    { "title": "\u30A8\u30C7\u30A3\u30BF\u3092\u958B\u304D\u8A2D\u5B9A\u30D5\u30A1\u30A4\u30EB\u306E\u8A72\u5F53\u884C\u3092\u7DE8\u96C6\u3059\u308B", "parentId": "${rootTask.id}" }
+  ],
+  "subtaskIdsToRemove": ["TASK-XXX"],
+  "subtaskUpdates": [
+    { "id": "TASK-YYY", "title": "\u66F4\u65B0\u5F8C\u306E\u65E5\u672C\u8A9E\u5177\u4F53\u884C\u52D5\u30BF\u30A4\u30C8\u30EB", "scheduled": "${todayStr}" }
+  ]
+}
+\u203B subtasksToAdd \u5185\u306E parentId \u3092\u7701\u7565\u3057\u305F\u5834\u5408\u306F\u3001\u81EA\u52D5\u7684\u306B "${rootTask.id}" \u304C\u89AA\u3068\u306A\u308A\u307E\u3059\u3002`;
+}
+
+// src/prompts/taskReschedulePrompt.ts
+function buildTaskReschedulePrompt(tasks, customSettingsPrompt, vaultRuleContent) {
+  const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
+  const taskSummaries = tasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    status: t.status,
+    due: t.due || "\u672A\u8A2D\u5B9A",
+    scheduled: t.scheduled || "\u672A\u8A2D\u5B9A"
+  }));
+  return `\u3042\u306A\u305F\u306F\u30B9\u30DE\u30FC\u30C8\u306AAI\u30B9\u30B1\u30B8\u30E5\u30FC\u30EB\u30D1\u30FC\u30C8\u30CA\u30FC\u3067\u3059\u3002
+\u672C\u65E5\u306E\u65E5\u4ED8: ${todayStr}
+
+${systemRules}
+
+\u3010\u5206\u6790\u5BFE\u8C61\u30BF\u30B9\u30AF\u4E00\u89A7\u3011:
+${JSON.stringify(taskSummaries, null, 2)}
+
+\u671F\u9650\u5207\u308C\uFF08OVERDUE\uFF09\u307E\u305F\u306F\u672A\u30B9\u30B1\u30B8\u30E5\u30FC\u30EB\uFF08UNSCHEDULED\uFF09\u3067\u672A\u5B8C\u4E86\u306E\u30BF\u30B9\u30AF\u306B\u5BFE\u3057\u3066\u3001\u672C\u65E5\uFF08${todayStr}\uFF09\u4EE5\u964D\u306E\u7121\u7406\u306E\u306A\u3044\u304A\u3059\u3059\u3081\u5B9F\u65BD\u4E88\u5B9A\u65E5\uFF08YYYY-MM-DD\uFF09\u3092\u5272\u308A\u632F\u3063\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u3010\u30EC\u30B9\u30DD\u30F3\u30B9\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
+\u30BF\u30B9\u30AFID\u304B\u3089\u65B0\u3057\u3044\u5B9F\u65BD\u4E88\u5B9A\u65E5\u6587\u5B57\u5217\u3078\u306E\u30DE\u30C3\u30D4\u30F3\u30B0\u3092\u8868\u3059\u6709\u52B9\u306AJSON\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u4F8B:
+{
+  "TASK-20260808-a8f3": "${todayStr}"
+}
+JSON\u306E\u5916\u5074\u306B\u30C6\u30AD\u30B9\u30C8\u3084\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u542B\u3081\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002`;
+}
+
+// src/services/AIService.ts
 var execAsync = (0, import_util.promisify)(import_child_process.exec);
 function getExtendedEnv() {
   const home = os.homedir();
@@ -344,74 +467,35 @@ var AIService = class {
     this.plugin = plugin;
   }
   /**
-   * Get custom user rules from settings and optional rule file in Vault
+   * Retrieve custom rule contents from vault file if specified
    */
-  async getCustomSystemRules() {
-    var _a, _b;
-    const rules = [];
-    rules.push(
-      "MANDATORY SCRUM MASTER RULES:",
-      "1. Each action/subtask MUST be a 15-30 minute Next Physical Action (NPA).",
-      "2. Titles MUST start with a concrete physical verb (e.g., 'Open file...', 'Write line...', 'Search URL...').",
-      "3. PROHIBIT vague or abstract verbs such as 'Consider', 'Investigate', 'Coordinate', 'Check', 'Study', 'Discuss'. Force them into immediate physical steps."
-    );
-    if ((_a = this.plugin.settings.customTaskRules) == null ? void 0 : _a.trim()) {
-      rules.push("\nUSER CUSTOM RULES:", this.plugin.settings.customTaskRules.trim());
-    }
-    const rulePath = (_b = this.plugin.settings.customRuleFilePath) == null ? void 0 : _b.trim();
-    if (rulePath) {
-      try {
-        const file = this.plugin.app.vault.getAbstractFileByPath((0, import_obsidian3.normalizePath)(rulePath));
-        if (file && file instanceof import_obsidian3.TFile) {
-          const fileContent = await this.plugin.app.vault.read(file);
-          rules.push(`
-CUSTOM RULES FROM VAULT FILE (${rulePath}):`, fileContent.trim());
-        }
-      } catch (e) {
-        console.warn("[TaskManager AI] Could not read rule file from vault:", e);
+  async getVaultRuleContent() {
+    var _a;
+    const rulePath = (_a = this.plugin.settings.customRuleFilePath) == null ? void 0 : _a.trim();
+    if (!rulePath)
+      return void 0;
+    try {
+      const file = this.plugin.app.vault.getAbstractFileByPath((0, import_obsidian3.normalizePath)(rulePath));
+      if (file && file instanceof import_obsidian3.TFile) {
+        return await this.plugin.app.vault.read(file);
       }
+    } catch (e) {
+      console.warn("[TaskManager AI] Could not read rule file from vault:", e);
     }
-    return rules.join("\n");
+    return void 0;
   }
   /**
    * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
    */
   async refineTaskWithTree(rootTask, subtree, instruction) {
-    const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-    const customRules = await this.getCustomSystemRules();
-    const treeLines = [
-      `- ${rootTask.id}: ${rootTask.title} [Status: ${rootTask.status}, Scheduled: ${rootTask.scheduled || "none"}]`
-    ];
-    for (const node of subtree) {
-      const indent = "  ".repeat(node.depth);
-      treeLines.push(
-        `${indent}- ${node.task.id}: ${node.task.title} (Parent: ${node.task.parent}) [Status: ${node.task.status}, Scheduled: ${node.task.scheduled || "none"}]`
-      );
-    }
-    const prompt = `You are an AI Scrum Master & Execution Partner.
-Today is ${todayStr}.
-
-${customRules}
-
-Root Task and Subtask Tree:
-${treeLines.join("\n")}
-
-User Instruction: "${instruction}"
-
-Analyze the instruction and propose additions or modifications. Ensure all subtasks are 15-30 minute Next Physical Actions.
-Respond ONLY with a valid JSON object matching this structure:
-{
-  "explanation": "Brief 1-sentence explanation of changes made.",
-  "subtasksToAdd": [
-    { "title": "Open editor and write first function signature", "parentId": "${rootTask.id}" }
-  ],
-  "subtaskIdsToRemove": ["TASK-XXX"],
-  "subtaskUpdates": [
-    { "id": "TASK-YYY", "title": "Updated Physical Title", "scheduled": "${todayStr}" }
-  ]
-}
-Note: If parentId is not specified in subtasksToAdd, default it to "${rootTask.id}".
-Do not output markdown code blocks or text outside this JSON.`;
+    const vaultRule = await this.getVaultRuleContent();
+    const prompt = buildTaskRefinePrompt(
+      rootTask,
+      subtree,
+      instruction,
+      this.plugin.settings.customTaskRules,
+      vaultRule
+    );
     try {
       const output = await this.runCLI(prompt);
       const parsed = this.extractJSONObject(output);
@@ -424,7 +508,7 @@ Do not output markdown code blocks or text outside this JSON.`;
           return { title: item.title, parentId: item.parentId || rootTask.id };
         });
         return {
-          explanation: parsed.explanation || "Updated task tree into Next Physical Actions.",
+          explanation: parsed.explanation || "\u30BF\u30B9\u30AF\u69CB\u9020\u3092\u65E5\u672C\u8A9E\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u306B\u66F4\u65B0\u3057\u307E\u3057\u305F\u3002",
           subtasksToAdd: normalizedToAdd,
           subtaskIdsToRemove: parsed.subtaskIdsToRemove || [],
           subtaskUpdates: parsed.subtaskUpdates || []
@@ -434,8 +518,8 @@ Do not output markdown code blocks or text outside this JSON.`;
       console.warn("[TaskManager AI] Refine CLI failed, using smart fallback:", err);
     }
     return {
-      explanation: `Added physical actions based on: "${instruction}"`,
-      subtasksToAdd: [{ title: `Open note and write points for: ${instruction}`, parentId: rootTask.id }],
+      explanation: `\u6307\u793A\u306B\u57FA\u3065\u304D\u65E5\u672C\u8A9E\u306E\u7269\u7406\u884C\u52D5\u30BF\u30B9\u30AF\u3092\u8FFD\u52A0\u3057\u307E\u3057\u305F: "${instruction}"`,
+      subtasksToAdd: [{ title: `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${instruction}\u300D\u306E\u30E1\u30E2\u30921\u884C\u4F5C\u6210\u3059\u308B`, parentId: rootTask.id }],
       subtaskIdsToRemove: [],
       subtaskUpdates: []
     };
@@ -444,14 +528,12 @@ Do not output markdown code blocks or text outside this JSON.`;
    * Ask AI (Antigravity CLI) to break down a parent task into subtask titles
    */
   async breakdownTask(task) {
-    const customRules = await this.getCustomSystemRules();
-    const prompt = `You are an AI Scrum Master. Break down the task titled "${task.title}" into 3 to 5 concrete 15-30 minute Next Physical Actions.
-
-${customRules}
-
-Respond ONLY with a valid JSON array of strings representing the subtask titles, for example:
-["Open terminal and run git status", "Write 3 bullet points in README", "Search npm package for esbuild"]
-Do not include any explanation or markdown code block syntax outside the JSON array.`;
+    const vaultRule = await this.getVaultRuleContent();
+    const prompt = buildTaskBreakdownPrompt(
+      task,
+      this.plugin.settings.customTaskRules,
+      vaultRule
+    );
     try {
       const output = await this.runCLI(prompt);
       const parsed = this.extractJSONArray(output);
@@ -462,29 +544,21 @@ Do not include any explanation or markdown code block syntax outside the JSON ar
       console.warn("[TaskManager AI] CLI execution failed, using fallback:", err);
     }
     return [
-      `Open editor and write outline for: ${task.title}`,
-      `Draft implementation steps in note: ${task.title}`,
-      `Run test script and check log for: ${task.title}`
+      `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${task.title}\u300D\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u30921\u884C\u66F8\u304F`,
+      `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${task.title}\u300D\u306E\u95A2\u9023\u8CC7\u6599\u3092\u691C\u7D22\u3059\u308B`,
+      `\u30BF\u30FC\u30DF\u30CA\u30EB\u3092\u958B\u304D\u5B9F\u884C\u30ED\u30B0\u3092\u78BA\u8A8D\u3059\u308B`
     ];
   }
   /**
    * Ask AI (Antigravity CLI) to reschedule overdue/unscheduled tasks
    */
   async rescheduleTasks(tasks) {
-    const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-    const taskSummaries = tasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      status: t.status,
-      due: t.due || "none",
-      scheduled: t.scheduled || "none"
-    }));
-    const prompt = `You are a smart AI task scheduler. Today is ${todayStr}.
-Analyze these tasks:
-${JSON.stringify(taskSummaries, null, 2)}
-
-For any tasks that are OVERDUE or UNSCHEDULED and not 'done', assign a recommended scheduled date (format YYYY-MM-DD) starting from today.
-Respond ONLY with a valid JSON object mapping task IDs to new scheduled date strings.`;
+    const vaultRule = await this.getVaultRuleContent();
+    const prompt = buildTaskReschedulePrompt(
+      tasks,
+      this.plugin.settings.customTaskRules,
+      vaultRule
+    );
     try {
       const output = await this.runCLI(prompt);
       const parsed = this.extractJSONObject(output);
@@ -494,6 +568,7 @@ Respond ONLY with a valid JSON object mapping task IDs to new scheduled date str
     } catch (err) {
       console.warn("[TaskManager AI] CLI execution failed, using fallback:", err);
     }
+    const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
     const result = {};
     for (const t of tasks) {
       if (t.status !== "done" && (!t.scheduled || t.scheduled < todayStr)) {
