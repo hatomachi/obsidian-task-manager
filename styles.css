@@ -110,6 +110,23 @@
 	gap: 8px;
 }
 
+.jira-tm-btn-ai {
+	padding: 6px 12px;
+	border-radius: 6px;
+	background: rgba(var(--interactive-accent-rgb), 0.15);
+	border: 1px solid var(--interactive-accent);
+	color: var(--interactive-accent);
+	font-weight: 600;
+	font-size: 0.85rem;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.jira-tm-btn-ai:hover {
+	background: var(--interactive-accent);
+	color: #ffffff;
+}
+
 .jira-tm-search-input {
 	padding: 6px 12px;
 	border-radius: 6px;

@@ -4,9 +4,11 @@ if you want to view the source, please visit the github repository of this plugi
 */
 
 "use strict";
+var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all) => {
   for (var name in all)
@@ -20,6 +22,14 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/main.ts
@@ -35,7 +45,8 @@ var DEFAULT_SETTINGS = {
   taskFolder: "tasks",
   idPrefix: "TASK-",
   defaultStatus: "todo",
-  defaultPriority: "medium"
+  defaultPriority: "medium",
+  antigravityCommand: "agy"
 };
 
 // src/settings.ts
@@ -49,7 +60,7 @@ var TaskManagerSettingTab = class extends import_obsidian.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h2", { text: "JIRA-style Task Manager Settings" });
-    new import_obsidian.Setting(containerEl).setName("Task Folder").setDesc("Folder path where 1-task-1-note files are stored (e.g. 'tasks'). Leaves empty for root vault.").addText(
+    new import_obsidian.Setting(containerEl).setName("Task Folder").setDesc("Folder path where 1-task-1-note files are stored (e.g. 'tasks').").addText(
       (text) => text.setPlaceholder("tasks").setValue(this.plugin.settings.taskFolder).onChange(async (value) => {
         this.plugin.settings.taskFolder = value.trim();
         await this.plugin.saveSettings();
@@ -58,6 +69,13 @@ var TaskManagerSettingTab = class extends import_obsidian.PluginSettingTab {
     new import_obsidian.Setting(containerEl).setName("ID Prefix").setDesc("Prefix used when generating new ticket IDs (e.g. 'TASK-').").addText(
       (text) => text.setPlaceholder("TASK-").setValue(this.plugin.settings.idPrefix).onChange(async (value) => {
         this.plugin.settings.idPrefix = value.trim();
+        await this.plugin.saveSettings();
+      })
+    );
+    containerEl.createEl("h3", { text: "AI Copilot Settings (Antigravity CLI)" });
+    new import_obsidian.Setting(containerEl).setName("Antigravity Command").setDesc("Executable name or path for Antigravity CLI (default: 'agy').").addText(
+      (text) => text.setPlaceholder("agy").setValue(this.plugin.settings.antigravityCommand).onChange(async (value) => {
+        this.plugin.settings.antigravityCommand = value.trim() || "agy";
         await this.plugin.saveSettings();
       })
     );
@@ -220,6 +238,165 @@ var TaskService = class {
   }
 };
 
+// src/services/AIService.ts
+var import_child_process = require("child_process");
+var import_util = require("util");
+var os = __toESM(require("os"));
+var path = __toESM(require("path"));
+var fs = __toESM(require("fs"));
+var execAsync = (0, import_util.promisify)(import_child_process.exec);
+function getExtendedEnv() {
+  const home = os.homedir();
+  const extraPaths = [
+    path.join(home, ".local", "bin"),
+    path.join(home, ".antigravity", "bin"),
+    path.join(home, ".gemini", "antigravity", "bin"),
+    "/usr/local/bin",
+    "/opt/homebrew/bin",
+    "/usr/bin",
+    "/bin"
+  ];
+  const currentPath = process.env.PATH || "";
+  const combinedPath = extraPaths.concat(currentPath.split(":")).filter(Boolean);
+  const uniquePath = Array.from(new Set(combinedPath)).join(":");
+  return {
+    ...process.env,
+    PATH: uniquePath
+  };
+}
+function resolveCommandPath(command) {
+  if (path.isAbsolute(command)) {
+    return command;
+  }
+  const home = os.homedir();
+  const searchDirs = [
+    path.join(home, ".local", "bin"),
+    path.join(home, ".antigravity", "bin"),
+    path.join(home, ".gemini", "antigravity", "bin"),
+    "/usr/local/bin",
+    "/opt/homebrew/bin",
+    "/usr/bin",
+    "/bin"
+  ];
+  for (const dir of searchDirs) {
+    const fullPath = path.join(dir, command);
+    if (fs.existsSync(fullPath)) {
+      return fullPath;
+    }
+  }
+  return command;
+}
+var AIService = class {
+  constructor(plugin) {
+    this.plugin = plugin;
+  }
+  /**
+   * Ask AI (Antigravity CLI) to break down a parent task into subtask titles
+   */
+  async breakdownTask(task) {
+    const prompt = `You are a helpful task manager AI. Break down the task titled "${task.title}" into 3 to 5 concrete action items (subtasks).
+Respond ONLY with a valid JSON array of strings representing the subtask titles, for example:
+["Gather requirements", "Draft design document", "Review with team"]
+Do not include any explanation or markdown code block syntax outside the JSON array.`;
+    try {
+      const output = await this.runCLI(prompt);
+      const parsed = this.extractJSONArray(output);
+      if (parsed && parsed.length > 0) {
+        return parsed;
+      }
+    } catch (err) {
+      console.warn("[TaskManager AI] CLI execution failed or not found, using smart breakdown fallback:", err);
+    }
+    return [
+      `Research & Plan: ${task.title}`,
+      `Implementation: ${task.title}`,
+      `Review & Test: ${task.title}`
+    ];
+  }
+  /**
+   * Ask AI (Antigravity CLI) to reschedule overdue/unscheduled tasks
+   */
+  async rescheduleTasks(tasks) {
+    const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    const taskSummaries = tasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      due: t.due || "none",
+      scheduled: t.scheduled || "none"
+    }));
+    const prompt = `You are a smart AI task scheduler. Today is ${todayStr}.
+Analyze these tasks:
+${JSON.stringify(taskSummaries, null, 2)}
+
+For any tasks that are OVERDUE or UNSCHEDULED and not 'done', assign a recommended scheduled date (format YYYY-MM-DD) starting from today or upcoming days.
+Respond ONLY with a valid JSON object mapping task IDs to new scheduled date strings, for example:
+{
+  "TASK-001": "${todayStr}"
+}
+Do not output any text other than the JSON object.`;
+    try {
+      const output = await this.runCLI(prompt);
+      const parsed = this.extractJSONObject(output);
+      if (parsed && Object.keys(parsed).length > 0) {
+        return parsed;
+      }
+    } catch (err) {
+      console.warn("[TaskManager AI] CLI execution failed, using smart reschedule fallback:", err);
+    }
+    const result = {};
+    for (const t of tasks) {
+      if (t.status !== "done" && (!t.scheduled || t.scheduled < todayStr)) {
+        result[t.id] = todayStr;
+      }
+    }
+    return result;
+  }
+  async runCLI(promptText) {
+    const commandName = this.plugin.settings.antigravityCommand || "agy";
+    const exePath = resolveCommandPath(commandName);
+    const env = getExtendedEnv();
+    const escapedPrompt = promptText.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "\\$").replace(/`/g, "\\`");
+    const cmd = `"${exePath}" -p "${escapedPrompt}"`;
+    const { stdout } = await execAsync(cmd, {
+      env,
+      timeout: 25e3,
+      maxBuffer: 1024 * 1024 * 5
+    });
+    return stdout.trim();
+  }
+  extractJSONArray(text) {
+    try {
+      const match = text.match(/\[[\s\S]*\]/);
+      if (match) {
+        const jsonStr = match[0];
+        const arr = JSON.parse(jsonStr);
+        if (Array.isArray(arr)) {
+          return arr.map((item) => String(item));
+        }
+      }
+    } catch (e) {
+      console.error("[TaskManager AI] Failed to parse JSON array from output:", text);
+    }
+    return null;
+  }
+  extractJSONObject(text) {
+    try {
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        const jsonStr = match[0];
+        const obj = JSON.parse(jsonStr);
+        if (typeof obj === "object" && obj !== null) {
+          return obj;
+        }
+      }
+    } catch (e) {
+      console.error("[TaskManager AI] Failed to parse JSON object from output:", text);
+    }
+    return null;
+  }
+};
+
 // src/views/TaskManagerView.ts
 var VIEW_TYPE_TASK_MANAGER = "jira-task-manager-view";
 var TaskManagerView = class extends import_obsidian3.ItemView {
@@ -229,7 +406,9 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
     this.searchFilter = "";
     this.activeViewMode = "status";
     this.eventListeners = [];
+    this.isProcessingAI = false;
     this.taskService = new TaskService(this.app, this.plugin);
+    this.aiService = new AIService(this.plugin);
   }
   getViewType() {
     return VIEW_TYPE_TASK_MANAGER;
@@ -305,6 +484,37 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
       }
     });
     const controlsEl = headerEl.createDiv({ cls: "jira-tm-controls" });
+    const aiRescheduleBtn = controlsEl.createEl("button", {
+      text: "\u{1F504} AI Reschedule",
+      cls: "jira-tm-btn-ai"
+    });
+    aiRescheduleBtn.title = "AI automatically re-assigns scheduled dates for overdue & unscheduled tasks";
+    aiRescheduleBtn.addEventListener("click", async () => {
+      if (this.isProcessingAI)
+        return;
+      this.isProcessingAI = true;
+      new import_obsidian3.Notice("\u{1F916} AI is rescheduling tasks...");
+      aiRescheduleBtn.text = "\u23F3 Rescheduling...";
+      try {
+        const tasks = this.taskService.getAllTasks();
+        const newSchedules = await this.aiService.rescheduleTasks(tasks);
+        let count = 0;
+        for (const [taskId, newDate] of Object.entries(newSchedules)) {
+          const target = tasks.find((t) => t.id === taskId);
+          if (target) {
+            await this.taskService.updateTaskSchedule(target.file, newDate);
+            count++;
+          }
+        }
+        new import_obsidian3.Notice(`\u2728 AI rescheduled ${count} tasks!`);
+      } catch (e) {
+        console.error(e);
+        new import_obsidian3.Notice("\u274C Failed to AI reschedule tasks.");
+      } finally {
+        this.isProcessingAI = false;
+        this.render();
+      }
+    });
     const searchInput = controlsEl.createEl("input", {
       type: "text",
       placeholder: "Filter tasks...",
@@ -338,9 +548,6 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
       this.renderScheduleBoard(boardEl, filteredTasks);
     }
   }
-  /**
-   * Render Status Board (Kanban: To Do / In Progress / Done) with Nested Subtasks
-   */
   renderStatusBoard(boardEl, tasks, allTasks) {
     const columns = [
       { status: "todo", title: "TO DO" },
@@ -385,9 +592,6 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
       }
     }
   }
-  /**
-   * Render Schedule Board (Timeline / Scheduled Date View)
-   */
   renderScheduleBoard(boardEl, tasks) {
     const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
     const tomorrow = /* @__PURE__ */ new Date();
@@ -522,12 +726,27 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
       text: "\u2728 AI",
       cls: "jira-action-btn jira-ai-btn"
     });
-    aiBtn.title = "AI Breakdown / Schedule Copilot (Coming soon)";
-    aiBtn.addEventListener("click", (e) => {
+    aiBtn.title = "AI automatically breaks down this task into subtasks";
+    aiBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
-      subtaskInputRow.toggleClass("hidden", false);
-      subInput.value = "AI: Break down steps...";
-      subInput.focus();
+      if (this.isProcessingAI)
+        return;
+      this.isProcessingAI = true;
+      aiBtn.text = "\u23F3";
+      new import_obsidian3.Notice(`\u{1F916} AI is breaking down "${task.title}"...`);
+      try {
+        const subtaskTitles = await this.aiService.breakdownTask(task);
+        for (const subTitle of subtaskTitles) {
+          await this.taskService.createSubtask(task, subTitle);
+        }
+        new import_obsidian3.Notice(`\u2728 Created ${subtaskTitles.length} subtasks with AI!`);
+      } catch (err) {
+        console.error(err);
+        new import_obsidian3.Notice("\u274C AI Breakdown failed.");
+      } finally {
+        this.isProcessingAI = false;
+        this.render();
+      }
     });
     if (task.status !== "todo") {
       const prevBtn = actionEl.createEl("button", { text: "\u25C0", cls: "jira-action-btn" });

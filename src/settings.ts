@@ -17,7 +17,7 @@ export class TaskManagerSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Task Folder")
-			.setDesc("Folder path where 1-task-1-note files are stored (e.g. 'tasks'). Leaves empty for root vault.")
+			.setDesc("Folder path where 1-task-1-note files are stored (e.g. 'tasks').")
 			.addText((text) =>
 				text
 					.setPlaceholder("tasks")
@@ -37,6 +37,21 @@ export class TaskManagerSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.idPrefix)
 					.onChange(async (value) => {
 						this.plugin.settings.idPrefix = value.trim();
+						await this.plugin.saveSettings();
+					})
+			);
+
+		containerEl.createEl("h3", { text: "AI Copilot Settings (Antigravity CLI)" });
+
+		new Setting(containerEl)
+			.setName("Antigravity Command")
+			.setDesc("Executable name or path for Antigravity CLI (default: 'agy').")
+			.addText((text) =>
+				text
+					.setPlaceholder("agy")
+					.setValue(this.plugin.settings.antigravityCommand)
+					.onChange(async (value) => {
+						this.plugin.settings.antigravityCommand = value.trim() || "agy";
 						await this.plugin.saveSettings();
 					})
 			);

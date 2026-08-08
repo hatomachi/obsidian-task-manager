@@ -1,7 +1,8 @@
-import { ItemView, WorkspaceLeaf, EventRef } from "obsidian";
-import { TaskItem, TaskPriority, TaskStatus } from "../types";
+import { ItemView, WorkspaceLeaf, EventRef, Notice } from "obsidian";
+import { TaskItem, TaskStatus } from "../types";
 import TaskManagerPlugin from "../main";
 import { TaskService } from "../services/TaskService";
+import { AIService } from "../services/AIService";
 
 export const VIEW_TYPE_TASK_MANAGER = "jira-task-manager-view";
 
@@ -9,13 +10,16 @@ export type ViewMode = "status" | "schedule";
 
 export class TaskManagerView extends ItemView {
 	private taskService: TaskService;
+	private aiService: AIService;
 	private searchFilter = "";
 	private activeViewMode: ViewMode = "status";
 	private eventListeners: EventRef[] = [];
+	private isProcessingAI = false;
 
 	constructor(leaf: WorkspaceLeaf, private plugin: TaskManagerPlugin) {
 		super(leaf);
 		this.taskService = new TaskService(this.app, this.plugin);
+		this.aiService = new AIService(this.plugin);
 	}
 
 	getViewType(): string {
@@ -109,8 +113,43 @@ export class TaskManagerView extends ItemView {
 			}
 		});
 
-		// Controls (Search & Refresh)
+		// Controls (Search, AI Reschedule & Refresh)
 		const controlsEl = headerEl.createDiv({ cls: "jira-tm-controls" });
+
+		// Global AI Reschedule Button
+		const aiRescheduleBtn = controlsEl.createEl("button", {
+			text: "🔄 AI Reschedule",
+			cls: "jira-tm-btn-ai",
+		});
+		aiRescheduleBtn.title = "AI automatically re-assigns scheduled dates for overdue & unscheduled tasks";
+		aiRescheduleBtn.addEventListener("click", async () => {
+			if (this.isProcessingAI) return;
+			this.isProcessingAI = true;
+			new Notice("🤖 AI is rescheduling tasks...");
+			aiRescheduleBtn.text = "⏳ Rescheduling...";
+
+			try {
+				const tasks = this.taskService.getAllTasks();
+				const newSchedules = await this.aiService.rescheduleTasks(tasks);
+				
+				let count = 0;
+				for (const [taskId, newDate] of Object.entries(newSchedules)) {
+					const target = tasks.find((t) => t.id === taskId);
+					if (target) {
+						await this.taskService.updateTaskSchedule(target.file, newDate);
+						count++;
+					}
+				}
+				new Notice(`✨ AI rescheduled ${count} tasks!`);
+			} catch (e) {
+				console.error(e);
+				new Notice("❌ Failed to AI reschedule tasks.");
+			} finally {
+				this.isProcessingAI = false;
+				this.render();
+			}
+		});
+
 		const searchInput = controlsEl.createEl("input", {
 			type: "text",
 			placeholder: "Filter tasks...",
@@ -153,9 +192,6 @@ export class TaskManagerView extends ItemView {
 		}
 	}
 
-	/**
-	 * Render Status Board (Kanban: To Do / In Progress / Done) with Nested Subtasks
-	 */
 	private renderStatusBoard(boardEl: HTMLElement, tasks: TaskItem[], allTasks: TaskItem[]): void {
 		const columns: { status: TaskStatus; title: string }[] = [
 			{ status: "todo", title: "TO DO" },
@@ -163,7 +199,6 @@ export class TaskManagerView extends ItemView {
 			{ status: "done", title: "DONE" },
 		];
 
-		// Render Root tasks (tasks without parent, or whose parent doesn't exist)
 		const rootTasks = tasks.filter((t) => !t.parent || !allTasks.some((p) => p.id === t.parent));
 
 		for (const col of columns) {
@@ -202,16 +237,12 @@ export class TaskManagerView extends ItemView {
 			});
 
 			for (const task of colTasks) {
-				// Find child tasks (subtasks)
 				const subtasks = allTasks.filter((t) => t.parent === task.id);
 				this.renderCard(cardList, task, subtasks);
 			}
 		}
 	}
 
-	/**
-	 * Render Schedule Board (Timeline / Scheduled Date View)
-	 */
 	private renderScheduleBoard(boardEl: HTMLElement, tasks: TaskItem[]): void {
 		const todayStr = new Date().toISOString().split("T")[0];
 		
@@ -273,7 +304,7 @@ export class TaskManagerView extends ItemView {
 			}
 		});
 
-		// Header badge area
+		// Header area
 		const cardHeader = cardEl.createDiv({ cls: "jira-card-card-header" });
 		
 		const idBadge = cardHeader.createEl("span", { cls: "jira-card-id", text: task.id });
@@ -292,7 +323,7 @@ export class TaskManagerView extends ItemView {
 		// Title
 		cardEl.createDiv({ cls: "jira-card-title", text: task.title });
 
-		// Subtasks Container (Nested Tasks)
+		// Subtasks Container
 		if (subtasks.length > 0) {
 			const subtasksContainer = cardEl.createDiv({ cls: "jira-subtasks-container" });
 			subtasksContainer.createDiv({
@@ -327,7 +358,7 @@ export class TaskManagerView extends ItemView {
 			}
 		}
 
-		// Quick Subtask Creation Input (hidden by default)
+		// Quick Subtask Creation Input Row
 		const subtaskInputRow = cardEl.createDiv({ cls: "jira-subtask-input-row hidden" });
 		const subInput = subtaskInputRow.createEl("input", {
 			type: "text",
@@ -373,18 +404,32 @@ export class TaskManagerView extends ItemView {
 			subInput.focus();
 		});
 
-		// AI Breakdown Placeholder Button
+		// ✨ AI Breakdown Button
 		const aiBtn = actionEl.createEl("button", {
 			text: "✨ AI",
 			cls: "jira-action-btn jira-ai-btn",
 		});
-		aiBtn.title = "AI Breakdown / Schedule Copilot (Coming soon)";
-		aiBtn.addEventListener("click", (e) => {
+		aiBtn.title = "AI automatically breaks down this task into subtasks";
+		aiBtn.addEventListener("click", async (e) => {
 			e.stopPropagation();
-			// Placeholder behavior
-			subtaskInputRow.toggleClass("hidden", false);
-			subInput.value = "AI: Break down steps...";
-			subInput.focus();
+			if (this.isProcessingAI) return;
+			this.isProcessingAI = true;
+			aiBtn.text = "⏳";
+			new Notice(`🤖 AI is breaking down "${task.title}"...`);
+
+			try {
+				const subtaskTitles = await this.aiService.breakdownTask(task);
+				for (const subTitle of subtaskTitles) {
+					await this.taskService.createSubtask(task, subTitle);
+				}
+				new Notice(`✨ Created ${subtaskTitles.length} subtasks with AI!`);
+			} catch (err) {
+				console.error(err);
+				new Notice("❌ AI Breakdown failed.");
+			} finally {
+				this.isProcessingAI = false;
+				this.render();
+			}
 		});
 
 		// Status move buttons

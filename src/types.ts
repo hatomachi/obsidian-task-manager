@@ -25,6 +25,7 @@ export interface TaskManagerSettings {
 	idPrefix: string;
 	defaultStatus: TaskStatus;
 	defaultPriority: TaskPriority;
+	antigravityCommand: string;
 }
 
 export const DEFAULT_SETTINGS: TaskManagerSettings = {
@@ -32,4 +33,5 @@ export const DEFAULT_SETTINGS: TaskManagerSettings = {
 	idPrefix: "TASK-",
 	defaultStatus: "todo",
 	defaultPriority: "medium",
+	antigravityCommand: "agy",
 };
