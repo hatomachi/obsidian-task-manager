@@ -150,7 +150,6 @@ export class TaskManagerView extends ItemView {
 
 			try {
 				const tasks = this.taskService.getAllTasks();
-				// Record Undo Snapshot
 				this.undoService.recordSnapshot("AI Reschedule", tasks);
 
 				const newSchedules = await this.aiService.rescheduleTasks(tasks);
@@ -260,8 +259,7 @@ export class TaskManagerView extends ItemView {
 			});
 
 			for (const task of colTasks) {
-				const subtasks = allTasks.filter((t) => t.parent === task.id);
-				this.renderCard(cardList, task, subtasks);
+				this.renderCard(cardList, task, allTasks);
 			}
 		}
 	}
@@ -317,7 +315,7 @@ export class TaskManagerView extends ItemView {
 		}
 	}
 
-	private renderCard(parentEl: HTMLElement, task: TaskItem, subtasks: TaskItem[]): void {
+	private renderCard(parentEl: HTMLElement, task: TaskItem, allTasks: TaskItem[]): void {
 		const cardEl = parentEl.createDiv({ cls: "jira-task-card" });
 		cardEl.draggable = true;
 
@@ -346,18 +344,24 @@ export class TaskManagerView extends ItemView {
 		// Title
 		cardEl.createDiv({ cls: "jira-card-title", text: task.title });
 
-		// Subtasks Container
-		if (subtasks.length > 0) {
+		// Subtree Container (Recursive Multi-level Subtasks)
+		const subtree = this.taskService.getTaskSubtree(task.id);
+		if (subtree.length > 0) {
 			const subtasksContainer = cardEl.createDiv({ cls: "jira-subtasks-container" });
+			const doneCount = subtree.filter((s) => s.task.status === "done").length;
 			subtasksContainer.createDiv({
 				cls: "jira-subtasks-header",
-				text: `Subtasks (${subtasks.filter((s) => s.status === "done").length}/${subtasks.length})`,
+				text: `Subtasks (${doneCount}/${subtree.length})`,
 			});
 
 			const subtaskListEl = subtasksContainer.createDiv({ cls: "jira-subtask-list" });
-			for (const sub of subtasks) {
+			for (const node of subtree) {
+				const sub = node.task;
+				const indentPx = (node.depth - 1) * 14;
+
 				const subRow = subtaskListEl.createDiv({ cls: "jira-subtask-row" });
-				
+				subRow.style.paddingLeft = `${indentPx}px`;
+
 				const chk = subRow.createEl("input", {
 					type: "checkbox",
 					cls: "jira-subtask-chk",
@@ -372,7 +376,7 @@ export class TaskManagerView extends ItemView {
 
 				const subTitle = subRow.createEl("span", {
 					cls: `jira-subtask-title ${sub.status === "done" ? "is-done" : ""}`,
-					text: `${sub.id}: ${sub.title}`,
+					text: `${node.depth > 1 ? "↳ " : ""}${sub.id}: ${sub.title}`,
 				});
 				subTitle.addEventListener("click", async (e) => {
 					e.stopPropagation();
@@ -427,7 +431,7 @@ export class TaskManagerView extends ItemView {
 			subInput.focus();
 		});
 
-		// ✨ AI Copilot Wall-Striking Modal Button
+		// ✨ AI Copilot Modal Button
 		const aiBtn = actionEl.createEl("button", {
 			text: "✨ AI",
 			cls: "jira-action-btn jira-ai-btn",
@@ -438,7 +442,6 @@ export class TaskManagerView extends ItemView {
 			const modal = new AICopilotModal(
 				this.app,
 				task,
-				subtasks,
 				this.aiService,
 				this.taskService,
 				this.undoService,

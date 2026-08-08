@@ -5,19 +5,26 @@ import * as path from "path";
 import * as fs from "fs";
 import { TaskItem } from "../types";
 import TaskManagerPlugin from "../main";
+import { TaskTreeNode } from "./TaskService";
 
 const execAsync = promisify(exec);
+
+export interface SubtaskAddRequest {
+	title: string;
+	parentId?: string;
+}
 
 export interface SubtaskUpdateItem {
 	id: string;
 	title?: string;
 	status?: string;
 	scheduled?: string;
+	parentId?: string;
 }
 
 export interface AIRefineResult {
 	explanation: string;
-	subtasksToAdd: string[];
+	subtasksToAdd: SubtaskAddRequest[];
 	subtaskIdsToRemove: string[];
 	subtaskUpdates: SubtaskUpdateItem[];
 }
@@ -74,48 +81,65 @@ export class AIService {
 	constructor(private plugin: TaskManagerPlugin) {}
 
 	/**
-	 * Interactive wall-striking (Copilot) refinement of parent task and subtasks
+	 * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
 	 */
-	async refineTaskWithInstruction(
-		task: TaskItem,
-		subtasks: TaskItem[],
+	async refineTaskWithTree(
+		rootTask: TaskItem,
+		subtree: TaskTreeNode[],
 		instruction: string
 	): Promise<AIRefineResult> {
 		const todayStr = new Date().toISOString().split("T")[0];
-		const currentSubtaskData = subtasks.map((s) => ({
-			id: s.id,
-			title: s.title,
-			status: s.status,
-			scheduled: s.scheduled || "none",
-		}));
+
+		// Build indented hierarchy text for AI
+		const treeLines = [
+			`- ${rootTask.id}: ${rootTask.title} [Status: ${rootTask.status}, Scheduled: ${rootTask.scheduled || "none"}]`,
+		];
+
+		for (const node of subtree) {
+			const indent = "  ".repeat(node.depth);
+			treeLines.push(
+				`${indent}- ${node.task.id}: ${node.task.title} (Parent: ${node.task.parent}) [Status: ${node.task.status}, Scheduled: ${node.task.scheduled || "none"}]`
+			);
+		}
 
 		const prompt = `You are a collaborative task management AI assistant.
 Today is ${todayStr}.
-Parent Task: "${task.title}" (ID: ${task.id})
-Current Subtasks:
-${JSON.stringify(currentSubtaskData, null, 2)}
+
+Root Task and Subtask Tree:
+${treeLines.join("\n")}
 
 User Instruction: "${instruction}"
 
-Analyze the instruction and propose modifications to the subtask structure.
+Analyze the instruction and propose additions or modifications to any level of the subtask tree (subtasks or sub-subtasks).
 Respond ONLY with a valid JSON object matching this structure:
 {
   "explanation": "Brief 1-sentence explanation of changes made.",
-  "subtasksToAdd": ["New Subtask Title 1", "New Subtask Title 2"],
+  "subtasksToAdd": [
+    { "title": "New Subtask Title", "parentId": "${rootTask.id}" }
+  ],
   "subtaskIdsToRemove": ["TASK-XXX"],
   "subtaskUpdates": [
     { "id": "TASK-YYY", "title": "Updated Title", "scheduled": "${todayStr}" }
   ]
 }
+Note: If parentId is not specified in subtasksToAdd, default it to "${rootTask.id}".
 Do not output markdown code blocks or text outside this JSON.`;
 
 		try {
 			const output = await this.runCLI(prompt);
-			const parsed = this.extractJSONObject<AIRefineResult>(output);
+			const parsed = this.extractJSONObject<any>(output);
 			if (parsed) {
+				const rawToAdd = parsed.subtasksToAdd || [];
+				const normalizedToAdd: SubtaskAddRequest[] = rawToAdd.map((item: any) => {
+					if (typeof item === "string") {
+						return { title: item, parentId: rootTask.id };
+					}
+					return { title: item.title, parentId: item.parentId || rootTask.id };
+				});
+
 				return {
-					explanation: parsed.explanation || "Updated task structure.",
-					subtasksToAdd: parsed.subtasksToAdd || [],
+					explanation: parsed.explanation || "Updated task tree.",
+					subtasksToAdd: normalizedToAdd,
 					subtaskIdsToRemove: parsed.subtaskIdsToRemove || [],
 					subtaskUpdates: parsed.subtaskUpdates || [],
 				};
@@ -124,10 +148,9 @@ Do not output markdown code blocks or text outside this JSON.`;
 			console.warn("[TaskManager AI] Refine CLI failed, using smart fallback:", err);
 		}
 
-		// Fallback for demo or offline CLI
 		return {
-			explanation: `Added tasks based on: "${instruction}"`,
-			subtasksToAdd: [`${instruction}: Action 1`, `${instruction}: Action 2`],
+			explanation: `Added subtasks based on: "${instruction}"`,
+			subtasksToAdd: [{ title: `${instruction}: Action`, parentId: rootTask.id }],
 			subtaskIdsToRemove: [],
 			subtaskUpdates: [],
 		};

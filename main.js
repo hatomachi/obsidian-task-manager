@@ -130,6 +130,22 @@ var TaskService = class {
     return tasks;
   }
   /**
+   * Recursively get all descendant tasks (subtasks, sub-subtasks, etc.) for a root task
+   */
+  getTaskSubtree(rootTaskId) {
+    const allTasks = this.getAllTasks();
+    const result = [];
+    const traverse = (parentId, currentDepth) => {
+      const children = allTasks.filter((t) => t.parent === parentId);
+      for (const child of children) {
+        result.push({ task: child, depth: currentDepth });
+        traverse(child.id, currentDepth + 1);
+      }
+    };
+    traverse(rootTaskId, 1);
+    return result;
+  }
+  /**
    * Create a new Task note with standard Frontmatter
    */
   async createTask(title, status = "todo", priority = "medium", options) {
@@ -176,7 +192,7 @@ var TaskService = class {
     return newFile;
   }
   /**
-   * Convenient wrapper to create a subtask under a parent task
+   * Convenient wrapper to create a subtask under a parent task or subtask
    */
   async createSubtask(parentTask, title) {
     return this.createTask(title, "todo", "medium", {
@@ -184,6 +200,19 @@ var TaskService = class {
       type: "subtask",
       due: parentTask.due,
       scheduled: parentTask.scheduled
+    });
+  }
+  /**
+   * Create a subtask under a specific parent ID string
+   */
+  async createSubtaskByParentId(parentId, title) {
+    const allTasks = this.getAllTasks();
+    const parentTask = allTasks.find((t) => t.id === parentId);
+    return this.createTask(title, "todo", "medium", {
+      parent: parentId,
+      type: "subtask",
+      due: parentTask == null ? void 0 : parentTask.due,
+      scheduled: parentTask == null ? void 0 : parentTask.scheduled
     });
   }
   /**
@@ -291,42 +320,55 @@ var AIService = class {
     this.plugin = plugin;
   }
   /**
-   * Interactive wall-striking (Copilot) refinement of parent task and subtasks
+   * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
    */
-  async refineTaskWithInstruction(task, subtasks, instruction) {
+  async refineTaskWithTree(rootTask, subtree, instruction) {
     const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-    const currentSubtaskData = subtasks.map((s) => ({
-      id: s.id,
-      title: s.title,
-      status: s.status,
-      scheduled: s.scheduled || "none"
-    }));
+    const treeLines = [
+      `- ${rootTask.id}: ${rootTask.title} [Status: ${rootTask.status}, Scheduled: ${rootTask.scheduled || "none"}]`
+    ];
+    for (const node of subtree) {
+      const indent = "  ".repeat(node.depth);
+      treeLines.push(
+        `${indent}- ${node.task.id}: ${node.task.title} (Parent: ${node.task.parent}) [Status: ${node.task.status}, Scheduled: ${node.task.scheduled || "none"}]`
+      );
+    }
     const prompt = `You are a collaborative task management AI assistant.
 Today is ${todayStr}.
-Parent Task: "${task.title}" (ID: ${task.id})
-Current Subtasks:
-${JSON.stringify(currentSubtaskData, null, 2)}
+
+Root Task and Subtask Tree:
+${treeLines.join("\n")}
 
 User Instruction: "${instruction}"
 
-Analyze the instruction and propose modifications to the subtask structure.
+Analyze the instruction and propose additions or modifications to any level of the subtask tree (subtasks or sub-subtasks).
 Respond ONLY with a valid JSON object matching this structure:
 {
   "explanation": "Brief 1-sentence explanation of changes made.",
-  "subtasksToAdd": ["New Subtask Title 1", "New Subtask Title 2"],
+  "subtasksToAdd": [
+    { "title": "New Subtask Title", "parentId": "${rootTask.id}" }
+  ],
   "subtaskIdsToRemove": ["TASK-XXX"],
   "subtaskUpdates": [
     { "id": "TASK-YYY", "title": "Updated Title", "scheduled": "${todayStr}" }
   ]
 }
+Note: If parentId is not specified in subtasksToAdd, default it to "${rootTask.id}".
 Do not output markdown code blocks or text outside this JSON.`;
     try {
       const output = await this.runCLI(prompt);
       const parsed = this.extractJSONObject(output);
       if (parsed) {
+        const rawToAdd = parsed.subtasksToAdd || [];
+        const normalizedToAdd = rawToAdd.map((item) => {
+          if (typeof item === "string") {
+            return { title: item, parentId: rootTask.id };
+          }
+          return { title: item.title, parentId: item.parentId || rootTask.id };
+        });
         return {
-          explanation: parsed.explanation || "Updated task structure.",
-          subtasksToAdd: parsed.subtasksToAdd || [],
+          explanation: parsed.explanation || "Updated task tree.",
+          subtasksToAdd: normalizedToAdd,
           subtaskIdsToRemove: parsed.subtaskIdsToRemove || [],
           subtaskUpdates: parsed.subtaskUpdates || []
         };
@@ -335,8 +377,8 @@ Do not output markdown code blocks or text outside this JSON.`;
       console.warn("[TaskManager AI] Refine CLI failed, using smart fallback:", err);
     }
     return {
-      explanation: `Added tasks based on: "${instruction}"`,
-      subtasksToAdd: [`${instruction}: Action 1`, `${instruction}: Action 2`],
+      explanation: `Added subtasks based on: "${instruction}"`,
+      subtasksToAdd: [{ title: `${instruction}: Action`, parentId: rootTask.id }],
       subtaskIdsToRemove: [],
       subtaskUpdates: []
     };
@@ -533,10 +575,9 @@ var UndoService = class {
 // src/views/AICopilotModal.ts
 var import_obsidian4 = require("obsidian");
 var AICopilotModal = class extends import_obsidian4.Modal {
-  constructor(app, task, subtasks, aiService, taskService, undoService, onApplied) {
+  constructor(app, task, aiService, taskService, undoService, onApplied) {
     super(app);
     this.task = task;
-    this.subtasks = subtasks;
     this.aiService = aiService;
     this.taskService = taskService;
     this.undoService = undoService;
@@ -544,6 +585,8 @@ var AICopilotModal = class extends import_obsidian4.Modal {
     this.pendingResult = null;
     this.chatHistory = [];
     this.isLoading = false;
+    this.subtree = [];
+    this.subtree = this.taskService.getTaskSubtree(task.id);
   }
   onOpen() {
     const { contentEl } = this;
@@ -565,26 +608,37 @@ var AICopilotModal = class extends import_obsidian4.Modal {
     const currentTreeBox = contentEl.createDiv({ cls: "jira-modal-tree-box" });
     currentTreeBox.createDiv({
       cls: "jira-modal-box-label",
-      text: `Current Subtasks (${this.subtasks.length}):`
+      text: `Current Subtask Hierarchy Tree (${this.subtree.length} descendant tasks):`
     });
-    if (this.subtasks.length === 0) {
+    if (this.subtree.length === 0) {
       currentTreeBox.createEl("p", {
         text: "No subtasks yet. Ask AI to break it down!",
         cls: "jira-modal-empty-text"
       });
     } else {
-      const ul = currentTreeBox.createEl("ul", { cls: "jira-modal-subtask-ul" });
-      for (const s of this.subtasks) {
-        const dateInfo = s.scheduled ? ` [\u{1F4C5} ${s.scheduled}]` : "";
-        ul.createEl("li", { text: `${s.id}: ${s.title}${dateInfo}` });
+      const treeContainer = currentTreeBox.createDiv({ cls: "jira-modal-tree-container" });
+      for (const node of this.subtree) {
+        const indentPx = (node.depth - 1) * 20;
+        const rowEl = treeContainer.createDiv({ cls: "jira-modal-tree-row" });
+        rowEl.style.paddingLeft = `${indentPx}px`;
+        const dateInfo = node.task.scheduled ? ` [\u{1F4C5} ${node.task.scheduled}]` : "";
+        const parentInfo = node.depth > 1 ? ` (Parent: ${node.task.parent})` : "";
+        rowEl.createEl("span", {
+          cls: "jira-tree-bullet",
+          text: node.depth > 1 ? "\u2514\u2500 " : "\u251C\u2500 "
+        });
+        rowEl.createEl("span", {
+          cls: "jira-tree-text",
+          text: `${node.task.id}: ${node.task.title}${parentInfo}${dateInfo}`
+        });
       }
     }
     const quickBar = contentEl.createDiv({ cls: "jira-modal-quick-bar" });
     quickBar.createDiv({ cls: "jira-modal-box-label", text: "Quick One-Tap Instructions:" });
     const quickButtons = [
-      { label: "\u{1F50D} Breakdown Subtasks", prompt: "Break down this task into 3-5 detailed technical action items." },
-      { label: "\u{1F4C5} Optimize Schedule", prompt: "Schedule all subtasks starting from today evenly across upcoming days." },
-      { label: "\u{1F9EA} Add Testing Steps", prompt: "Add concrete testing and verification subtasks." }
+      { label: "\u{1F50D} Breakdown Subtasks", prompt: "Break down this task and its subtasks into 3-5 detailed technical action items." },
+      { label: "\u{1F4C5} Optimize Schedule", prompt: "Schedule all subtasks and sub-subtasks starting from today evenly across upcoming days." },
+      { label: "\u{1F9EA} Add Testing Steps", prompt: "Add concrete testing and verification subtasks under the relevant parent task." }
     ];
     for (const q of quickButtons) {
       const btn = quickBar.createEl("button", { text: q.label, cls: "jira-quick-btn" });
@@ -611,15 +665,16 @@ var AICopilotModal = class extends import_obsidian4.Modal {
       });
       if (this.pendingResult.subtasksToAdd.length > 0) {
         const addSec = previewBox.createDiv({ cls: "jira-diff-section diff-add" });
-        addSec.createEl("strong", { text: "\u2795 Subtasks to Create:" });
+        addSec.createEl("strong", { text: "\u2795 Tasks to Create:" });
         const ul = addSec.createEl("ul");
         for (const item of this.pendingResult.subtasksToAdd) {
-          ul.createEl("li", { text: item });
+          const pText = item.parentId ? ` (under ${item.parentId})` : "";
+          ul.createEl("li", { text: `${item.title}${pText}` });
         }
       }
       if (this.pendingResult.subtaskUpdates.length > 0) {
         const updateSec = previewBox.createDiv({ cls: "jira-diff-section diff-update" });
-        updateSec.createEl("strong", { text: "\u270F\uFE0F Subtasks to Update:" });
+        updateSec.createEl("strong", { text: "\u270F\uFE0F Tasks to Update:" });
         const ul = updateSec.createEl("ul");
         for (const u of this.pendingResult.subtaskUpdates) {
           ul.createEl("li", { text: `${u.id}: ${u.title || "keep title"} ${u.scheduled ? `(Scheduled: ${u.scheduled})` : ""}` });
@@ -635,7 +690,7 @@ var AICopilotModal = class extends import_obsidian4.Modal {
     const formEl = contentEl.createDiv({ cls: "jira-modal-form" });
     const inputEl = formEl.createEl("input", {
       type: "text",
-      placeholder: this.isLoading ? "AI is thinking..." : "Type instruction (e.g. 'Add a subtask for documentation')...",
+      placeholder: this.isLoading ? "AI is thinking..." : "Type instruction (e.g. 'Add a subtask for TASK-002')...",
       cls: "jira-modal-input"
     });
     inputEl.disabled = this.isLoading;
@@ -661,9 +716,10 @@ var AICopilotModal = class extends import_obsidian4.Modal {
     this.chatHistory.push({ sender: "user", text: instruction });
     this.renderModal();
     try {
-      const result = await this.aiService.refineTaskWithInstruction(
+      this.subtree = this.taskService.getTaskSubtree(this.task.id);
+      const result = await this.aiService.refineTaskWithTree(
         this.task,
-        this.subtasks,
+        this.subtree,
         instruction
       );
       this.pendingResult = result;
@@ -679,16 +735,19 @@ var AICopilotModal = class extends import_obsidian4.Modal {
   async applyChanges() {
     if (!this.pendingResult)
       return;
+    const allSubtreeTasks = this.subtree.map((n) => n.task);
     const snapshot = this.undoService.recordSnapshot(
-      `AI Refine on ${this.task.id}`,
-      [this.task, ...this.subtasks]
+      `AI Refine Tree on ${this.task.id}`,
+      [this.task, ...allSubtreeTasks]
     );
-    for (const title of this.pendingResult.subtasksToAdd) {
-      const newFile = await this.taskService.createSubtask(this.task, title);
+    for (const req of this.pendingResult.subtasksToAdd) {
+      const targetParentId = req.parentId || this.task.id;
+      const newFile = await this.taskService.createSubtaskByParentId(targetParentId, req.title);
       this.undoService.registerCreatedFile(snapshot, newFile.path);
     }
+    const allTasks = this.taskService.getAllTasks();
     for (const u of this.pendingResult.subtaskUpdates) {
-      const target = this.subtasks.find((s) => s.id === u.id);
+      const target = allTasks.find((s) => s.id === u.id);
       if (target) {
         if (u.scheduled !== void 0) {
           await this.taskService.updateTaskSchedule(target.file, u.scheduled);
@@ -910,8 +969,7 @@ var TaskManagerView = class extends import_obsidian5.ItemView {
         }
       });
       for (const task of colTasks) {
-        const subtasks = allTasks.filter((t) => t.parent === task.id);
-        this.renderCard(cardList, task, subtasks);
+        this.renderCard(cardList, task, allTasks);
       }
     }
   }
@@ -958,7 +1016,7 @@ var TaskManagerView = class extends import_obsidian5.ItemView {
       }
     }
   }
-  renderCard(parentEl, task, subtasks) {
+  renderCard(parentEl, task, allTasks) {
     const cardEl = parentEl.createDiv({ cls: "jira-task-card" });
     cardEl.draggable = true;
     cardEl.addEventListener("dragstart", (e) => {
@@ -979,15 +1037,20 @@ var TaskManagerView = class extends import_obsidian5.ItemView {
       });
     }
     cardEl.createDiv({ cls: "jira-card-title", text: task.title });
-    if (subtasks.length > 0) {
+    const subtree = this.taskService.getTaskSubtree(task.id);
+    if (subtree.length > 0) {
       const subtasksContainer = cardEl.createDiv({ cls: "jira-subtasks-container" });
+      const doneCount = subtree.filter((s) => s.task.status === "done").length;
       subtasksContainer.createDiv({
         cls: "jira-subtasks-header",
-        text: `Subtasks (${subtasks.filter((s) => s.status === "done").length}/${subtasks.length})`
+        text: `Subtasks (${doneCount}/${subtree.length})`
       });
       const subtaskListEl = subtasksContainer.createDiv({ cls: "jira-subtask-list" });
-      for (const sub of subtasks) {
+      for (const node of subtree) {
+        const sub = node.task;
+        const indentPx = (node.depth - 1) * 14;
         const subRow = subtaskListEl.createDiv({ cls: "jira-subtask-row" });
+        subRow.style.paddingLeft = `${indentPx}px`;
         const chk = subRow.createEl("input", {
           type: "checkbox",
           cls: "jira-subtask-chk"
@@ -1001,7 +1064,7 @@ var TaskManagerView = class extends import_obsidian5.ItemView {
         });
         const subTitle = subRow.createEl("span", {
           cls: `jira-subtask-title ${sub.status === "done" ? "is-done" : ""}`,
-          text: `${sub.id}: ${sub.title}`
+          text: `${node.depth > 1 ? "\u21B3 " : ""}${sub.id}: ${sub.title}`
         });
         subTitle.addEventListener("click", async (e) => {
           e.stopPropagation();
@@ -1055,7 +1118,6 @@ var TaskManagerView = class extends import_obsidian5.ItemView {
       const modal = new AICopilotModal(
         this.app,
         task,
-        subtasks,
         this.aiService,
         this.taskService,
         this.undoService,

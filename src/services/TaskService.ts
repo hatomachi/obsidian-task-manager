@@ -2,6 +2,11 @@ import { App, TFile, normalizePath } from "obsidian";
 import { TaskItem, TaskPriority, TaskStatus, TaskType } from "../types";
 import TaskManagerPlugin from "../main";
 
+export interface TaskTreeNode {
+	task: TaskItem;
+	depth: number;
+}
+
 export class TaskService {
 	constructor(private app: App, private plugin: TaskManagerPlugin) {}
 
@@ -15,7 +20,6 @@ export class TaskService {
 		const tasks: TaskItem[] = [];
 
 		for (const file of files) {
-			// Check if file is in specified folder
 			if (folderPath && folderPath !== "." && folderPath !== "/") {
 				if (!file.path.startsWith(folderPath + "/") && file.path !== folderPath) {
 					continue;
@@ -51,6 +55,25 @@ export class TaskService {
 	}
 
 	/**
+	 * Recursively get all descendant tasks (subtasks, sub-subtasks, etc.) for a root task
+	 */
+	getTaskSubtree(rootTaskId: string): TaskTreeNode[] {
+		const allTasks = this.getAllTasks();
+		const result: TaskTreeNode[] = [];
+
+		const traverse = (parentId: string, currentDepth: number) => {
+			const children = allTasks.filter((t) => t.parent === parentId);
+			for (const child of children) {
+				result.push({ task: child, depth: currentDepth });
+				traverse(child.id, currentDepth + 1);
+			}
+		};
+
+		traverse(rootTaskId, 1);
+		return result;
+	}
+
+	/**
 	 * Create a new Task note with standard Frontmatter
 	 */
 	async createTask(
@@ -61,7 +84,6 @@ export class TaskService {
 	): Promise<TFile> {
 		const folderPath = normalizePath(this.plugin.settings.taskFolder);
 
-		// Ensure folder exists
 		if (folderPath && folderPath !== "." && folderPath !== "/") {
 			const folder = this.app.vault.getAbstractFileByPath(folderPath);
 			if (!folder) {
@@ -69,12 +91,10 @@ export class TaskService {
 			}
 		}
 
-		// Calculate ID
 		const existingTasks = this.getAllTasks();
 		const nextNumber = existingTasks.length + 1;
 		const idStr = `${this.plugin.settings.idPrefix}${String(nextNumber).padStart(3, "0")}`;
 		
-		// Safe filename
 		const safeTitle = title.replace(/[\\/:*?"<>|]/g, "_");
 		const fileName = `${idStr} ${safeTitle}.md`;
 		const filePath = folderPath && folderPath !== "." && folderPath !== "/"
@@ -113,7 +133,7 @@ export class TaskService {
 	}
 
 	/**
-	 * Convenient wrapper to create a subtask under a parent task
+	 * Convenient wrapper to create a subtask under a parent task or subtask
 	 */
 	async createSubtask(parentTask: TaskItem, title: string): Promise<TFile> {
 		return this.createTask(title, "todo", "medium", {
@@ -121,6 +141,20 @@ export class TaskService {
 			type: "subtask",
 			due: parentTask.due,
 			scheduled: parentTask.scheduled,
+		});
+	}
+
+	/**
+	 * Create a subtask under a specific parent ID string
+	 */
+	async createSubtaskByParentId(parentId: string, title: string): Promise<TFile> {
+		const allTasks = this.getAllTasks();
+		const parentTask = allTasks.find((t) => t.id === parentId);
+		return this.createTask(title, "todo", "medium", {
+			parent: parentId,
+			type: "subtask",
+			due: parentTask?.due,
+			scheduled: parentTask?.scheduled,
 		});
 	}
 
