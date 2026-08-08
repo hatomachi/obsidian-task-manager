@@ -1,5 +1,5 @@
 import { App, TFile, normalizePath } from "obsidian";
-import { TaskItem, TaskPriority, TaskStatus } from "../types";
+import { TaskItem, TaskPriority, TaskStatus, TaskType } from "../types";
 import TaskManagerPlugin from "../main";
 
 export class TaskService {
@@ -25,7 +25,6 @@ export class TaskService {
 			const cache = this.app.metadataCache.getFileCache(file);
 			const fm = cache?.frontmatter || {};
 
-			// Title defaults to file basename (minus .md)
 			const title = fm.title || file.basename;
 			const id = fm.id || file.basename;
 			const status: TaskStatus = this.normalizeStatus(fm.status);
@@ -36,6 +35,10 @@ export class TaskService {
 				title,
 				status,
 				priority,
+				type: fm.type || (fm.parent ? "subtask" : "task"),
+				parent: fm.parent || undefined,
+				due: fm.due || undefined,
+				scheduled: fm.scheduled || undefined,
 				assignee: fm.assignee || "",
 				epic: fm.epic || "",
 				created: fm.created || "",
@@ -50,7 +53,12 @@ export class TaskService {
 	/**
 	 * Create a new Task note with standard Frontmatter
 	 */
-	async createTask(title: string, status: TaskStatus = "todo", priority: TaskPriority = "medium"): Promise<TFile> {
+	async createTask(
+		title: string,
+		status: TaskStatus = "todo",
+		priority: TaskPriority = "medium",
+		options?: { parent?: string; due?: string; scheduled?: string; type?: TaskType }
+	): Promise<TFile> {
 		const folderPath = normalizePath(this.plugin.settings.taskFolder);
 
 		// Ensure folder exists
@@ -74,12 +82,22 @@ export class TaskService {
 			: fileName;
 
 		const now = new Date().toISOString();
-		const frontmatterText = [
+		const taskType = options?.type || (options?.parent ? "subtask" : "task");
+
+		const frontmatterLines = [
 			"---",
 			`id: ${idStr}`,
 			`title: "${title.replace(/"/g, '\\"')}"`,
 			`status: ${status}`,
 			`priority: ${priority}`,
+			`type: ${taskType}`,
+		];
+
+		if (options?.parent) frontmatterLines.push(`parent: "${options.parent}"`);
+		if (options?.due) frontmatterLines.push(`due: "${options.due}"`);
+		if (options?.scheduled) frontmatterLines.push(`scheduled: "${options.scheduled}"`);
+
+		frontmatterLines.push(
 			`created: ${now}`,
 			`updated: ${now}`,
 			"---",
@@ -87,11 +105,23 @@ export class TaskService {
 			`# ${title}`,
 			"",
 			"## Description",
-			"",
-		].join("\n");
+			""
+		);
 
-		const newFile = await this.app.vault.create(filePath, frontmatterText);
+		const newFile = await this.app.vault.create(filePath, frontmatterLines.join("\n"));
 		return newFile;
+	}
+
+	/**
+	 * Convenient wrapper to create a subtask under a parent task
+	 */
+	async createSubtask(parentTask: TaskItem, title: string): Promise<TFile> {
+		return this.createTask(title, "todo", "medium", {
+			parent: parentTask.id,
+			type: "subtask",
+			due: parentTask.due,
+			scheduled: parentTask.scheduled,
+		});
 	}
 
 	/**
@@ -100,6 +130,17 @@ export class TaskService {
 	async updateTaskStatus(file: TFile, status: TaskStatus): Promise<void> {
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			fm.status = status;
+			fm.updated = new Date().toISOString();
+		});
+	}
+
+	/**
+	 * Update scheduled date and due date
+	 */
+	async updateTaskSchedule(file: TFile, scheduled?: string, due?: string): Promise<void> {
+		await this.app.fileManager.processFrontMatter(file, (fm) => {
+			if (scheduled !== undefined) fm.scheduled = scheduled;
+			if (due !== undefined) fm.due = due;
 			fm.updated = new Date().toISOString();
 		});
 	}

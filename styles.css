@@ -25,12 +25,45 @@
 	margin-bottom: 16px;
 }
 
+.jira-tm-title-group {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+}
+
 .jira-tm-title-group h2 {
 	margin: 0;
-	font-size: 1.5rem;
+	font-size: 1.4rem;
 	font-weight: 700;
 	letter-spacing: -0.02em;
 	color: var(--text-normal);
+}
+
+/* View Switcher Tabs */
+.jira-view-switcher {
+	display: flex;
+	background: var(--background-secondary-alt);
+	padding: 3px;
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.jira-tab-btn {
+	padding: 4px 12px;
+	font-size: 0.8rem;
+	font-weight: 600;
+	border-radius: 4px;
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	color: var(--text-muted);
+	transition: all 0.2s ease;
+}
+
+.jira-tab-btn.active {
+	background: var(--background-primary);
+	color: var(--interactive-accent);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .jira-tm-create-form {
@@ -38,7 +71,7 @@
 	align-items: center;
 	gap: 8px;
 	flex: 1;
-	max-width: 450px;
+	max-width: 420px;
 }
 
 .jira-tm-input {
@@ -143,6 +176,9 @@
 .jira-column[data-status="done"] .jira-column-header {
 	border-bottom-color: #10b981;
 }
+.jira-column[data-schedule-key="overdue"] .jira-column-header {
+	border-bottom-color: #ef4444;
+}
 
 .jira-column-title {
 	font-size: 0.85rem;
@@ -201,12 +237,95 @@
 	cursor: grabbing;
 }
 
+.jira-card-card-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	font-size: 0.75rem;
+}
+
+.jira-card-date {
+	font-size: 0.7rem;
+	color: var(--text-muted);
+	background: var(--background-secondary);
+	padding: 2px 6px;
+	border-radius: 4px;
+}
+
 .jira-card-title {
 	font-size: 0.95rem;
-	font-weight: 500;
+	font-weight: 600;
 	color: var(--text-normal);
 	line-height: 1.4;
 	word-break: break-word;
+}
+
+/* Subtasks Container */
+.jira-subtasks-container {
+	background: var(--background-secondary);
+	border-radius: 6px;
+	padding: 8px;
+	margin-top: 4px;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.jira-subtasks-header {
+	font-size: 0.7rem;
+	font-weight: 700;
+	color: var(--text-muted);
+	margin-bottom: 6px;
+
+}
+
+.jira-subtask-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.jira-subtask-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 0.8rem;
+}
+
+.jira-subtask-chk {
+	cursor: pointer;
+}
+
+.jira-subtask-title {
+	cursor: pointer;
+	color: var(--text-normal);
+	flex: 1;
+}
+
+.jira-subtask-title:hover {
+	text-decoration: underline;
+	color: var(--interactive-accent);
+}
+
+.jira-subtask-title.is-done {
+	text-decoration: line-through;
+	color: var(--text-muted);
+}
+
+.jira-subtask-input-row {
+	margin-top: 4px;
+}
+
+.jira-subtask-input-row.hidden {
+	display: none;
+}
+
+.jira-subtask-input {
+	width: 100%;
+	padding: 4px 8px;
+	font-size: 0.8rem;
+	border-radius: 4px;
+	border: 1px solid var(--interactive-accent);
+	background: var(--background-primary);
+	color: var(--text-normal);
 }
 
 /* Card Footer */
@@ -283,4 +402,16 @@
 	background: var(--interactive-accent);
 	color: #ffffff;
 	border-color: var(--interactive-accent);
+}
+
+.jira-ai-btn {
+	background: rgba(var(--interactive-accent-rgb), 0.15);
+	color: var(--interactive-accent);
+	font-weight: 700;
+	border: 1px solid rgba(var(--interactive-accent-rgb), 0.3);
+}
+
+.jira-ai-btn:hover {
+	background: var(--interactive-accent);
+	color: #ffffff;
 }

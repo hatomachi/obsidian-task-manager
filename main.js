@@ -98,6 +98,10 @@ var TaskService = class {
         title,
         status,
         priority,
+        type: fm.type || (fm.parent ? "subtask" : "task"),
+        parent: fm.parent || void 0,
+        due: fm.due || void 0,
+        scheduled: fm.scheduled || void 0,
         assignee: fm.assignee || "",
         epic: fm.epic || "",
         created: fm.created || "",
@@ -110,7 +114,7 @@ var TaskService = class {
   /**
    * Create a new Task note with standard Frontmatter
    */
-  async createTask(title, status = "todo", priority = "medium") {
+  async createTask(title, status = "todo", priority = "medium", options) {
     const folderPath = (0, import_obsidian2.normalizePath)(this.plugin.settings.taskFolder);
     if (folderPath && folderPath !== "." && folderPath !== "/") {
       const folder = this.app.vault.getAbstractFileByPath(folderPath);
@@ -125,12 +129,22 @@ var TaskService = class {
     const fileName = `${idStr} ${safeTitle}.md`;
     const filePath = folderPath && folderPath !== "." && folderPath !== "/" ? `${folderPath}/${fileName}` : fileName;
     const now = (/* @__PURE__ */ new Date()).toISOString();
-    const frontmatterText = [
+    const taskType = (options == null ? void 0 : options.type) || ((options == null ? void 0 : options.parent) ? "subtask" : "task");
+    const frontmatterLines = [
       "---",
       `id: ${idStr}`,
       `title: "${title.replace(/"/g, '\\"')}"`,
       `status: ${status}`,
       `priority: ${priority}`,
+      `type: ${taskType}`
+    ];
+    if (options == null ? void 0 : options.parent)
+      frontmatterLines.push(`parent: "${options.parent}"`);
+    if (options == null ? void 0 : options.due)
+      frontmatterLines.push(`due: "${options.due}"`);
+    if (options == null ? void 0 : options.scheduled)
+      frontmatterLines.push(`scheduled: "${options.scheduled}"`);
+    frontmatterLines.push(
       `created: ${now}`,
       `updated: ${now}`,
       "---",
@@ -139,9 +153,20 @@ var TaskService = class {
       "",
       "## Description",
       ""
-    ].join("\n");
-    const newFile = await this.app.vault.create(filePath, frontmatterText);
+    );
+    const newFile = await this.app.vault.create(filePath, frontmatterLines.join("\n"));
     return newFile;
+  }
+  /**
+   * Convenient wrapper to create a subtask under a parent task
+   */
+  async createSubtask(parentTask, title) {
+    return this.createTask(title, "todo", "medium", {
+      parent: parentTask.id,
+      type: "subtask",
+      due: parentTask.due,
+      scheduled: parentTask.scheduled
+    });
   }
   /**
    * Update task status in Frontmatter
@@ -149,6 +174,18 @@ var TaskService = class {
   async updateTaskStatus(file, status) {
     await this.app.fileManager.processFrontMatter(file, (fm) => {
       fm.status = status;
+      fm.updated = (/* @__PURE__ */ new Date()).toISOString();
+    });
+  }
+  /**
+   * Update scheduled date and due date
+   */
+  async updateTaskSchedule(file, scheduled, due) {
+    await this.app.fileManager.processFrontMatter(file, (fm) => {
+      if (scheduled !== void 0)
+        fm.scheduled = scheduled;
+      if (due !== void 0)
+        fm.due = due;
       fm.updated = (/* @__PURE__ */ new Date()).toISOString();
     });
   }
@@ -190,6 +227,7 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
     super(leaf);
     this.plugin = plugin;
     this.searchFilter = "";
+    this.activeViewMode = "status";
     this.eventListeners = [];
     this.taskService = new TaskService(this.app, this.plugin);
   }
@@ -223,7 +261,24 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
     container.addClass("jira-task-manager-container");
     const headerEl = container.createDiv({ cls: "jira-tm-header" });
     const titleGroup = headerEl.createDiv({ cls: "jira-tm-title-group" });
-    titleGroup.createEl("h2", { text: "JIRA Board" });
+    titleGroup.createEl("h2", { text: "JIRA Task Board" });
+    const switcherEl = titleGroup.createDiv({ cls: "jira-view-switcher" });
+    const statusTab = switcherEl.createEl("button", {
+      text: "Status Board",
+      cls: `jira-tab-btn ${this.activeViewMode === "status" ? "active" : ""}`
+    });
+    statusTab.addEventListener("click", () => {
+      this.activeViewMode = "status";
+      this.render();
+    });
+    const scheduleTab = switcherEl.createEl("button", {
+      text: "Schedule Board",
+      cls: `jira-tab-btn ${this.activeViewMode === "schedule" ? "active" : ""}`
+    });
+    scheduleTab.addEventListener("click", () => {
+      this.activeViewMode = "schedule";
+      this.render();
+    });
     const createForm = headerEl.createDiv({ cls: "jira-tm-create-form" });
     const titleInput = createForm.createEl("input", {
       type: "text",
@@ -239,7 +294,8 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
       if (!text)
         return;
       titleInput.value = "";
-      await this.taskService.createTask(text, "todo", "medium");
+      const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+      await this.taskService.createTask(text, "todo", "medium", { scheduled: todayStr });
       this.render();
     };
     createBtn.addEventListener("click", submitTask);
@@ -269,19 +325,31 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
   }
   renderBoard(boardEl) {
     boardEl.empty();
-    const tasks = this.taskService.getAllTasks().filter((t) => {
+    const allTasks = this.taskService.getAllTasks();
+    const filteredTasks = allTasks.filter((t) => {
       if (!this.searchFilter)
         return true;
       const query = this.searchFilter.toLowerCase();
       return t.title.toLowerCase().includes(query) || t.id.toLowerCase().includes(query);
     });
+    if (this.activeViewMode === "status") {
+      this.renderStatusBoard(boardEl, filteredTasks, allTasks);
+    } else {
+      this.renderScheduleBoard(boardEl, filteredTasks);
+    }
+  }
+  /**
+   * Render Status Board (Kanban: To Do / In Progress / Done) with Nested Subtasks
+   */
+  renderStatusBoard(boardEl, tasks, allTasks) {
     const columns = [
       { status: "todo", title: "TO DO" },
       { status: "in_progress", title: "IN PROGRESS" },
       { status: "done", title: "DONE" }
     ];
+    const rootTasks = tasks.filter((t) => !t.parent || !allTasks.some((p) => p.id === t.parent));
     for (const col of columns) {
-      const colTasks = tasks.filter((t) => t.status === col.status);
+      const colTasks = rootTasks.filter((t) => t.status === col.status);
       const colEl = boardEl.createDiv({ cls: "jira-column" });
       colEl.dataset.status = col.status;
       const colHeader = colEl.createDiv({ cls: "jira-column-header" });
@@ -312,11 +380,58 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
         }
       });
       for (const task of colTasks) {
-        this.renderCard(cardList, task);
+        const subtasks = allTasks.filter((t) => t.parent === task.id);
+        this.renderCard(cardList, task, subtasks);
       }
     }
   }
-  renderCard(parentEl, task) {
+  /**
+   * Render Schedule Board (Timeline / Scheduled Date View)
+   */
+  renderScheduleBoard(boardEl, tasks) {
+    const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    const tomorrow = /* @__PURE__ */ new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split("T")[0];
+    const columns = [
+      {
+        key: "overdue",
+        title: "OVERDUE",
+        filter: (t) => t.status !== "done" && t.scheduled && t.scheduled < todayStr
+      },
+      {
+        key: "today",
+        title: "TODAY",
+        filter: (t) => t.scheduled === todayStr
+      },
+      {
+        key: "tomorrow",
+        title: "TOMORROW",
+        filter: (t) => t.scheduled === tomorrowStr
+      },
+      {
+        key: "later",
+        title: "LATER / UNSCHEDULED",
+        filter: (t) => !t.scheduled || t.scheduled > tomorrowStr && t.status !== "done"
+      }
+    ];
+    for (const col of columns) {
+      const colTasks = tasks.filter(col.filter);
+      const colEl = boardEl.createDiv({ cls: "jira-column" });
+      colEl.dataset.scheduleKey = col.key;
+      const colHeader = colEl.createDiv({ cls: "jira-column-header" });
+      colHeader.createEl("span", { text: col.title, cls: "jira-column-title" });
+      colHeader.createEl("span", {
+        text: `${colTasks.length}`,
+        cls: "jira-column-count"
+      });
+      const cardList = colEl.createDiv({ cls: "jira-card-list" });
+      for (const task of colTasks) {
+        this.renderCard(cardList, task, []);
+      }
+    }
+  }
+  renderCard(parentEl, task, subtasks) {
     const cardEl = parentEl.createDiv({ cls: "jira-task-card" });
     cardEl.draggable = true;
     cardEl.addEventListener("dragstart", (e) => {
@@ -324,18 +439,96 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
         e.dataTransfer.setData("text/plain", task.file.path);
       }
     });
-    const cardTitle = cardEl.createDiv({ cls: "jira-card-title", text: task.title });
-    const footerEl = cardEl.createDiv({ cls: "jira-card-footer" });
-    const idBadge = footerEl.createEl("span", { cls: "jira-card-id", text: task.id });
+    const cardHeader = cardEl.createDiv({ cls: "jira-card-card-header" });
+    const idBadge = cardHeader.createEl("span", { cls: "jira-card-id", text: task.id });
     idBadge.addEventListener("click", async (e) => {
       e.stopPropagation();
       await this.taskService.openTaskNote(task.file);
     });
+    if (task.scheduled) {
+      cardHeader.createEl("span", {
+        cls: "jira-card-date",
+        text: `\u{1F4C5} ${task.scheduled}`
+      });
+    }
+    cardEl.createDiv({ cls: "jira-card-title", text: task.title });
+    if (subtasks.length > 0) {
+      const subtasksContainer = cardEl.createDiv({ cls: "jira-subtasks-container" });
+      subtasksContainer.createDiv({
+        cls: "jira-subtasks-header",
+        text: `Subtasks (${subtasks.filter((s) => s.status === "done").length}/${subtasks.length})`
+      });
+      const subtaskListEl = subtasksContainer.createDiv({ cls: "jira-subtask-list" });
+      for (const sub of subtasks) {
+        const subRow = subtaskListEl.createDiv({ cls: "jira-subtask-row" });
+        const chk = subRow.createEl("input", {
+          type: "checkbox",
+          cls: "jira-subtask-chk"
+        });
+        chk.checked = sub.status === "done";
+        chk.addEventListener("change", async (e) => {
+          e.stopPropagation();
+          const newStatus = chk.checked ? "done" : "todo";
+          await this.taskService.updateTaskStatus(sub.file, newStatus);
+          this.render();
+        });
+        const subTitle = subRow.createEl("span", {
+          cls: `jira-subtask-title ${sub.status === "done" ? "is-done" : ""}`,
+          text: `${sub.id}: ${sub.title}`
+        });
+        subTitle.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await this.taskService.openTaskNote(sub.file);
+        });
+      }
+    }
+    const subtaskInputRow = cardEl.createDiv({ cls: "jira-subtask-input-row hidden" });
+    const subInput = subtaskInputRow.createEl("input", {
+      type: "text",
+      placeholder: "Subtask title...",
+      cls: "jira-subtask-input"
+    });
+    const submitSub = async () => {
+      const val = subInput.value.trim();
+      if (val) {
+        subInput.value = "";
+        await this.taskService.createSubtask(task, val);
+        this.render();
+      }
+    };
+    subInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submitSub();
+      }
+    });
+    const footerEl = cardEl.createDiv({ cls: "jira-card-footer" });
     const priorityBadge = footerEl.createEl("span", {
       cls: `jira-priority-badge priority-${task.priority}`,
       text: task.priority.toUpperCase()
     });
     const actionEl = footerEl.createDiv({ cls: "jira-card-actions" });
+    const addSubBtn = actionEl.createEl("button", {
+      text: "+ Subtask",
+      cls: "jira-action-btn"
+    });
+    addSubBtn.title = "Add child TODO";
+    addSubBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      subtaskInputRow.toggleClass("hidden", false);
+      subInput.focus();
+    });
+    const aiBtn = actionEl.createEl("button", {
+      text: "\u2728 AI",
+      cls: "jira-action-btn jira-ai-btn"
+    });
+    aiBtn.title = "AI Breakdown / Schedule Copilot (Coming soon)";
+    aiBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      subtaskInputRow.toggleClass("hidden", false);
+      subInput.value = "AI: Break down steps...";
+      subInput.focus();
+    });
     if (task.status !== "todo") {
       const prevBtn = actionEl.createEl("button", { text: "\u25C0", cls: "jira-action-btn" });
       prevBtn.title = "Move Back";
