@@ -41,7 +41,35 @@ export class TaskManagerSettingTab extends PluginSettingTab {
 					})
 			);
 
-		containerEl.createEl("h3", { text: "AI Copilot Settings (Antigravity CLI)" });
+		containerEl.createEl("h3", { text: "AI Scrum Master & Physical Action Rules" });
+
+		new Setting(containerEl)
+			.setName("Custom Task Rules (Prompt Rules)")
+			.setDesc("Direct prompt instructions injected into AI when generating or breaking down tasks.")
+			.addTextArea((text) =>
+				text
+					.setPlaceholder("Enter rules for AI...")
+					.setValue(this.plugin.settings.customTaskRules)
+					.onChange(async (value) => {
+						this.plugin.settings.customTaskRules = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Rule File Path in Vault (Optional)")
+			.setDesc("Relative path to a Markdown file in your vault containing task rules (e.g. 'templates/task-rules.md').")
+			.addText((text) =>
+				text
+					.setPlaceholder("templates/task-rules.md")
+					.setValue(this.plugin.settings.customRuleFilePath)
+					.onChange(async (value) => {
+						this.plugin.settings.customRuleFilePath = value.trim();
+						await this.plugin.saveSettings();
+					})
+			);
+
+		containerEl.createEl("h3", { text: "AI Engine Settings" });
 
 		new Setting(containerEl)
 			.setName("Antigravity Command")

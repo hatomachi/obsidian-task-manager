@@ -38,7 +38,7 @@ __export(main_exports, {
   default: () => TaskManagerPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian6 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 
 // src/types.ts
 var DEFAULT_SETTINGS = {
@@ -46,7 +46,9 @@ var DEFAULT_SETTINGS = {
   idPrefix: "TASK-",
   defaultStatus: "todo",
   defaultPriority: "medium",
-  antigravityCommand: "agy"
+  antigravityCommand: "agy",
+  customTaskRules: "1. Break down into 15-30 minute physical actions.\n2. Begin with concrete verbs (e.g. 'Open', 'Write', 'Search').\n3. Prohibit vague words like 'Consider', 'Investigate', 'Coordinate'.",
+  customRuleFilePath: ""
 };
 
 // src/settings.ts
@@ -72,7 +74,20 @@ var TaskManagerSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    containerEl.createEl("h3", { text: "AI Copilot Settings (Antigravity CLI)" });
+    containerEl.createEl("h3", { text: "AI Scrum Master & Physical Action Rules" });
+    new import_obsidian.Setting(containerEl).setName("Custom Task Rules (Prompt Rules)").setDesc("Direct prompt instructions injected into AI when generating or breaking down tasks.").addTextArea(
+      (text) => text.setPlaceholder("Enter rules for AI...").setValue(this.plugin.settings.customTaskRules).onChange(async (value) => {
+        this.plugin.settings.customTaskRules = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian.Setting(containerEl).setName("Rule File Path in Vault (Optional)").setDesc("Relative path to a Markdown file in your vault containing task rules (e.g. 'templates/task-rules.md').").addText(
+      (text) => text.setPlaceholder("templates/task-rules.md").setValue(this.plugin.settings.customRuleFilePath).onChange(async (value) => {
+        this.plugin.settings.customRuleFilePath = value.trim();
+        await this.plugin.saveSettings();
+      })
+    );
+    containerEl.createEl("h3", { text: "AI Engine Settings" });
     new import_obsidian.Setting(containerEl).setName("Antigravity Command").setDesc("Executable name or path for Antigravity CLI (default: 'agy').").addText(
       (text) => text.setPlaceholder("agy").setValue(this.plugin.settings.antigravityCommand).onChange(async (value) => {
         this.plugin.settings.antigravityCommand = value.trim() || "agy";
@@ -83,7 +98,7 @@ var TaskManagerSettingTab = class extends import_obsidian.PluginSettingTab {
 };
 
 // src/views/TaskManagerView.ts
-var import_obsidian5 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 
 // src/services/TaskService.ts
 var import_obsidian2 = require("obsidian");
@@ -146,6 +161,17 @@ var TaskService = class {
     return result;
   }
   /**
+   * Generate collision-free ASCII ID and filename: Prefix + Timestamp + Jitter
+   * Example: TASK-20260808225340-a8f3
+   */
+  generateUniqueId() {
+    const prefix = this.plugin.settings.idPrefix || "TASK-";
+    const now = /* @__PURE__ */ new Date();
+    const timestamp = now.toISOString().replace(/[-T:]/g, "").slice(0, 14);
+    const jitter = Math.random().toString(36).substring(2, 6).toLowerCase();
+    return `${prefix}${timestamp}-${jitter}`;
+  }
+  /**
    * Create a new Task note with standard Frontmatter
    */
   async createTask(title, status = "todo", priority = "medium", options) {
@@ -156,11 +182,8 @@ var TaskService = class {
         await this.app.vault.createFolder(folderPath);
       }
     }
-    const existingTasks = this.getAllTasks();
-    const nextNumber = existingTasks.length + 1;
-    const idStr = `${this.plugin.settings.idPrefix}${String(nextNumber).padStart(3, "0")}`;
-    const safeTitle = title.replace(/[\\/:*?"<>|]/g, "_");
-    const fileName = `${idStr} ${safeTitle}.md`;
+    const idStr = this.generateUniqueId();
+    const fileName = `${idStr}.md`;
     const filePath = folderPath && folderPath !== "." && folderPath !== "/" ? `${folderPath}/${fileName}` : fileName;
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const taskType = (options == null ? void 0 : options.type) || ((options == null ? void 0 : options.parent) ? "subtask" : "task");
@@ -273,6 +296,7 @@ var import_util = require("util");
 var os = __toESM(require("os"));
 var path = __toESM(require("path"));
 var fs = __toESM(require("fs"));
+var import_obsidian3 = require("obsidian");
 var execAsync = (0, import_util.promisify)(import_child_process.exec);
 function getExtendedEnv() {
   const home = os.homedir();
@@ -320,10 +344,41 @@ var AIService = class {
     this.plugin = plugin;
   }
   /**
+   * Get custom user rules from settings and optional rule file in Vault
+   */
+  async getCustomSystemRules() {
+    var _a, _b;
+    const rules = [];
+    rules.push(
+      "MANDATORY SCRUM MASTER RULES:",
+      "1. Each action/subtask MUST be a 15-30 minute Next Physical Action (NPA).",
+      "2. Titles MUST start with a concrete physical verb (e.g., 'Open file...', 'Write line...', 'Search URL...').",
+      "3. PROHIBIT vague or abstract verbs such as 'Consider', 'Investigate', 'Coordinate', 'Check', 'Study', 'Discuss'. Force them into immediate physical steps."
+    );
+    if ((_a = this.plugin.settings.customTaskRules) == null ? void 0 : _a.trim()) {
+      rules.push("\nUSER CUSTOM RULES:", this.plugin.settings.customTaskRules.trim());
+    }
+    const rulePath = (_b = this.plugin.settings.customRuleFilePath) == null ? void 0 : _b.trim();
+    if (rulePath) {
+      try {
+        const file = this.plugin.app.vault.getAbstractFileByPath((0, import_obsidian3.normalizePath)(rulePath));
+        if (file && file instanceof import_obsidian3.TFile) {
+          const fileContent = await this.plugin.app.vault.read(file);
+          rules.push(`
+CUSTOM RULES FROM VAULT FILE (${rulePath}):`, fileContent.trim());
+        }
+      } catch (e) {
+        console.warn("[TaskManager AI] Could not read rule file from vault:", e);
+      }
+    }
+    return rules.join("\n");
+  }
+  /**
    * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
    */
   async refineTaskWithTree(rootTask, subtree, instruction) {
     const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    const customRules = await this.getCustomSystemRules();
     const treeLines = [
       `- ${rootTask.id}: ${rootTask.title} [Status: ${rootTask.status}, Scheduled: ${rootTask.scheduled || "none"}]`
     ];
@@ -333,24 +388,26 @@ var AIService = class {
         `${indent}- ${node.task.id}: ${node.task.title} (Parent: ${node.task.parent}) [Status: ${node.task.status}, Scheduled: ${node.task.scheduled || "none"}]`
       );
     }
-    const prompt = `You are a collaborative task management AI assistant.
+    const prompt = `You are an AI Scrum Master & Execution Partner.
 Today is ${todayStr}.
+
+${customRules}
 
 Root Task and Subtask Tree:
 ${treeLines.join("\n")}
 
 User Instruction: "${instruction}"
 
-Analyze the instruction and propose additions or modifications to any level of the subtask tree (subtasks or sub-subtasks).
+Analyze the instruction and propose additions or modifications. Ensure all subtasks are 15-30 minute Next Physical Actions.
 Respond ONLY with a valid JSON object matching this structure:
 {
   "explanation": "Brief 1-sentence explanation of changes made.",
   "subtasksToAdd": [
-    { "title": "New Subtask Title", "parentId": "${rootTask.id}" }
+    { "title": "Open editor and write first function signature", "parentId": "${rootTask.id}" }
   ],
   "subtaskIdsToRemove": ["TASK-XXX"],
   "subtaskUpdates": [
-    { "id": "TASK-YYY", "title": "Updated Title", "scheduled": "${todayStr}" }
+    { "id": "TASK-YYY", "title": "Updated Physical Title", "scheduled": "${todayStr}" }
   ]
 }
 Note: If parentId is not specified in subtasksToAdd, default it to "${rootTask.id}".
@@ -367,7 +424,7 @@ Do not output markdown code blocks or text outside this JSON.`;
           return { title: item.title, parentId: item.parentId || rootTask.id };
         });
         return {
-          explanation: parsed.explanation || "Updated task tree.",
+          explanation: parsed.explanation || "Updated task tree into Next Physical Actions.",
           subtasksToAdd: normalizedToAdd,
           subtaskIdsToRemove: parsed.subtaskIdsToRemove || [],
           subtaskUpdates: parsed.subtaskUpdates || []
@@ -377,8 +434,8 @@ Do not output markdown code blocks or text outside this JSON.`;
       console.warn("[TaskManager AI] Refine CLI failed, using smart fallback:", err);
     }
     return {
-      explanation: `Added subtasks based on: "${instruction}"`,
-      subtasksToAdd: [{ title: `${instruction}: Action`, parentId: rootTask.id }],
+      explanation: `Added physical actions based on: "${instruction}"`,
+      subtasksToAdd: [{ title: `Open note and write points for: ${instruction}`, parentId: rootTask.id }],
       subtaskIdsToRemove: [],
       subtaskUpdates: []
     };
@@ -387,9 +444,13 @@ Do not output markdown code blocks or text outside this JSON.`;
    * Ask AI (Antigravity CLI) to break down a parent task into subtask titles
    */
   async breakdownTask(task) {
-    const prompt = `You are a helpful task manager AI. Break down the task titled "${task.title}" into 3 to 5 concrete action items (subtasks).
+    const customRules = await this.getCustomSystemRules();
+    const prompt = `You are an AI Scrum Master. Break down the task titled "${task.title}" into 3 to 5 concrete 15-30 minute Next Physical Actions.
+
+${customRules}
+
 Respond ONLY with a valid JSON array of strings representing the subtask titles, for example:
-["Gather requirements", "Draft design document", "Review with team"]
+["Open terminal and run git status", "Write 3 bullet points in README", "Search npm package for esbuild"]
 Do not include any explanation or markdown code block syntax outside the JSON array.`;
     try {
       const output = await this.runCLI(prompt);
@@ -401,9 +462,9 @@ Do not include any explanation or markdown code block syntax outside the JSON ar
       console.warn("[TaskManager AI] CLI execution failed, using fallback:", err);
     }
     return [
-      `Research & Plan: ${task.title}`,
-      `Implementation: ${task.title}`,
-      `Review & Test: ${task.title}`
+      `Open editor and write outline for: ${task.title}`,
+      `Draft implementation steps in note: ${task.title}`,
+      `Run test script and check log for: ${task.title}`
     ];
   }
   /**
@@ -487,7 +548,7 @@ Respond ONLY with a valid JSON object mapping task IDs to new scheduled date str
 };
 
 // src/services/UndoService.ts
-var import_obsidian3 = require("obsidian");
+var import_obsidian4 = require("obsidian");
 var UndoService = class {
   constructor(app) {
     this.app = app;
@@ -541,13 +602,13 @@ var UndoService = class {
       return null;
     for (const filePath of action.createdFilePaths) {
       const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (file && file instanceof import_obsidian3.TFile) {
+      if (file && file instanceof import_obsidian4.TFile) {
         await this.app.vault.delete(file);
       }
     }
     for (const snap of action.snapshots) {
       const file = this.app.vault.getAbstractFileByPath(snap.filePath);
-      if (file && file instanceof import_obsidian3.TFile) {
+      if (file && file instanceof import_obsidian4.TFile) {
         await this.app.fileManager.processFrontMatter(file, (fm) => {
           fm.title = snap.title;
           fm.status = snap.status;
@@ -573,8 +634,8 @@ var UndoService = class {
 };
 
 // src/views/AICopilotModal.ts
-var import_obsidian4 = require("obsidian");
-var AICopilotModal = class extends import_obsidian4.Modal {
+var import_obsidian5 = require("obsidian");
+var AICopilotModal = class extends import_obsidian5.Modal {
   constructor(app, task, aiService, taskService, undoService, onApplied) {
     super(app);
     this.task = task;
@@ -726,7 +787,7 @@ var AICopilotModal = class extends import_obsidian4.Modal {
       this.chatHistory.push({ sender: "ai", text: result.explanation });
     } catch (e) {
       console.error(e);
-      new import_obsidian4.Notice("\u274C Failed to communicate with AI.");
+      new import_obsidian5.Notice("\u274C Failed to communicate with AI.");
     } finally {
       this.isLoading = false;
       this.renderModal();
@@ -757,7 +818,7 @@ var AICopilotModal = class extends import_obsidian4.Modal {
         }
       }
     }
-    new import_obsidian4.Notice("\u2728 AI changes applied successfully!");
+    new import_obsidian5.Notice("\u2728 AI changes applied successfully!");
     this.onApplied();
     this.close();
   }
@@ -765,7 +826,7 @@ var AICopilotModal = class extends import_obsidian4.Modal {
 
 // src/views/TaskManagerView.ts
 var VIEW_TYPE_TASK_MANAGER = "jira-task-manager-view";
-var TaskManagerView = class extends import_obsidian5.ItemView {
+var TaskManagerView = class extends import_obsidian6.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
@@ -860,7 +921,7 @@ var TaskManagerView = class extends import_obsidian5.ItemView {
       undoBtn.addEventListener("click", async () => {
         const desc = await this.undoService.undo();
         if (desc) {
-          new import_obsidian5.Notice(`\u21A9\uFE0F Undone: ${desc}`);
+          new import_obsidian6.Notice(`\u21A9\uFE0F Undone: ${desc}`);
         }
         this.render();
       });
@@ -874,7 +935,7 @@ var TaskManagerView = class extends import_obsidian5.ItemView {
       if (this.isProcessingAI)
         return;
       this.isProcessingAI = true;
-      new import_obsidian5.Notice("\u{1F916} AI is rescheduling tasks...");
+      new import_obsidian6.Notice("\u{1F916} AI is rescheduling tasks...");
       aiRescheduleBtn.text = "\u23F3 Rescheduling...";
       try {
         const tasks = this.taskService.getAllTasks();
@@ -888,10 +949,10 @@ var TaskManagerView = class extends import_obsidian5.ItemView {
             count++;
           }
         }
-        new import_obsidian5.Notice(`\u2728 AI rescheduled ${count} tasks!`);
+        new import_obsidian6.Notice(`\u2728 AI rescheduled ${count} tasks!`);
       } catch (e) {
         console.error(e);
-        new import_obsidian5.Notice("\u274C Failed to AI reschedule tasks.");
+        new import_obsidian6.Notice("\u274C Failed to AI reschedule tasks.");
       } finally {
         this.isProcessingAI = false;
         this.render();
@@ -1152,7 +1213,7 @@ var TaskManagerView = class extends import_obsidian5.ItemView {
 };
 
 // src/main.ts
-var TaskManagerPlugin = class extends import_obsidian6.Plugin {
+var TaskManagerPlugin = class extends import_obsidian7.Plugin {
   async onload() {
     await this.loadSettings();
     this.registerView(

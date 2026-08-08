@@ -74,6 +74,22 @@ export class TaskService {
 	}
 
 	/**
+	 * Generate collision-free ASCII ID and filename: Prefix + Timestamp + Jitter
+	 * Example: TASK-20260808225340-a8f3
+	 */
+	generateUniqueId(): string {
+		const prefix = this.plugin.settings.idPrefix || "TASK-";
+		const now = new Date();
+		const timestamp = now
+			.toISOString()
+			.replace(/[-T:]/g, "")
+			.slice(0, 14); // YYYYMMDDHHmmss
+
+		const jitter = Math.random().toString(36).substring(2, 6).toLowerCase();
+		return `${prefix}${timestamp}-${jitter}`;
+	}
+
+	/**
 	 * Create a new Task note with standard Frontmatter
 	 */
 	async createTask(
@@ -91,12 +107,11 @@ export class TaskService {
 			}
 		}
 
-		const existingTasks = this.getAllTasks();
-		const nextNumber = existingTasks.length + 1;
-		const idStr = `${this.plugin.settings.idPrefix}${String(nextNumber).padStart(3, "0")}`;
+		// Generate ASCII Unique ID (Prefix + Timestamp + Jitter)
+		const idStr = this.generateUniqueId();
 		
-		const safeTitle = title.replace(/[\\/:*?"<>|]/g, "_");
-		const fileName = `${idStr} ${safeTitle}.md`;
+		// Pure ASCII Filename to prevent conflicts and OS path issues
+		const fileName = `${idStr}.md`;
 		const filePath = folderPath && folderPath !== "." && folderPath !== "/"
 			? `${folderPath}/${fileName}`
 			: fileName;

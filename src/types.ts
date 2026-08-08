@@ -26,6 +26,8 @@ export interface TaskManagerSettings {
 	defaultStatus: TaskStatus;
 	defaultPriority: TaskPriority;
 	antigravityCommand: string;
+	customTaskRules: string;
+	customRuleFilePath: string;
 }
 
 export const DEFAULT_SETTINGS: TaskManagerSettings = {
@@ -34,4 +36,6 @@ export const DEFAULT_SETTINGS: TaskManagerSettings = {
 	defaultStatus: "todo",
 	defaultPriority: "medium",
 	antigravityCommand: "agy",
+	customTaskRules: "1. Break down into 15-30 minute physical actions.\n2. Begin with concrete verbs (e.g. 'Open', 'Write', 'Search').\n3. Prohibit vague words like 'Consider', 'Investigate', 'Coordinate'.",
+	customRuleFilePath: "",
 };

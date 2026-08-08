@@ -3,6 +3,7 @@ import { promisify } from "util";
 import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
+import { normalizePath, TFile } from "obsidian";
 import { TaskItem } from "../types";
 import TaskManagerPlugin from "../main";
 import { TaskTreeNode } from "./TaskService";
@@ -81,6 +82,42 @@ export class AIService {
 	constructor(private plugin: TaskManagerPlugin) {}
 
 	/**
+	 * Get custom user rules from settings and optional rule file in Vault
+	 */
+	private async getCustomSystemRules(): Promise<string> {
+		const rules: string[] = [];
+
+		// Default Next Physical Action Rules
+		rules.push(
+			"MANDATORY SCRUM MASTER RULES:",
+			"1. Each action/subtask MUST be a 15-30 minute Next Physical Action (NPA).",
+			"2. Titles MUST start with a concrete physical verb (e.g., 'Open file...', 'Write line...', 'Search URL...').",
+			"3. PROHIBIT vague or abstract verbs such as 'Consider', 'Investigate', 'Coordinate', 'Check', 'Study', 'Discuss'. Force them into immediate physical steps."
+		);
+
+		// Direct Settings Prompt
+		if (this.plugin.settings.customTaskRules?.trim()) {
+			rules.push("\nUSER CUSTOM RULES:", this.plugin.settings.customTaskRules.trim());
+		}
+
+		// Rule File in Vault
+		const rulePath = this.plugin.settings.customRuleFilePath?.trim();
+		if (rulePath) {
+			try {
+				const file = this.plugin.app.vault.getAbstractFileByPath(normalizePath(rulePath));
+				if (file && file instanceof TFile) {
+					const fileContent = await this.plugin.app.vault.read(file);
+					rules.push(`\nCUSTOM RULES FROM VAULT FILE (${rulePath}):`, fileContent.trim());
+				}
+			} catch (e) {
+				console.warn("[TaskManager AI] Could not read rule file from vault:", e);
+			}
+		}
+
+		return rules.join("\n");
+	}
+
+	/**
 	 * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
 	 */
 	async refineTaskWithTree(
@@ -89,8 +126,8 @@ export class AIService {
 		instruction: string
 	): Promise<AIRefineResult> {
 		const todayStr = new Date().toISOString().split("T")[0];
+		const customRules = await this.getCustomSystemRules();
 
-		// Build indented hierarchy text for AI
 		const treeLines = [
 			`- ${rootTask.id}: ${rootTask.title} [Status: ${rootTask.status}, Scheduled: ${rootTask.scheduled || "none"}]`,
 		];
@@ -102,24 +139,26 @@ export class AIService {
 			);
 		}
 
-		const prompt = `You are a collaborative task management AI assistant.
+		const prompt = `You are an AI Scrum Master & Execution Partner.
 Today is ${todayStr}.
+
+${customRules}
 
 Root Task and Subtask Tree:
 ${treeLines.join("\n")}
 
 User Instruction: "${instruction}"
 
-Analyze the instruction and propose additions or modifications to any level of the subtask tree (subtasks or sub-subtasks).
+Analyze the instruction and propose additions or modifications. Ensure all subtasks are 15-30 minute Next Physical Actions.
 Respond ONLY with a valid JSON object matching this structure:
 {
   "explanation": "Brief 1-sentence explanation of changes made.",
   "subtasksToAdd": [
-    { "title": "New Subtask Title", "parentId": "${rootTask.id}" }
+    { "title": "Open editor and write first function signature", "parentId": "${rootTask.id}" }
   ],
   "subtaskIdsToRemove": ["TASK-XXX"],
   "subtaskUpdates": [
-    { "id": "TASK-YYY", "title": "Updated Title", "scheduled": "${todayStr}" }
+    { "id": "TASK-YYY", "title": "Updated Physical Title", "scheduled": "${todayStr}" }
   ]
 }
 Note: If parentId is not specified in subtasksToAdd, default it to "${rootTask.id}".
@@ -138,7 +177,7 @@ Do not output markdown code blocks or text outside this JSON.`;
 				});
 
 				return {
-					explanation: parsed.explanation || "Updated task tree.",
+					explanation: parsed.explanation || "Updated task tree into Next Physical Actions.",
 					subtasksToAdd: normalizedToAdd,
 					subtaskIdsToRemove: parsed.subtaskIdsToRemove || [],
 					subtaskUpdates: parsed.subtaskUpdates || [],
@@ -149,8 +188,8 @@ Do not output markdown code blocks or text outside this JSON.`;
 		}
 
 		return {
-			explanation: `Added subtasks based on: "${instruction}"`,
-			subtasksToAdd: [{ title: `${instruction}: Action`, parentId: rootTask.id }],
+			explanation: `Added physical actions based on: "${instruction}"`,
+			subtasksToAdd: [{ title: `Open note and write points for: ${instruction}`, parentId: rootTask.id }],
 			subtaskIdsToRemove: [],
 			subtaskUpdates: [],
 		};
@@ -160,9 +199,13 @@ Do not output markdown code blocks or text outside this JSON.`;
 	 * Ask AI (Antigravity CLI) to break down a parent task into subtask titles
 	 */
 	async breakdownTask(task: TaskItem): Promise<string[]> {
-		const prompt = `You are a helpful task manager AI. Break down the task titled "${task.title}" into 3 to 5 concrete action items (subtasks).
+		const customRules = await this.getCustomSystemRules();
+		const prompt = `You are an AI Scrum Master. Break down the task titled "${task.title}" into 3 to 5 concrete 15-30 minute Next Physical Actions.
+
+${customRules}
+
 Respond ONLY with a valid JSON array of strings representing the subtask titles, for example:
-["Gather requirements", "Draft design document", "Review with team"]
+["Open terminal and run git status", "Write 3 bullet points in README", "Search npm package for esbuild"]
 Do not include any explanation or markdown code block syntax outside the JSON array.`;
 
 		try {
@@ -176,9 +219,9 @@ Do not include any explanation or markdown code block syntax outside the JSON ar
 		}
 
 		return [
-			`Research & Plan: ${task.title}`,
-			`Implementation: ${task.title}`,
-			`Review & Test: ${task.title}`,
+			`Open editor and write outline for: ${task.title}`,
+			`Draft implementation steps in note: ${task.title}`,
+			`Run test script and check log for: ${task.title}`,
 		];
 	}
 
