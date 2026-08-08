@@ -3,6 +3,8 @@ import { TaskItem, TaskStatus } from "../types";
 import TaskManagerPlugin from "../main";
 import { TaskService } from "../services/TaskService";
 import { AIService } from "../services/AIService";
+import { UndoService } from "../services/UndoService";
+import { AICopilotModal } from "./AICopilotModal";
 
 export const VIEW_TYPE_TASK_MANAGER = "jira-task-manager-view";
 
@@ -11,6 +13,7 @@ export type ViewMode = "status" | "schedule";
 export class TaskManagerView extends ItemView {
 	private taskService: TaskService;
 	private aiService: AIService;
+	private undoService: UndoService;
 	private searchFilter = "";
 	private activeViewMode: ViewMode = "status";
 	private eventListeners: EventRef[] = [];
@@ -20,6 +23,7 @@ export class TaskManagerView extends ItemView {
 		super(leaf);
 		this.taskService = new TaskService(this.app, this.plugin);
 		this.aiService = new AIService(this.plugin);
+		this.undoService = new UndoService(this.app);
 	}
 
 	getViewType(): string {
@@ -113,8 +117,24 @@ export class TaskManagerView extends ItemView {
 			}
 		});
 
-		// Controls (Search, AI Reschedule & Refresh)
+		// Controls (Search, Undo, AI Reschedule & Refresh)
 		const controlsEl = headerEl.createDiv({ cls: "jira-tm-controls" });
+
+		// Undo Button
+		if (this.undoService.canUndo()) {
+			const undoBtn = controlsEl.createEl("button", {
+				text: "↩️ Undo AI Action",
+				cls: "jira-tm-btn-undo",
+			});
+			undoBtn.title = "Revert last AI changes to original state";
+			undoBtn.addEventListener("click", async () => {
+				const desc = await this.undoService.undo();
+				if (desc) {
+					new Notice(`↩️ Undone: ${desc}`);
+				}
+				this.render();
+			});
+		}
 
 		// Global AI Reschedule Button
 		const aiRescheduleBtn = controlsEl.createEl("button", {
@@ -130,6 +150,9 @@ export class TaskManagerView extends ItemView {
 
 			try {
 				const tasks = this.taskService.getAllTasks();
+				// Record Undo Snapshot
+				this.undoService.recordSnapshot("AI Reschedule", tasks);
+
 				const newSchedules = await this.aiService.rescheduleTasks(tasks);
 				
 				let count = 0;
@@ -404,32 +427,24 @@ export class TaskManagerView extends ItemView {
 			subInput.focus();
 		});
 
-		// ✨ AI Breakdown Button
+		// ✨ AI Copilot Wall-Striking Modal Button
 		const aiBtn = actionEl.createEl("button", {
 			text: "✨ AI",
 			cls: "jira-action-btn jira-ai-btn",
 		});
-		aiBtn.title = "AI automatically breaks down this task into subtasks";
-		aiBtn.addEventListener("click", async (e) => {
+		aiBtn.title = "Open AI Copilot for interactive wall-striking & task refinement";
+		aiBtn.addEventListener("click", (e) => {
 			e.stopPropagation();
-			if (this.isProcessingAI) return;
-			this.isProcessingAI = true;
-			aiBtn.text = "⏳";
-			new Notice(`🤖 AI is breaking down "${task.title}"...`);
-
-			try {
-				const subtaskTitles = await this.aiService.breakdownTask(task);
-				for (const subTitle of subtaskTitles) {
-					await this.taskService.createSubtask(task, subTitle);
-				}
-				new Notice(`✨ Created ${subtaskTitles.length} subtasks with AI!`);
-			} catch (err) {
-				console.error(err);
-				new Notice("❌ AI Breakdown failed.");
-			} finally {
-				this.isProcessingAI = false;
-				this.render();
-			}
+			const modal = new AICopilotModal(
+				this.app,
+				task,
+				subtasks,
+				this.aiService,
+				this.taskService,
+				this.undoService,
+				() => this.render()
+			);
+			modal.open();
 		});
 
 		// Status move buttons

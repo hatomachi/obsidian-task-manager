@@ -38,7 +38,7 @@ __export(main_exports, {
   default: () => TaskManagerPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian4 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 
 // src/types.ts
 var DEFAULT_SETTINGS = {
@@ -83,7 +83,7 @@ var TaskManagerSettingTab = class extends import_obsidian.PluginSettingTab {
 };
 
 // src/views/TaskManagerView.ts
-var import_obsidian3 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 
 // src/services/TaskService.ts
 var import_obsidian2 = require("obsidian");
@@ -291,6 +291,57 @@ var AIService = class {
     this.plugin = plugin;
   }
   /**
+   * Interactive wall-striking (Copilot) refinement of parent task and subtasks
+   */
+  async refineTaskWithInstruction(task, subtasks, instruction) {
+    const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    const currentSubtaskData = subtasks.map((s) => ({
+      id: s.id,
+      title: s.title,
+      status: s.status,
+      scheduled: s.scheduled || "none"
+    }));
+    const prompt = `You are a collaborative task management AI assistant.
+Today is ${todayStr}.
+Parent Task: "${task.title}" (ID: ${task.id})
+Current Subtasks:
+${JSON.stringify(currentSubtaskData, null, 2)}
+
+User Instruction: "${instruction}"
+
+Analyze the instruction and propose modifications to the subtask structure.
+Respond ONLY with a valid JSON object matching this structure:
+{
+  "explanation": "Brief 1-sentence explanation of changes made.",
+  "subtasksToAdd": ["New Subtask Title 1", "New Subtask Title 2"],
+  "subtaskIdsToRemove": ["TASK-XXX"],
+  "subtaskUpdates": [
+    { "id": "TASK-YYY", "title": "Updated Title", "scheduled": "${todayStr}" }
+  ]
+}
+Do not output markdown code blocks or text outside this JSON.`;
+    try {
+      const output = await this.runCLI(prompt);
+      const parsed = this.extractJSONObject(output);
+      if (parsed) {
+        return {
+          explanation: parsed.explanation || "Updated task structure.",
+          subtasksToAdd: parsed.subtasksToAdd || [],
+          subtaskIdsToRemove: parsed.subtaskIdsToRemove || [],
+          subtaskUpdates: parsed.subtaskUpdates || []
+        };
+      }
+    } catch (err) {
+      console.warn("[TaskManager AI] Refine CLI failed, using smart fallback:", err);
+    }
+    return {
+      explanation: `Added tasks based on: "${instruction}"`,
+      subtasksToAdd: [`${instruction}: Action 1`, `${instruction}: Action 2`],
+      subtaskIdsToRemove: [],
+      subtaskUpdates: []
+    };
+  }
+  /**
    * Ask AI (Antigravity CLI) to break down a parent task into subtask titles
    */
   async breakdownTask(task) {
@@ -305,7 +356,7 @@ Do not include any explanation or markdown code block syntax outside the JSON ar
         return parsed;
       }
     } catch (err) {
-      console.warn("[TaskManager AI] CLI execution failed or not found, using smart breakdown fallback:", err);
+      console.warn("[TaskManager AI] CLI execution failed, using fallback:", err);
     }
     return [
       `Research & Plan: ${task.title}`,
@@ -329,12 +380,8 @@ Do not include any explanation or markdown code block syntax outside the JSON ar
 Analyze these tasks:
 ${JSON.stringify(taskSummaries, null, 2)}
 
-For any tasks that are OVERDUE or UNSCHEDULED and not 'done', assign a recommended scheduled date (format YYYY-MM-DD) starting from today or upcoming days.
-Respond ONLY with a valid JSON object mapping task IDs to new scheduled date strings, for example:
-{
-  "TASK-001": "${todayStr}"
-}
-Do not output any text other than the JSON object.`;
+For any tasks that are OVERDUE or UNSCHEDULED and not 'done', assign a recommended scheduled date (format YYYY-MM-DD) starting from today.
+Respond ONLY with a valid JSON object mapping task IDs to new scheduled date strings.`;
     try {
       const output = await this.runCLI(prompt);
       const parsed = this.extractJSONObject(output);
@@ -342,7 +389,7 @@ Do not output any text other than the JSON object.`;
         return parsed;
       }
     } catch (err) {
-      console.warn("[TaskManager AI] CLI execution failed, using smart reschedule fallback:", err);
+      console.warn("[TaskManager AI] CLI execution failed, using fallback:", err);
     }
     const result = {};
     for (const t of tasks) {
@@ -376,7 +423,7 @@ Do not output any text other than the JSON object.`;
         }
       }
     } catch (e) {
-      console.error("[TaskManager AI] Failed to parse JSON array from output:", text);
+      console.error("[TaskManager AI] Failed to parse JSON array:", text);
     }
     return null;
   }
@@ -391,15 +438,275 @@ Do not output any text other than the JSON object.`;
         }
       }
     } catch (e) {
-      console.error("[TaskManager AI] Failed to parse JSON object from output:", text);
+      console.error("[TaskManager AI] Failed to parse JSON object:", text);
     }
     return null;
   }
 };
 
+// src/services/UndoService.ts
+var import_obsidian3 = require("obsidian");
+var UndoService = class {
+  constructor(app) {
+    this.app = app;
+    this.historyStack = [];
+    this.maxHistory = 10;
+  }
+  /**
+   * Record current states of tasks before AI modification
+   */
+  recordSnapshot(description, targetTasks) {
+    const snapshots = targetTasks.map((t) => ({
+      filePath: t.file.path,
+      title: t.title,
+      status: t.status,
+      priority: t.priority,
+      parent: t.parent,
+      scheduled: t.scheduled,
+      due: t.due,
+      isNewFile: false
+    }));
+    const actionSnapshot = {
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      description,
+      snapshots,
+      createdFilePaths: []
+    };
+    this.historyStack.push(actionSnapshot);
+    if (this.historyStack.length > this.maxHistory) {
+      this.historyStack.shift();
+    }
+    return actionSnapshot;
+  }
+  /**
+   * Register newly created file paths during this action (for full rollback)
+   */
+  registerCreatedFile(actionSnapshot, filePath) {
+    actionSnapshot.createdFilePaths.push(filePath);
+  }
+  /**
+   * Check if undo is available
+   */
+  canUndo() {
+    return this.historyStack.length > 0;
+  }
+  /**
+   * Perform Rollback (Undo) of the last AI action
+   */
+  async undo() {
+    const action = this.historyStack.pop();
+    if (!action)
+      return null;
+    for (const filePath of action.createdFilePaths) {
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      if (file && file instanceof import_obsidian3.TFile) {
+        await this.app.vault.delete(file);
+      }
+    }
+    for (const snap of action.snapshots) {
+      const file = this.app.vault.getAbstractFileByPath(snap.filePath);
+      if (file && file instanceof import_obsidian3.TFile) {
+        await this.app.fileManager.processFrontMatter(file, (fm) => {
+          fm.title = snap.title;
+          fm.status = snap.status;
+          fm.priority = snap.priority;
+          if (snap.parent !== void 0)
+            fm.parent = snap.parent;
+          else
+            delete fm.parent;
+          if (snap.scheduled !== void 0)
+            fm.scheduled = snap.scheduled;
+          else
+            delete fm.scheduled;
+          if (snap.due !== void 0)
+            fm.due = snap.due;
+          else
+            delete fm.due;
+          fm.updated = (/* @__PURE__ */ new Date()).toISOString();
+        });
+      }
+    }
+    return action.description;
+  }
+};
+
+// src/views/AICopilotModal.ts
+var import_obsidian4 = require("obsidian");
+var AICopilotModal = class extends import_obsidian4.Modal {
+  constructor(app, task, subtasks, aiService, taskService, undoService, onApplied) {
+    super(app);
+    this.task = task;
+    this.subtasks = subtasks;
+    this.aiService = aiService;
+    this.taskService = taskService;
+    this.undoService = undoService;
+    this.onApplied = onApplied;
+    this.pendingResult = null;
+    this.chatHistory = [];
+    this.isLoading = false;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("jira-ai-copilot-modal");
+    this.renderModal();
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+  renderModal() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h2", {
+      text: `\u2728 AI Copilot: ${this.task.id} ${this.task.title}`,
+      cls: "jira-modal-title"
+    });
+    const currentTreeBox = contentEl.createDiv({ cls: "jira-modal-tree-box" });
+    currentTreeBox.createDiv({
+      cls: "jira-modal-box-label",
+      text: `Current Subtasks (${this.subtasks.length}):`
+    });
+    if (this.subtasks.length === 0) {
+      currentTreeBox.createEl("p", {
+        text: "No subtasks yet. Ask AI to break it down!",
+        cls: "jira-modal-empty-text"
+      });
+    } else {
+      const ul = currentTreeBox.createEl("ul", { cls: "jira-modal-subtask-ul" });
+      for (const s of this.subtasks) {
+        const dateInfo = s.scheduled ? ` [\u{1F4C5} ${s.scheduled}]` : "";
+        ul.createEl("li", { text: `${s.id}: ${s.title}${dateInfo}` });
+      }
+    }
+    const quickBar = contentEl.createDiv({ cls: "jira-modal-quick-bar" });
+    quickBar.createDiv({ cls: "jira-modal-box-label", text: "Quick One-Tap Instructions:" });
+    const quickButtons = [
+      { label: "\u{1F50D} Breakdown Subtasks", prompt: "Break down this task into 3-5 detailed technical action items." },
+      { label: "\u{1F4C5} Optimize Schedule", prompt: "Schedule all subtasks starting from today evenly across upcoming days." },
+      { label: "\u{1F9EA} Add Testing Steps", prompt: "Add concrete testing and verification subtasks." }
+    ];
+    for (const q of quickButtons) {
+      const btn = quickBar.createEl("button", { text: q.label, cls: "jira-quick-btn" });
+      btn.addEventListener("click", () => this.handleInstruction(q.prompt));
+    }
+    if (this.chatHistory.length > 0) {
+      const chatBox = contentEl.createDiv({ cls: "jira-modal-chat-box" });
+      for (const msg of this.chatHistory) {
+        const msgEl = chatBox.createDiv({
+          cls: `jira-chat-msg msg-${msg.sender}`
+        });
+        msgEl.createEl("span", {
+          cls: "msg-role",
+          text: msg.sender === "user" ? "\u{1F464} You: " : "\u{1F916} AI: "
+        });
+        msgEl.createEl("span", { text: msg.text });
+      }
+    }
+    if (this.pendingResult) {
+      const previewBox = contentEl.createDiv({ cls: "jira-modal-diff-preview" });
+      previewBox.createDiv({
+        cls: "jira-modal-box-label",
+        text: `Proposed Changes: ${this.pendingResult.explanation}`
+      });
+      if (this.pendingResult.subtasksToAdd.length > 0) {
+        const addSec = previewBox.createDiv({ cls: "jira-diff-section diff-add" });
+        addSec.createEl("strong", { text: "\u2795 Subtasks to Create:" });
+        const ul = addSec.createEl("ul");
+        for (const item of this.pendingResult.subtasksToAdd) {
+          ul.createEl("li", { text: item });
+        }
+      }
+      if (this.pendingResult.subtaskUpdates.length > 0) {
+        const updateSec = previewBox.createDiv({ cls: "jira-diff-section diff-update" });
+        updateSec.createEl("strong", { text: "\u270F\uFE0F Subtasks to Update:" });
+        const ul = updateSec.createEl("ul");
+        for (const u of this.pendingResult.subtaskUpdates) {
+          ul.createEl("li", { text: `${u.id}: ${u.title || "keep title"} ${u.scheduled ? `(Scheduled: ${u.scheduled})` : ""}` });
+        }
+      }
+      const applyBar = previewBox.createDiv({ cls: "jira-modal-apply-bar" });
+      const applyBtn = applyBar.createEl("button", {
+        text: "\u2705 Apply Changes to Vault",
+        cls: "mod-cta jira-apply-btn"
+      });
+      applyBtn.addEventListener("click", () => this.applyChanges());
+    }
+    const formEl = contentEl.createDiv({ cls: "jira-modal-form" });
+    const inputEl = formEl.createEl("input", {
+      type: "text",
+      placeholder: this.isLoading ? "AI is thinking..." : "Type instruction (e.g. 'Add a subtask for documentation')...",
+      cls: "jira-modal-input"
+    });
+    inputEl.disabled = this.isLoading;
+    const sendBtn = formEl.createEl("button", {
+      text: this.isLoading ? "\u23F3" : "Send \u{1F4AC}",
+      cls: "jira-modal-send-btn"
+    });
+    sendBtn.disabled = this.isLoading;
+    const submit = () => {
+      const text = inputEl.value.trim();
+      if (text && !this.isLoading) {
+        this.handleInstruction(text);
+      }
+    };
+    sendBtn.addEventListener("click", submit);
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter")
+        submit();
+    });
+  }
+  async handleInstruction(instruction) {
+    this.isLoading = true;
+    this.chatHistory.push({ sender: "user", text: instruction });
+    this.renderModal();
+    try {
+      const result = await this.aiService.refineTaskWithInstruction(
+        this.task,
+        this.subtasks,
+        instruction
+      );
+      this.pendingResult = result;
+      this.chatHistory.push({ sender: "ai", text: result.explanation });
+    } catch (e) {
+      console.error(e);
+      new import_obsidian4.Notice("\u274C Failed to communicate with AI.");
+    } finally {
+      this.isLoading = false;
+      this.renderModal();
+    }
+  }
+  async applyChanges() {
+    if (!this.pendingResult)
+      return;
+    const snapshot = this.undoService.recordSnapshot(
+      `AI Refine on ${this.task.id}`,
+      [this.task, ...this.subtasks]
+    );
+    for (const title of this.pendingResult.subtasksToAdd) {
+      const newFile = await this.taskService.createSubtask(this.task, title);
+      this.undoService.registerCreatedFile(snapshot, newFile.path);
+    }
+    for (const u of this.pendingResult.subtaskUpdates) {
+      const target = this.subtasks.find((s) => s.id === u.id);
+      if (target) {
+        if (u.scheduled !== void 0) {
+          await this.taskService.updateTaskSchedule(target.file, u.scheduled);
+        }
+        if (u.status !== void 0) {
+          await this.taskService.updateTaskStatus(target.file, u.status);
+        }
+      }
+    }
+    new import_obsidian4.Notice("\u2728 AI changes applied successfully!");
+    this.onApplied();
+    this.close();
+  }
+};
+
 // src/views/TaskManagerView.ts
 var VIEW_TYPE_TASK_MANAGER = "jira-task-manager-view";
-var TaskManagerView = class extends import_obsidian3.ItemView {
+var TaskManagerView = class extends import_obsidian5.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
@@ -409,6 +716,7 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
     this.isProcessingAI = false;
     this.taskService = new TaskService(this.app, this.plugin);
     this.aiService = new AIService(this.plugin);
+    this.undoService = new UndoService(this.app);
   }
   getViewType() {
     return VIEW_TYPE_TASK_MANAGER;
@@ -484,6 +792,20 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
       }
     });
     const controlsEl = headerEl.createDiv({ cls: "jira-tm-controls" });
+    if (this.undoService.canUndo()) {
+      const undoBtn = controlsEl.createEl("button", {
+        text: "\u21A9\uFE0F Undo AI Action",
+        cls: "jira-tm-btn-undo"
+      });
+      undoBtn.title = "Revert last AI changes to original state";
+      undoBtn.addEventListener("click", async () => {
+        const desc = await this.undoService.undo();
+        if (desc) {
+          new import_obsidian5.Notice(`\u21A9\uFE0F Undone: ${desc}`);
+        }
+        this.render();
+      });
+    }
     const aiRescheduleBtn = controlsEl.createEl("button", {
       text: "\u{1F504} AI Reschedule",
       cls: "jira-tm-btn-ai"
@@ -493,10 +815,11 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
       if (this.isProcessingAI)
         return;
       this.isProcessingAI = true;
-      new import_obsidian3.Notice("\u{1F916} AI is rescheduling tasks...");
+      new import_obsidian5.Notice("\u{1F916} AI is rescheduling tasks...");
       aiRescheduleBtn.text = "\u23F3 Rescheduling...";
       try {
         const tasks = this.taskService.getAllTasks();
+        this.undoService.recordSnapshot("AI Reschedule", tasks);
         const newSchedules = await this.aiService.rescheduleTasks(tasks);
         let count = 0;
         for (const [taskId, newDate] of Object.entries(newSchedules)) {
@@ -506,10 +829,10 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
             count++;
           }
         }
-        new import_obsidian3.Notice(`\u2728 AI rescheduled ${count} tasks!`);
+        new import_obsidian5.Notice(`\u2728 AI rescheduled ${count} tasks!`);
       } catch (e) {
         console.error(e);
-        new import_obsidian3.Notice("\u274C Failed to AI reschedule tasks.");
+        new import_obsidian5.Notice("\u274C Failed to AI reschedule tasks.");
       } finally {
         this.isProcessingAI = false;
         this.render();
@@ -726,27 +1049,19 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
       text: "\u2728 AI",
       cls: "jira-action-btn jira-ai-btn"
     });
-    aiBtn.title = "AI automatically breaks down this task into subtasks";
-    aiBtn.addEventListener("click", async (e) => {
+    aiBtn.title = "Open AI Copilot for interactive wall-striking & task refinement";
+    aiBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (this.isProcessingAI)
-        return;
-      this.isProcessingAI = true;
-      aiBtn.text = "\u23F3";
-      new import_obsidian3.Notice(`\u{1F916} AI is breaking down "${task.title}"...`);
-      try {
-        const subtaskTitles = await this.aiService.breakdownTask(task);
-        for (const subTitle of subtaskTitles) {
-          await this.taskService.createSubtask(task, subTitle);
-        }
-        new import_obsidian3.Notice(`\u2728 Created ${subtaskTitles.length} subtasks with AI!`);
-      } catch (err) {
-        console.error(err);
-        new import_obsidian3.Notice("\u274C AI Breakdown failed.");
-      } finally {
-        this.isProcessingAI = false;
-        this.render();
-      }
+      const modal = new AICopilotModal(
+        this.app,
+        task,
+        subtasks,
+        this.aiService,
+        this.taskService,
+        this.undoService,
+        () => this.render()
+      );
+      modal.open();
     });
     if (task.status !== "todo") {
       const prevBtn = actionEl.createEl("button", { text: "\u25C0", cls: "jira-action-btn" });
@@ -775,7 +1090,7 @@ var TaskManagerView = class extends import_obsidian3.ItemView {
 };
 
 // src/main.ts
-var TaskManagerPlugin = class extends import_obsidian4.Plugin {
+var TaskManagerPlugin = class extends import_obsidian6.Plugin {
   async onload() {
     await this.loadSettings();
     this.registerView(

@@ -8,6 +8,20 @@ import TaskManagerPlugin from "../main";
 
 const execAsync = promisify(exec);
 
+export interface SubtaskUpdateItem {
+	id: string;
+	title?: string;
+	status?: string;
+	scheduled?: string;
+}
+
+export interface AIRefineResult {
+	explanation: string;
+	subtasksToAdd: string[];
+	subtaskIdsToRemove: string[];
+	subtaskUpdates: SubtaskUpdateItem[];
+}
+
 function getExtendedEnv(): NodeJS.ProcessEnv {
 	const home = os.homedir();
 	const extraPaths = [
@@ -60,6 +74,66 @@ export class AIService {
 	constructor(private plugin: TaskManagerPlugin) {}
 
 	/**
+	 * Interactive wall-striking (Copilot) refinement of parent task and subtasks
+	 */
+	async refineTaskWithInstruction(
+		task: TaskItem,
+		subtasks: TaskItem[],
+		instruction: string
+	): Promise<AIRefineResult> {
+		const todayStr = new Date().toISOString().split("T")[0];
+		const currentSubtaskData = subtasks.map((s) => ({
+			id: s.id,
+			title: s.title,
+			status: s.status,
+			scheduled: s.scheduled || "none",
+		}));
+
+		const prompt = `You are a collaborative task management AI assistant.
+Today is ${todayStr}.
+Parent Task: "${task.title}" (ID: ${task.id})
+Current Subtasks:
+${JSON.stringify(currentSubtaskData, null, 2)}
+
+User Instruction: "${instruction}"
+
+Analyze the instruction and propose modifications to the subtask structure.
+Respond ONLY with a valid JSON object matching this structure:
+{
+  "explanation": "Brief 1-sentence explanation of changes made.",
+  "subtasksToAdd": ["New Subtask Title 1", "New Subtask Title 2"],
+  "subtaskIdsToRemove": ["TASK-XXX"],
+  "subtaskUpdates": [
+    { "id": "TASK-YYY", "title": "Updated Title", "scheduled": "${todayStr}" }
+  ]
+}
+Do not output markdown code blocks or text outside this JSON.`;
+
+		try {
+			const output = await this.runCLI(prompt);
+			const parsed = this.extractJSONObject<AIRefineResult>(output);
+			if (parsed) {
+				return {
+					explanation: parsed.explanation || "Updated task structure.",
+					subtasksToAdd: parsed.subtasksToAdd || [],
+					subtaskIdsToRemove: parsed.subtaskIdsToRemove || [],
+					subtaskUpdates: parsed.subtaskUpdates || [],
+				};
+			}
+		} catch (err) {
+			console.warn("[TaskManager AI] Refine CLI failed, using smart fallback:", err);
+		}
+
+		// Fallback for demo or offline CLI
+		return {
+			explanation: `Added tasks based on: "${instruction}"`,
+			subtasksToAdd: [`${instruction}: Action 1`, `${instruction}: Action 2`],
+			subtaskIdsToRemove: [],
+			subtaskUpdates: [],
+		};
+	}
+
+	/**
 	 * Ask AI (Antigravity CLI) to break down a parent task into subtask titles
 	 */
 	async breakdownTask(task: TaskItem): Promise<string[]> {
@@ -75,10 +149,9 @@ Do not include any explanation or markdown code block syntax outside the JSON ar
 				return parsed;
 			}
 		} catch (err) {
-			console.warn("[TaskManager AI] CLI execution failed or not found, using smart breakdown fallback:", err);
+			console.warn("[TaskManager AI] CLI execution failed, using fallback:", err);
 		}
 
-		// Fallback if CLI unavailable or returns non-JSON
 		return [
 			`Research & Plan: ${task.title}`,
 			`Implementation: ${task.title}`,
@@ -103,24 +176,19 @@ Do not include any explanation or markdown code block syntax outside the JSON ar
 Analyze these tasks:
 ${JSON.stringify(taskSummaries, null, 2)}
 
-For any tasks that are OVERDUE or UNSCHEDULED and not 'done', assign a recommended scheduled date (format YYYY-MM-DD) starting from today or upcoming days.
-Respond ONLY with a valid JSON object mapping task IDs to new scheduled date strings, for example:
-{
-  "TASK-001": "${todayStr}"
-}
-Do not output any text other than the JSON object.`;
+For any tasks that are OVERDUE or UNSCHEDULED and not 'done', assign a recommended scheduled date (format YYYY-MM-DD) starting from today.
+Respond ONLY with a valid JSON object mapping task IDs to new scheduled date strings.`;
 
 		try {
 			const output = await this.runCLI(prompt);
-			const parsed = this.extractJSONObject(output);
+			const parsed = this.extractJSONObject<Record<string, string>>(output);
 			if (parsed && Object.keys(parsed).length > 0) {
 				return parsed;
 			}
 		} catch (err) {
-			console.warn("[TaskManager AI] CLI execution failed, using smart reschedule fallback:", err);
+			console.warn("[TaskManager AI] CLI execution failed, using fallback:", err);
 		}
 
-		// Fallback scheduling for overdue or unscheduled
 		const result: Record<string, string> = {};
 		for (const t of tasks) {
 			if (t.status !== "done" && (!t.scheduled || t.scheduled < todayStr)) {
@@ -163,23 +231,23 @@ Do not output any text other than the JSON object.`;
 				}
 			}
 		} catch (e) {
-			console.error("[TaskManager AI] Failed to parse JSON array from output:", text);
+			console.error("[TaskManager AI] Failed to parse JSON array:", text);
 		}
 		return null;
 	}
 
-	private extractJSONObject(text: string): Record<string, string> | null {
+	private extractJSONObject<T>(text: string): T | null {
 		try {
 			const match = text.match(/\{[\s\S]*\}/);
 			if (match) {
 				const jsonStr = match[0];
 				const obj = JSON.parse(jsonStr);
 				if (typeof obj === "object" && obj !== null) {
-					return obj;
+					return obj as T;
 				}
 			}
 		} catch (e) {
-			console.error("[TaskManager AI] Failed to parse JSON object from output:", text);
+			console.error("[TaskManager AI] Failed to parse JSON object:", text);
 		}
 		return null;
 	}
