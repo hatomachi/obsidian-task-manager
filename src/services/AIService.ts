@@ -4,13 +4,14 @@ import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
 import { normalizePath, TFile } from "obsidian";
-import { TaskItem } from "../types";
+import { TaskItem, StrategyResult } from "../types";
 import TaskManagerPlugin from "../main";
 import { TaskTreeNode } from "./TaskService";
 import {
 	buildTaskBreakdownPrompt,
 	buildTaskRefinePrompt,
 	buildTaskReschedulePrompt,
+	buildStrategyPrompt,
 } from "../prompts";
 
 const execAsync = promisify(exec);
@@ -233,9 +234,57 @@ export class AIService {
 		return stdout.trim();
 	}
 
+	/**
+	 * Formulate strategy (bottleneck analysis) and Phase 1 tasks for a topic or user feedback
+	 */
+	async generateStrategy(
+		topic: string,
+		feedback?: string,
+		existingStrategy?: StrategyResult
+	): Promise<StrategyResult> {
+		const vaultRule = await this.getVaultRuleContent();
+		const prompt = buildStrategyPrompt(
+			topic,
+			feedback,
+			existingStrategy,
+			this.plugin.settings.customTaskRules,
+			vaultRule
+		);
+
+		try {
+			const output = await this.runCLI(prompt);
+			const parsed = this.extractJSONObject<StrategyResult>(output);
+			if (parsed && parsed.bottleneck && Array.isArray(parsed.phase1Tasks)) {
+				return {
+					bottleneck: parsed.bottleneck || "優先ボトルネックの特定",
+					dependency: parsed.dependency || "事前の基本条件設定",
+					policy: parsed.policy || "Phase 1による不確実性の早期解消",
+					phase1Tasks: parsed.phase1Tasks.length > 0 ? parsed.phase1Tasks : [
+						`ブラウザを開き「${topic}」に関連する情報を検索する`,
+						`ノートを開き「${topic}」の前提条件を1行入力する`,
+					],
+				};
+			}
+		} catch (err) {
+			console.warn("[TaskManager AI] Strategy CLI execution failed, using fallback:", err);
+		}
+
+		return {
+			bottleneck: `「${topic}」における初期調査と不確実性の整理`,
+			dependency: "情報収集 ➔ 実行プラン決定",
+			policy: "まずは最少手数の物理行動で前提情報を揃える",
+			phase1Tasks: [
+				`ブラウザを開き「${topic}」の基本情報を検索する`,
+				`ノートを開き「${topic}」で必要な項目を1行入力する`,
+			],
+		};
+	}
+
 	private extractJSONArray(text: string): string[] | null {
 		try {
-			const match = text.match(/\[[\s\S]*\]/);
+			// Remove markdown code fence blocks if present
+			const cleaned = text.replace(/```json/g, "").replace(/```/g, "");
+			const match = cleaned.match(/\[[\s\S]*\]/);
 			if (match) {
 				const jsonStr = match[0];
 				const arr = JSON.parse(jsonStr);
@@ -251,7 +300,9 @@ export class AIService {
 
 	private extractJSONObject<T>(text: string): T | null {
 		try {
-			const match = text.match(/\{[\s\S]*\}/);
+			// Remove markdown code fence blocks if present
+			const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+			const match = cleaned.match(/\{[\s\S]*\}/);
 			if (match) {
 				const jsonStr = match[0];
 				const obj = JSON.parse(jsonStr);
@@ -265,3 +316,4 @@ export class AIService {
 		return null;
 	}
 }
+

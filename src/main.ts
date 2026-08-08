@@ -20,12 +20,37 @@ export default class TaskManagerPlugin extends Plugin {
 			this.activateView();
 		});
 
-		// Add Command
+		// Add Command: Open Task Manager View
 		this.addCommand({
 			id: "open-jira-task-manager",
 			name: "Open JIRA Task Manager",
 			callback: () => {
 				this.activateView();
+			},
+		});
+
+		// Add Command: Open AI Strategy Modal
+		this.addCommand({
+			id: "open-ai-scrum-master-strategy",
+			name: "Open AI Scrum Master: Formulate Strategy",
+			callback: () => {
+				const { AIService } = require("./services/AIService");
+				const { TaskService } = require("./services/TaskService");
+				const { UndoService } = require("./services/UndoService");
+				const { AICopilotModal } = require("./views/AICopilotModal");
+
+				const aiService = new AIService(this);
+				const taskService = new TaskService(this.app, this);
+				const undoService = new UndoService(this.app);
+
+				const modal = new AICopilotModal(
+					this.app,
+					null,
+					aiService,
+					taskService,
+					undoService
+				);
+				modal.open();
 			},
 		});
 

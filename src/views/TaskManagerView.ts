@@ -136,6 +136,24 @@ export class TaskManagerView extends ItemView {
 			});
 		}
 
+		// Global AI Strategy Button
+		const aiStrategyBtn = controlsEl.createEl("button", {
+			text: "✨ AI 作戦策定",
+			cls: "jira-tm-btn-ai",
+		});
+		aiStrategyBtn.title = "お題から作戦（ボトルネック分析）を立て、Phase 1タスクをノートへ書き込みます";
+		aiStrategyBtn.addEventListener("click", () => {
+			const modal = new AICopilotModal(
+				this.app,
+				null,
+				this.aiService,
+				this.taskService,
+				this.undoService,
+				() => this.render()
+			);
+			modal.open();
+		});
+
 		// Global AI Reschedule Button
 		const aiRescheduleBtn = controlsEl.createEl("button", {
 			text: "🔄 AI Reschedule",

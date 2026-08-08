@@ -1,25 +1,33 @@
 import { App, Modal, Notice } from "obsidian";
-import { TaskItem } from "../types";
-import { AIService, AIRefineResult } from "../services/AIService";
-import { TaskService, TaskTreeNode } from "../services/TaskService";
+import { TaskItem, ModalState, StrategyResult } from "../types";
+import { AIService } from "../services/AIService";
+import { TaskService } from "../services/TaskService";
 import { UndoService } from "../services/UndoService";
 
+export interface EditableTaskItem {
+	text: string;
+	enabled: boolean;
+}
+
 export class AICopilotModal extends Modal {
-	private pendingResult: AIRefineResult | null = null;
-	private chatHistory: { sender: "user" | "ai"; text: string }[] = [];
-	private isLoading = false;
-	private subtree: TaskTreeNode[] = [];
+	private currentState: ModalState = "STATE_INPUT";
+	private topic = "";
+	private feedback = "";
+	private strategyResult: StrategyResult | null = null;
+	private editableTasks: EditableTaskItem[] = [];
 
 	constructor(
 		app: App,
-		private task: TaskItem,
+		private task: TaskItem | null,
 		private aiService: AIService,
 		private taskService: TaskService,
 		private undoService: UndoService,
-		private onApplied: () => void
+		private onApplied?: () => void
 	) {
 		super(app);
-		this.subtree = this.taskService.getTaskSubtree(task.id);
+		if (task) {
+			this.topic = task.title;
+		}
 	}
 
 	onOpen(): void {
@@ -39,196 +47,291 @@ export class AICopilotModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		// Title
-		contentEl.createEl("h2", {
-			text: `✨ AI Copilot: ${this.task.id} ${this.task.title}`,
+		switch (this.currentState) {
+			case "STATE_INPUT":
+				this.renderInputState(contentEl);
+				break;
+			case "STATE_GENERATING":
+				this.renderGeneratingState(contentEl);
+				break;
+			case "STATE_PREVIEW":
+				this.renderPreviewState(contentEl);
+				break;
+			case "STATE_COMMITTED":
+				this.renderCommittedState(contentEl);
+				break;
+		}
+	}
+
+	/**
+	 * 1. STATE_INPUT: お題入力フォーム
+	 */
+	private renderInputState(container: HTMLElement): void {
+		container.createEl("h2", {
+			text: "✨ AIスクラムマスター: 作戦策定",
 			cls: "jira-modal-title",
 		});
 
-		// Subtask Current Hierarchy Tree Preview
-		const currentTreeBox = contentEl.createDiv({ cls: "jira-modal-tree-box" });
-		currentTreeBox.createDiv({
-			cls: "jira-modal-box-label",
-			text: `Current Subtask Hierarchy Tree (${this.subtree.length} descendant tasks):`,
+		container.createEl("p", {
+			text: "お題（やりたいこと）を入力してください。AIがボトルネックを分析し、Phase 1の具体的物理行動（15〜30分単位）を提案します。",
+			cls: "jira-modal-subtext",
 		});
 
-		if (this.subtree.length === 0) {
-			currentTreeBox.createEl("p", {
-				text: "No subtasks yet. Ask AI to break it down!",
-				cls: "jira-modal-empty-text",
-			});
-		} else {
-			const treeContainer = currentTreeBox.createDiv({ cls: "jira-modal-tree-container" });
-			for (const node of this.subtree) {
-				const indentPx = (node.depth - 1) * 20;
-				const rowEl = treeContainer.createDiv({ cls: "jira-modal-tree-row" });
-				rowEl.style.paddingLeft = `${indentPx}px`;
-
-				const dateInfo = node.task.scheduled ? ` [📅 ${node.task.scheduled}]` : "";
-				const parentInfo = node.depth > 1 ? ` (Parent: ${node.task.parent})` : "";
-				
-				rowEl.createEl("span", {
-					cls: "jira-tree-bullet",
-					text: node.depth > 1 ? "└─ " : "├─ ",
-				});
-				rowEl.createEl("span", {
-					cls: "jira-tree-text",
-					text: `${node.task.id}: ${node.task.title}${parentInfo}${dateInfo}`,
-				});
-			}
-		}
-
-		// Quick Action Buttons
-		const quickBar = contentEl.createDiv({ cls: "jira-modal-quick-bar" });
-		quickBar.createDiv({ cls: "jira-modal-box-label", text: "Quick One-Tap Instructions:" });
-
-		const quickButtons = [
-			{ label: "🔍 Breakdown Subtasks", prompt: "Break down this task and its subtasks into 3-5 detailed technical action items." },
-			{ label: "📅 Optimize Schedule", prompt: "Schedule all subtasks and sub-subtasks starting from today evenly across upcoming days." },
-			{ label: "🧪 Add Testing Steps", prompt: "Add concrete testing and verification subtasks under the relevant parent task." },
-		];
-
-		for (const q of quickButtons) {
-			const btn = quickBar.createEl("button", { text: q.label, cls: "jira-quick-btn" });
-			btn.addEventListener("click", () => this.handleInstruction(q.prompt));
-		}
-
-		// Chat Log Box
-		if (this.chatHistory.length > 0) {
-			const chatBox = contentEl.createDiv({ cls: "jira-modal-chat-box" });
-			for (const msg of this.chatHistory) {
-				const msgEl = chatBox.createDiv({
-					cls: `jira-chat-msg msg-${msg.sender}`,
-				});
-				msgEl.createEl("span", {
-					cls: "msg-role",
-					text: msg.sender === "user" ? "👤 You: " : "🤖 AI: ",
-				});
-				msgEl.createEl("span", { text: msg.text });
-			}
-		}
-
-		// Proposed AI Diff Preview Section
-		if (this.pendingResult) {
-			const previewBox = contentEl.createDiv({ cls: "jira-modal-diff-preview" });
-			previewBox.createDiv({
-				cls: "jira-modal-box-label",
-				text: `Proposed Changes: ${this.pendingResult.explanation}`,
-			});
-
-			if (this.pendingResult.subtasksToAdd.length > 0) {
-				const addSec = previewBox.createDiv({ cls: "jira-diff-section diff-add" });
-				addSec.createEl("strong", { text: "➕ Tasks to Create:" });
-				const ul = addSec.createEl("ul");
-				for (const item of this.pendingResult.subtasksToAdd) {
-					const pText = item.parentId ? ` (under ${item.parentId})` : "";
-					ul.createEl("li", { text: `${item.title}${pText}` });
-				}
-			}
-
-			if (this.pendingResult.subtaskUpdates.length > 0) {
-				const updateSec = previewBox.createDiv({ cls: "jira-diff-section diff-update" });
-				updateSec.createEl("strong", { text: "✏️ Tasks to Update:" });
-				const ul = updateSec.createEl("ul");
-				for (const u of this.pendingResult.subtaskUpdates) {
-					ul.createEl("li", { text: `${u.id}: ${u.title || "keep title"} ${u.scheduled ? `(Scheduled: ${u.scheduled})` : ""}` });
-				}
-			}
-
-			// Apply Button Area
-			const applyBar = previewBox.createDiv({ cls: "jira-modal-apply-bar" });
-			const applyBtn = applyBar.createEl("button", {
-				text: "✅ Apply Changes to Vault",
-				cls: "mod-cta jira-apply-btn",
-			});
-			applyBtn.addEventListener("click", () => this.applyChanges());
-		}
-
-		// Instruction Form
-		const formEl = contentEl.createDiv({ cls: "jira-modal-form" });
-		const inputEl = formEl.createEl("input", {
+		const formGroup = container.createDiv({ cls: "jira-modal-form-group" });
+		const inputEl = formGroup.createEl("input", {
 			type: "text",
-			placeholder: this.isLoading ? "AI is thinking..." : "Type instruction (e.g. 'Add a subtask for TASK-002')...",
-			cls: "jira-modal-input",
+			placeholder: "例: 名古屋旅行（ジブリ・レゴランド）、新機能の設計、確定申告...",
+			value: this.topic,
+			cls: "jira-modal-input-large",
 		});
-		inputEl.disabled = this.isLoading;
-
-		const sendBtn = formEl.createEl("button", {
-			text: this.isLoading ? "⏳" : "Send 💬",
-			cls: "jira-modal-send-btn",
+		inputEl.focus();
+		inputEl.addEventListener("input", (e) => {
+			this.topic = (e.target as HTMLInputElement).value;
 		});
-		sendBtn.disabled = this.isLoading;
 
-		const submit = () => {
-			const text = inputEl.value.trim();
-			if (text && !this.isLoading) {
-				this.handleInstruction(text);
+		const actionBtnBar = container.createDiv({ cls: "jira-modal-action-bar" });
+		
+		const submitBtn = actionBtnBar.createEl("button", {
+			text: "作戦を立てる 🚀",
+			cls: "mod-cta jira-modal-btn-primary",
+		});
+
+		const cancelBtn = actionBtnBar.createEl("button", {
+			text: "キャンセル",
+			cls: "jira-modal-btn-secondary",
+		});
+		cancelBtn.addEventListener("click", () => this.close());
+
+		const startGeneration = () => {
+			const val = inputEl.value.trim();
+			if (!val) {
+				new Notice("⚠️ お題を入力してください。");
+				return;
 			}
+			this.topic = val;
+			this.currentState = "STATE_GENERATING";
+			this.renderModal();
+			this.executeGenerateStrategy();
 		};
 
-		sendBtn.addEventListener("click", submit);
+		submitBtn.addEventListener("click", startGeneration);
 		inputEl.addEventListener("keydown", (e) => {
-			if (e.key === "Enter") submit();
+			if (e.key === "Enter") startGeneration();
 		});
 	}
 
-	private async handleInstruction(instruction: string): Promise<void> {
-		this.isLoading = true;
-		this.chatHistory.push({ sender: "user", text: instruction });
-		this.renderModal();
+	/**
+	 * 2. STATE_GENERATING: AI思考中（ローディング）
+	 */
+	private renderGeneratingState(container: HTMLElement): void {
+		container.createEl("h2", {
+			text: "🤖 AIスクラムマスター思考中...",
+			cls: "jira-modal-title",
+		});
 
+		const loadingBox = container.createDiv({ cls: "jira-modal-loading-box" });
+		loadingBox.createDiv({ cls: "jira-spinner" });
+		loadingBox.createEl("p", {
+			text: "ボトルネックを分析し、不確実性を潰す Phase 1 作戦を策定しています...",
+			cls: "jira-loading-text",
+		});
+	}
+
+	/**
+	 * 3. STATE_PREVIEW: 人間によるプレビューとインタラクティブ修正
+	 */
+	private renderPreviewState(container: HTMLElement): void {
+		container.createEl("h2", {
+			text: `🎯 作戦プレビュー: ${this.topic}`,
+			cls: "jira-modal-title",
+		});
+
+		if (!this.strategyResult) return;
+
+		// ① 作戦表示エリア (Callout形式)
+		const calloutBox = container.createDiv({ cls: "jira-modal-callout-box" });
+		calloutBox.createDiv({
+			cls: "jira-callout-title",
+			text: "💡 AIスクラムマスターの作戦メモ",
+		});
+
+		const calloutContent = calloutBox.createDiv({ cls: "jira-callout-body" });
+		
+		const bnDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
+		bnDiv.createEl("strong", { text: "最優先ボトルネック: " });
+		bnDiv.createEl("span", { text: this.strategyResult.bottleneck });
+
+		const depDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
+		depDiv.createEl("strong", { text: "依存関係: " });
+		depDiv.createEl("span", { text: this.strategyResult.dependency });
+
+		const polDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
+		polDiv.createEl("strong", { text: "基本方針: " });
+		polDiv.createEl("span", { text: this.strategyResult.policy });
+
+		// ② Phase 1 タスク一覧 (編集可能なチェックボックス付きリスト)
+		const tasksSection = container.createDiv({ cls: "jira-modal-tasks-section" });
+		tasksSection.createEl("h3", {
+			text: "📍 Phase 1: ボトルネック・不確実性の解消 (15〜30分物理行動)",
+			cls: "jira-section-title",
+		});
+
+		const tasksContainer = tasksSection.createDiv({ cls: "jira-editable-task-list" });
+
+		this.editableTasks.forEach((item, index) => {
+			const row = tasksContainer.createDiv({ cls: "jira-editable-task-row" });
+			
+			const chk = row.createEl("input", {
+				type: "checkbox",
+				cls: "jira-task-chk",
+			});
+			chk.checked = item.enabled;
+			chk.addEventListener("change", () => {
+				this.editableTasks[index].enabled = chk.checked;
+			});
+
+			const textInput = row.createEl("input", {
+				type: "text",
+				value: item.text,
+				cls: "jira-task-text-input",
+			});
+			textInput.addEventListener("input", (e) => {
+				this.editableTasks[index].text = (e.target as HTMLInputElement).value;
+			});
+
+			const delBtn = row.createEl("button", {
+				text: "✕",
+				cls: "jira-task-del-btn",
+			});
+			delBtn.title = "タスクを削除";
+			delBtn.addEventListener("click", () => {
+				this.editableTasks.splice(index, 1);
+				this.renderModal();
+			});
+		});
+
+		// タスク追加ボタン
+		const addTaskBtn = tasksSection.createEl("button", {
+			text: "+ タスクを追加",
+			cls: "jira-add-task-btn",
+		});
+		addTaskBtn.addEventListener("click", () => {
+			this.editableTasks.push({ text: "ノートを開き...を入力する", enabled: true });
+			this.renderModal();
+		});
+
+		// ③ フィードバック入力欄
+		const feedbackBox = container.createDiv({ cls: "jira-modal-feedback-box" });
+		feedbackBox.createEl("label", {
+			text: "💬 作戦・タスクの修正フィードバック:",
+			cls: "jira-feedback-label",
+		});
+		
+		const feedbackInput = feedbackBox.createEl("input", {
+			type: "text",
+			placeholder: "例: 車移動に変更して、タスクを2つに減らして...",
+			value: this.feedback,
+			cls: "jira-modal-feedback-input",
+		});
+		feedbackInput.addEventListener("input", (e) => {
+			this.feedback = (e.target as HTMLInputElement).value;
+		});
+
+		const reGenerateBtn = feedbackBox.createEl("button", {
+			text: "再提案させる 🔄",
+			cls: "jira-modal-btn-secondary",
+		});
+		reGenerateBtn.addEventListener("click", () => {
+			this.currentState = "STATE_GENERATING";
+			this.renderModal();
+			this.executeGenerateStrategy(this.feedback);
+		});
+
+		// ④ アクションボタン
+		const actionBar = container.createDiv({ cls: "jira-modal-action-bar" });
+
+		const commitBtn = actionBar.createEl("button", {
+			text: "この作戦で確定（ノートへ書き込む） 📝",
+			cls: "mod-cta jira-modal-btn-primary",
+		});
+		commitBtn.addEventListener("click", () => this.commitStrategy());
+
+		const cancelBtn = actionBar.createEl("button", {
+			text: "キャンセル",
+			cls: "jira-modal-btn-secondary",
+		});
+		cancelBtn.addEventListener("click", () => this.close());
+	}
+
+	/**
+	 * 4. STATE_COMMITTED: 挿入完了
+	 */
+	private renderCommittedState(container: HTMLElement): void {
+		container.createEl("h2", {
+			text: "✅ 作戦とPhase 1タスクを書き込みました！",
+			cls: "jira-modal-title",
+		});
+		setTimeout(() => this.close(), 1000);
+	}
+
+	/**
+	 * AIによる作戦策定の実行
+	 */
+	private async executeGenerateStrategy(feedbackText?: string): Promise<void> {
 		try {
-			// Reload subtree to ensure freshness
-			this.subtree = this.taskService.getTaskSubtree(this.task.id);
-
-			const result = await this.aiService.refineTaskWithTree(
-				this.task,
-				this.subtree,
-				instruction
+			const result = await this.aiService.generateStrategy(
+				this.topic,
+				feedbackText,
+				this.strategyResult || undefined
 			);
-			this.pendingResult = result;
-			this.chatHistory.push({ sender: "ai", text: result.explanation });
+
+			this.strategyResult = result;
+			this.editableTasks = result.phase1Tasks.map((t) => ({
+				text: t,
+				enabled: true,
+			}));
+			this.feedback = ""; // リセット
+			this.currentState = "STATE_PREVIEW";
 		} catch (e) {
-			console.error(e);
-			new Notice("❌ Failed to communicate with AI.");
+			console.error("[TaskManager AI] Strategy generation error:", e);
+			new Notice("❌ 作戦の策定に失敗しました。");
+			this.currentState = "STATE_INPUT";
 		} finally {
-			this.isLoading = false;
 			this.renderModal();
 		}
 	}
 
-	private async applyChanges(): Promise<void> {
-		if (!this.pendingResult) return;
+	/**
+	 * 承認された最終編集結果をノートへ書き込み
+	 */
+	private async commitStrategy(): Promise<void> {
+		if (!this.strategyResult) return;
 
-		const allSubtreeTasks = this.subtree.map((n) => n.task);
-		const snapshot = this.undoService.recordSnapshot(
-			`AI Refine Tree on ${this.task.id}`,
-			[this.task, ...allSubtreeTasks]
+		// 有効かつ空でないタスクのみを抽出（ユーザーのプレビュー編集を反映）
+		const selectedTasks = this.editableTasks
+			.filter((t) => t.enabled && t.text.trim().length > 0)
+			.map((t) => t.text.trim());
+
+		if (selectedTasks.length === 0) {
+			new Notice("⚠️ 選択されたPhase 1タスクがありません。1つ以上チェックを入れてください。");
+			return;
+		}
+
+		// 開き元のタスクノートがある場合 → そのファイルに直接書き込み
+		const success = await this.taskService.saveStrategyToNote(
+			this.topic,
+			this.strategyResult,
+			selectedTasks,
+			this.task?.file
 		);
 
-		// Perform Creations
-		for (const req of this.pendingResult.subtasksToAdd) {
-			const targetParentId = req.parentId || this.task.id;
-			const newFile = await this.taskService.createSubtaskByParentId(targetParentId, req.title);
-			this.undoService.registerCreatedFile(snapshot, newFile.path);
-		}
-
-		// Perform Updates
-		const allTasks = this.taskService.getAllTasks();
-		for (const u of this.pendingResult.subtaskUpdates) {
-			const target = allTasks.find((s) => s.id === u.id);
-			if (target) {
-				if (u.scheduled !== undefined) {
-					await this.taskService.updateTaskSchedule(target.file, u.scheduled);
-				}
-				if (u.status !== undefined) {
-					await this.taskService.updateTaskStatus(target.file, u.status as any);
-				}
+		if (success) {
+			this.currentState = "STATE_COMMITTED";
+			this.renderModal();
+			if (this.onApplied) {
+				this.onApplied();
 			}
 		}
-
-		new Notice("✨ AI changes applied successfully!");
-		this.onApplied();
-		this.close();
 	}
 }
+

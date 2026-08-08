@@ -10,6 +10,9 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -31,6 +34,1135 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// src/services/TaskService.ts
+var TaskService_exports = {};
+__export(TaskService_exports, {
+  TaskService: () => TaskService
+});
+var import_obsidian2, TaskService;
+var init_TaskService = __esm({
+  "src/services/TaskService.ts"() {
+    "use strict";
+    import_obsidian2 = require("obsidian");
+    TaskService = class {
+      constructor(app, plugin) {
+        this.app = app;
+        this.plugin = plugin;
+      }
+      /**
+       * Get all task notes inside configured folder or vault
+       */
+      getAllTasks() {
+        const folderPath = (0, import_obsidian2.normalizePath)(this.plugin.settings.taskFolder);
+        const files = this.app.vault.getMarkdownFiles();
+        const tasks = [];
+        for (const file of files) {
+          if (folderPath && folderPath !== "." && folderPath !== "/") {
+            if (!file.path.startsWith(folderPath + "/") && file.path !== folderPath) {
+              continue;
+            }
+          }
+          const cache = this.app.metadataCache.getFileCache(file);
+          const fm = (cache == null ? void 0 : cache.frontmatter) || {};
+          const title = fm.title || file.basename;
+          const id = fm.id || file.basename;
+          const status = this.normalizeStatus(fm.status);
+          const priority = this.normalizePriority(fm.priority);
+          tasks.push({
+            id,
+            title,
+            status,
+            priority,
+            type: fm.type || (fm.parent ? "subtask" : "task"),
+            parent: fm.parent || void 0,
+            due: fm.due || void 0,
+            scheduled: fm.scheduled || void 0,
+            assignee: fm.assignee || "",
+            epic: fm.epic || "",
+            created: fm.created || "",
+            updated: fm.updated || "",
+            file
+          });
+        }
+        return tasks;
+      }
+      /**
+       * Recursively get all descendant tasks (subtasks, sub-subtasks, etc.) for a root task
+       */
+      getTaskSubtree(rootTaskId) {
+        const allTasks = this.getAllTasks();
+        const result = [];
+        const traverse = (parentId, currentDepth) => {
+          const children = allTasks.filter((t) => t.parent === parentId);
+          for (const child of children) {
+            result.push({ task: child, depth: currentDepth });
+            traverse(child.id, currentDepth + 1);
+          }
+        };
+        traverse(rootTaskId, 1);
+        return result;
+      }
+      /**
+       * Generate collision-free ASCII ID and filename: Prefix + Timestamp + Jitter
+       * Example: TASK-20260808225340-a8f3
+       */
+      generateUniqueId() {
+        const prefix = this.plugin.settings.idPrefix || "TASK-";
+        const now = /* @__PURE__ */ new Date();
+        const timestamp = now.toISOString().replace(/[-T:]/g, "").slice(0, 14);
+        const jitter = Math.random().toString(36).substring(2, 6).toLowerCase();
+        return `${prefix}${timestamp}-${jitter}`;
+      }
+      /**
+       * Create a new Task note with standard Frontmatter
+       */
+      async createTask(title, status = "todo", priority = "medium", options) {
+        const folderPath = (0, import_obsidian2.normalizePath)(this.plugin.settings.taskFolder);
+        if (folderPath && folderPath !== "." && folderPath !== "/") {
+          const folder = this.app.vault.getAbstractFileByPath(folderPath);
+          if (!folder) {
+            await this.app.vault.createFolder(folderPath);
+          }
+        }
+        const idStr = this.generateUniqueId();
+        const fileName = `${idStr}.md`;
+        const filePath = folderPath && folderPath !== "." && folderPath !== "/" ? `${folderPath}/${fileName}` : fileName;
+        const now = (/* @__PURE__ */ new Date()).toISOString();
+        const taskType = (options == null ? void 0 : options.type) || ((options == null ? void 0 : options.parent) ? "subtask" : "task");
+        const frontmatterLines = [
+          "---",
+          `id: ${idStr}`,
+          `title: "${title.replace(/"/g, '\\"')}"`,
+          `status: ${status}`,
+          `priority: ${priority}`,
+          `type: ${taskType}`
+        ];
+        if (options == null ? void 0 : options.parent)
+          frontmatterLines.push(`parent: "${options.parent}"`);
+        if (options == null ? void 0 : options.due)
+          frontmatterLines.push(`due: "${options.due}"`);
+        if (options == null ? void 0 : options.scheduled)
+          frontmatterLines.push(`scheduled: "${options.scheduled}"`);
+        frontmatterLines.push(
+          `created: ${now}`,
+          `updated: ${now}`,
+          "---",
+          "",
+          `# ${title}`,
+          "",
+          "## Description",
+          ""
+        );
+        const newFile = await this.app.vault.create(filePath, frontmatterLines.join("\n"));
+        return newFile;
+      }
+      /**
+       * Convenient wrapper to create a subtask under a parent task or subtask
+       */
+      async createSubtask(parentTask, title) {
+        return this.createTask(title, "todo", "medium", {
+          parent: parentTask.id,
+          type: "subtask",
+          due: parentTask.due,
+          scheduled: parentTask.scheduled
+        });
+      }
+      /**
+       * Create a subtask under a specific parent ID string
+       */
+      async createSubtaskByParentId(parentId, title) {
+        const allTasks = this.getAllTasks();
+        const parentTask = allTasks.find((t) => t.id === parentId);
+        return this.createTask(title, "todo", "medium", {
+          parent: parentId,
+          type: "subtask",
+          due: parentTask == null ? void 0 : parentTask.due,
+          scheduled: parentTask == null ? void 0 : parentTask.scheduled
+        });
+      }
+      /**
+       * Update task status in Frontmatter
+       */
+      async updateTaskStatus(file, status) {
+        await this.app.fileManager.processFrontMatter(file, (fm) => {
+          fm.status = status;
+          fm.updated = (/* @__PURE__ */ new Date()).toISOString();
+        });
+      }
+      /**
+       * Update scheduled date and due date
+       */
+      async updateTaskSchedule(file, scheduled, due) {
+        await this.app.fileManager.processFrontMatter(file, (fm) => {
+          if (scheduled !== void 0)
+            fm.scheduled = scheduled;
+          if (due !== void 0)
+            fm.due = due;
+          fm.updated = (/* @__PURE__ */ new Date()).toISOString();
+        });
+      }
+      /**
+       * Open the task Markdown note in workspace
+       */
+      async openTaskNote(file) {
+        const leaf = this.app.workspace.getLeaf("tab");
+        await leaf.openFile(file);
+      }
+      normalizeStatus(status) {
+        if (typeof status === "string") {
+          const s = status.toLowerCase();
+          if (s === "in_progress" || s === "in progress" || s === "doing")
+            return "in_progress";
+          if (s === "done" || s === "completed")
+            return "done";
+        }
+        return "todo";
+      }
+      normalizePriority(priority) {
+        if (typeof priority === "string") {
+          const p = priority.toLowerCase();
+          if (p === "low")
+            return "low";
+          if (p === "high")
+            return "high";
+          if (p === "highest")
+            return "highest";
+        }
+        return "medium";
+      }
+      /**
+       * Save strategy memo and Phase 1 tasks.
+       * Priority: targetFile (開き元ノート) > active editor > existing task with matching title > create new.
+       */
+      async saveStrategyToNote(topic, strategy, selectedTasks, targetFile) {
+        const taskLines = selectedTasks.map((t) => `- [ ] ${t}`).join("\n");
+        const contentToInsert = [
+          "",
+          "> [!strategy] AI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u306E\u4F5C\u6226\u30E1\u30E2",
+          `> - **\u6700\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF**: ${strategy.bottleneck}`,
+          `> - **\u4F9D\u5B58\u95A2\u4FC2**: ${strategy.dependency}`,
+          `> - **\u57FA\u672C\u65B9\u91DD**: ${strategy.policy}`,
+          "",
+          "## \u{1F4CD} Phase 1: \u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u30FB\u4E0D\u78BA\u5B9F\u6027\u306E\u89E3\u6D88",
+          taskLines,
+          ""
+        ].join("\n");
+        if (targetFile) {
+          return this.appendContentToFile(targetFile, contentToInsert);
+        }
+        const activeView = this.app.workspace.getActiveViewOfType(import_obsidian2.MarkdownView);
+        if (activeView && activeView.editor) {
+          const editor = activeView.editor;
+          const lastLine = editor.lineCount();
+          editor.replaceRange("\n" + contentToInsert, { line: lastLine, ch: 0 });
+          new import_obsidian2.Notice("\u2728 \u30A2\u30AF\u30C6\u30A3\u30D6\u30CE\u30FC\u30C8\u306B\u4F5C\u6226\u3068Phase 1\u30BF\u30B9\u30AF\u3092\u66F8\u304D\u8FBC\u307F\u307E\u3057\u305F\uFF01");
+          return true;
+        }
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile && activeFile.extension === "md") {
+          return this.appendContentToFile(activeFile, contentToInsert);
+        }
+        const existingTask = this.findTaskByTitle(topic);
+        if (existingTask) {
+          return this.appendContentToFile(
+            existingTask.file,
+            contentToInsert,
+            `\u2728 \u65E2\u5B58\u30CE\u30FC\u30C8\u300C${existingTask.title}\u300D\u306B\u4F5C\u6226\u3068Phase 1\u30BF\u30B9\u30AF\u3092\u8FFD\u8A18\u3057\u307E\u3057\u305F\uFF01`
+          );
+        }
+        const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+        const newFile = await this.createTask(topic, "todo", "medium", { scheduled: todayStr });
+        return this.appendContentToFile(
+          newFile,
+          contentToInsert,
+          `\u2728 \u300C${topic}\u300D\u306E\u65B0\u898F\u30BF\u30B9\u30AF\u30CE\u30FC\u30C8\u3092\u4F5C\u6210\u3057\u3001\u4F5C\u6226\u3068Phase 1\u30BF\u30B9\u30AF\u3092\u8A18\u9332\u3057\u307E\u3057\u305F\uFF01`
+        );
+      }
+      /**
+       * ファイル末尾にコンテンツを追記してノートを開く
+       */
+      async appendContentToFile(file, content, noticeMsg) {
+        const existing = await this.app.vault.read(file);
+        await this.app.vault.modify(file, existing.trimEnd() + "\n\n" + content);
+        await this.openTaskNote(file);
+        new import_obsidian2.Notice(noticeMsg || "\u2728 \u4F5C\u6226\u3068Phase 1\u30BF\u30B9\u30AF\u3092\u30CE\u30FC\u30C8\u306B\u66F8\u304D\u8FBC\u307F\u307E\u3057\u305F\uFF01");
+        return true;
+      }
+      /**
+       * Find an existing task by title (case-insensitive, trimmed match)
+       */
+      findTaskByTitle(title) {
+        const allTasks = this.getAllTasks();
+        const normalized = title.trim().toLowerCase();
+        return allTasks.find((t) => t.title.trim().toLowerCase() === normalized);
+      }
+    };
+  }
+});
+
+// src/prompts/systemRules.ts
+function getBaseSystemRules() {
+  return `\u3010AI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC \u7D76\u5BFE\u9075\u5B88\u30EB\u30FC\u30EB\u3011
+1. \u3010\u65E5\u672C\u8A9E\u51FA\u529B\u306E\u7D76\u5BFE\u5F37\u5236\u3011:
+   - \u751F\u6210\u30FB\u51FA\u529B\u3059\u308B\u3059\u3079\u3066\u306E\u30BF\u30B9\u30AF\u30BF\u30A4\u30C8\u30EB\u3001\u30B5\u30D6\u30BF\u30B9\u30AF\u540D\u3001\u304A\u3088\u3073\u89E3\u8AAC\u6587\u306F\u3001\u5FC5\u305A\u81EA\u7136\u306A\u65E5\u672C\u8A9E\u3067\u8A18\u8FF0\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u82F1\u8A9E\u3067\u306E\u51FA\u529B\u306F\u7981\u6B62\u3067\u3059\u3002
+
+2. \u301015\u301C30\u5206 Next Physical Action (\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5) \u3078\u306E\u5F37\u5236\u5206\u89E3\u3011:
+   - \u3059\u3079\u3066\u306E\u30BF\u30B9\u30AF/\u30B5\u30D6\u30BF\u30B9\u30AF\u306F\u300115\u301C30\u5206\u4EE5\u5185\u3067\u7D42\u308F\u308B\u6700\u5C0F\u9650\u306E\u884C\u52D5\u5358\u4F4D\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - \u30BF\u30A4\u30C8\u30EB\u306E\u52D5\u8A5E\u306F\u3001\u4EBA\u9593\u304C\u5373\u5EA7\u306B\u4F53\u3092\u52D5\u304B\u305B\u308B\u300C\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u300D\u3067\u59CB\u3081\u3066\u304F\u3060\u3055\u3044\u3002
+     (\u4F8B: \u300C\u301C\u306E\u753B\u9762\u3092\u958B\u304F\u300D\u300C\u301C\u306E\u30D5\u30A1\u30A4\u30EB\u30921\u884C\u4F5C\u6210\u3059\u308B\u300D\u300C\u301C\u306EURL\u3092\u30D6\u30E9\u30A6\u30B6\u3067\u691C\u7D22\u3059\u308B\u300D\u300C\u301C\u3092\u5165\u529B\u3059\u308B\u300D)
+
+3. \u3010\u62BD\u8C61\u7684\u30FB\u66D6\u6627\u306A\u8868\u73FE\u306E\u7D76\u5BFE\u7981\u6B62\u3011:
+   - \u4EE5\u4E0B\u306E\u62BD\u8C61\u7684\u30FB\u66D6\u6627\u306A\u8A00\u8449\u3092\u30BF\u30B9\u30AF\u540D\u306B\u4F7F\u7528\u3059\u308B\u3053\u3068\u3092\u56FA\u304F\u7981\u6B62\u3057\u307E\u3059\u3002
+     \xD7 \u7981\u6B62\u8A9E: \u300C\u691C\u8A0E\u3059\u308B\u300D\u300C\u8ABF\u6574\u3059\u308B\u300D\u300C\u8ABF\u67FB\u3059\u308B\u300D\u300C\u78BA\u8A8D\u3059\u308B\u300D\u300C\u5BFE\u5FDC\u3059\u308B\u300D\u300C\u5B9F\u65BD\u3059\u308B\u300D\u300C\u8003\u3048\u308B\u300D\u300C\u628A\u63E1\u3059\u308B\u300D\u300C\u9032\u3081\u308B\u300D
+   - \u4E0A\u8A18\u306E\u3088\u3046\u306A\u66D6\u6627\u306A\u4F5C\u696D\u306F\u3001\u5FC5\u305A\u300C\u3069\u3053\u3092\u958B\u304D\u3001\u4F55\u3092\u5165\u529B/\u66F8\u304F\u304B\u300D\u3068\u3044\u3046\u5177\u4F53\u884C\u52D5\u306B\u843D\u3068\u3057\u8FBC\u3093\u3067\u304F\u3060\u3055\u3044\u3002
+`;
+}
+function buildFullSystemRules(customSettingsPrompt, vaultRuleContent) {
+  const rules = [getBaseSystemRules()];
+  if (customSettingsPrompt == null ? void 0 : customSettingsPrompt.trim()) {
+    rules.push(`\u3010\u30E6\u30FC\u30B6\u30FC\u5B9A\u7FA9\u30AB\u30B9\u30BF\u30E0\u30EB\u30FC\u30EB (\u8A2D\u5B9A\u753B\u9762)\u3011:
+${customSettingsPrompt.trim()}`);
+  }
+  if (vaultRuleContent == null ? void 0 : vaultRuleContent.trim()) {
+    rules.push(`\u3010\u30E6\u30FC\u30B6\u30FC\u5B9A\u7FA9\u30AB\u30B9\u30BF\u30E0\u30EB\u30FC\u30EB (Vault\u5185\u30D5\u30A1\u30A4\u30EB)\u3011:
+${vaultRuleContent.trim()}`);
+  }
+  return rules.join("\n\n");
+}
+var init_systemRules = __esm({
+  "src/prompts/systemRules.ts"() {
+    "use strict";
+  }
+});
+
+// src/prompts/taskBreakdownPrompt.ts
+function buildTaskBreakdownPrompt(task, customSettingsPrompt, vaultRuleContent) {
+  const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
+  return `\u3042\u306A\u305F\u306FAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
+\u89AA\u30BF\u30B9\u30AF\u300C${task.title}\u300D\u3092\u300115\u301C30\u5206\u3067\u5B9F\u884C\u53EF\u80FD\u306A3\u301C5\u500B\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF08Next Physical Action\uFF09\u306E\u30B5\u30D6\u30BF\u30B9\u30AF\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+${systemRules}
+
+\u3010\u51FA\u529B\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
+\u4EE5\u4E0B\u306E\u5F62\u5F0F\u306E\u6709\u52B9\u306AJSON\u914D\u5217\uFF08\u6587\u5B57\u5217\u306E\u914D\u5217\uFF09\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u5FC5\u305A\u3059\u3079\u3066\u65E5\u672C\u8A9E\u3067\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002JSON\u306E\u5916\u5074\u306B\u306F\u8AAC\u660E\u6587\u3084Markdown\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u4E00\u5207\u542B\u3081\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
+
+\u4F8B:
+["Chrome\u3092\u958B\u3044\u3066\u516C\u5F0F\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8URL\u306B\u30A2\u30AF\u30BB\u30B9\u3059\u308B", "\u30A8\u30C7\u30A3\u30BF\u3092\u958B\u304Dsrc/main.ts\u306E1\u884C\u76EE\u306B\u30B3\u30E1\u30F3\u30C8\u3092\u66F8\u304F", "\u30BF\u30FC\u30DF\u30CA\u30EB\u3092\u958B\u304Dnpm run test\u30B3\u30DE\u30F3\u30C9\u3092\u5B9F\u884C\u3059\u308B"]`;
+}
+var init_taskBreakdownPrompt = __esm({
+  "src/prompts/taskBreakdownPrompt.ts"() {
+    "use strict";
+    init_systemRules();
+  }
+});
+
+// src/prompts/taskRefinePrompt.ts
+function buildTaskRefinePrompt(rootTask, subtree, instruction, customSettingsPrompt, vaultRuleContent) {
+  const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
+  const treeLines = [
+    `- ${rootTask.id}: ${rootTask.title} [\u30B9\u30C6\u30FC\u30BF\u30B9: ${rootTask.status}, \u5B9F\u65BD\u4E88\u5B9A\u65E5: ${rootTask.scheduled || "\u672A\u8A2D\u5B9A"}]`
+  ];
+  for (const node of subtree) {
+    const indent = "  ".repeat(node.depth);
+    treeLines.push(
+      `${indent}- ${node.task.id}: ${node.task.title} (\u89AAID: ${node.task.parent}) [\u30B9\u30C6\u30FC\u30BF\u30B9: ${node.task.status}, \u5B9F\u65BD\u4E88\u5B9A\u65E5: ${node.task.scheduled || "\u672A\u8A2D\u5B9A"}]`
+    );
+  }
+  return `\u3042\u306A\u305F\u306F\u4F34\u8D70\u578B\u306EAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
+\u672C\u65E5\u306E\u65E5\u4ED8: ${todayStr}
+
+${systemRules}
+
+\u3010\u73FE\u5728\u306E\u30BF\u30B9\u30AF\u30FB\u30B5\u30D6\u30BF\u30B9\u30AF\u968E\u5C64\u30C4\u30EA\u30FC\u3011:
+${treeLines.join("\n")}
+
+\u3010\u30E6\u30FC\u30B6\u30FC\u304B\u3089\u306E\u58C1\u6253\u3061\u30FB\u4FEE\u6B63\u6307\u793A\u3011:
+"${instruction}"
+
+\u6307\u793A\u3092\u5206\u6790\u3057\u3001\u30BF\u30B9\u30AF\u30C4\u30EA\u30FC\u306B\u5BFE\u3059\u308B\u8FFD\u52A0\u30FB\u5909\u66F4\u6848\u3092\u4F5C\u6210\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u8FFD\u52A0\u30FB\u5909\u66F4\u3059\u308B\u30B5\u30D6\u30BF\u30B9\u30AF\u540D\u306F\u5FC5\u305A15\u301C30\u5206\u3067\u5B8C\u4E86\u3059\u308B\u65E5\u672C\u8A9E\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u306B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u3010\u30EC\u30B9\u30DD\u30F3\u30B9\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
+\u4EE5\u4E0B\u306E\u69CB\u9020\u306B\u4E00\u81F4\u3059\u308B\u6709\u52B9\u306AJSON\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u5FC5\u305A\u3059\u3079\u3066\u65E5\u672C\u8A9E\u3067\u8A18\u8FF0\u3057\u3066\u304F\u3060\u3055\u3044\u3002JSON\u306E\u5916\u5074\u306BMarkdown\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3084\u8AAC\u660E\u6587\u3092\u4E00\u5207\u542B\u3081\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
+
+{
+  "explanation": "\u884C\u3063\u305F\u5909\u66F4\u5185\u5BB9\u306E\u7C21\u6F54\u306A\u8AAC\u660E\uFF08\u65E5\u672C\u8A9E1\u6587\uFF09",
+  "subtasksToAdd": [
+    { "title": "\u30A8\u30C7\u30A3\u30BF\u3092\u958B\u304D\u8A2D\u5B9A\u30D5\u30A1\u30A4\u30EB\u306E\u8A72\u5F53\u884C\u3092\u7DE8\u96C6\u3059\u308B", "parentId": "${rootTask.id}" }
+  ],
+  "subtaskIdsToRemove": ["TASK-XXX"],
+  "subtaskUpdates": [
+    { "id": "TASK-YYY", "title": "\u66F4\u65B0\u5F8C\u306E\u65E5\u672C\u8A9E\u5177\u4F53\u884C\u52D5\u30BF\u30A4\u30C8\u30EB", "scheduled": "${todayStr}" }
+  ]
+}
+\u203B subtasksToAdd \u5185\u306E parentId \u3092\u7701\u7565\u3057\u305F\u5834\u5408\u306F\u3001\u81EA\u52D5\u7684\u306B "${rootTask.id}" \u304C\u89AA\u3068\u306A\u308A\u307E\u3059\u3002`;
+}
+var init_taskRefinePrompt = __esm({
+  "src/prompts/taskRefinePrompt.ts"() {
+    "use strict";
+    init_systemRules();
+  }
+});
+
+// src/prompts/taskReschedulePrompt.ts
+function buildTaskReschedulePrompt(tasks, customSettingsPrompt, vaultRuleContent) {
+  const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
+  const taskSummaries = tasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    status: t.status,
+    due: t.due || "\u672A\u8A2D\u5B9A",
+    scheduled: t.scheduled || "\u672A\u8A2D\u5B9A"
+  }));
+  return `\u3042\u306A\u305F\u306F\u30B9\u30DE\u30FC\u30C8\u306AAI\u30B9\u30B1\u30B8\u30E5\u30FC\u30EB\u30D1\u30FC\u30C8\u30CA\u30FC\u3067\u3059\u3002
+\u672C\u65E5\u306E\u65E5\u4ED8: ${todayStr}
+
+${systemRules}
+
+\u3010\u5206\u6790\u5BFE\u8C61\u30BF\u30B9\u30AF\u4E00\u89A7\u3011:
+${JSON.stringify(taskSummaries, null, 2)}
+
+\u671F\u9650\u5207\u308C\uFF08OVERDUE\uFF09\u307E\u305F\u306F\u672A\u30B9\u30B1\u30B8\u30E5\u30FC\u30EB\uFF08UNSCHEDULED\uFF09\u3067\u672A\u5B8C\u4E86\u306E\u30BF\u30B9\u30AF\u306B\u5BFE\u3057\u3066\u3001\u672C\u65E5\uFF08${todayStr}\uFF09\u4EE5\u964D\u306E\u7121\u7406\u306E\u306A\u3044\u304A\u3059\u3059\u3081\u5B9F\u65BD\u4E88\u5B9A\u65E5\uFF08YYYY-MM-DD\uFF09\u3092\u5272\u308A\u632F\u3063\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u3010\u30EC\u30B9\u30DD\u30F3\u30B9\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
+\u30BF\u30B9\u30AFID\u304B\u3089\u65B0\u3057\u3044\u5B9F\u65BD\u4E88\u5B9A\u65E5\u6587\u5B57\u5217\u3078\u306E\u30DE\u30C3\u30D4\u30F3\u30B0\u3092\u8868\u3059\u6709\u52B9\u306AJSON\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u4F8B:
+{
+  "TASK-20260808-a8f3": "${todayStr}"
+}
+JSON\u306E\u5916\u5074\u306B\u30C6\u30AD\u30B9\u30C8\u3084\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u542B\u3081\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002`;
+}
+var init_taskReschedulePrompt = __esm({
+  "src/prompts/taskReschedulePrompt.ts"() {
+    "use strict";
+    init_systemRules();
+  }
+});
+
+// src/prompts/strategyPrompt.ts
+function buildStrategyPrompt(topic, feedback, existingStrategy, customSettingsPrompt, vaultRuleContent) {
+  const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
+  let currentContext = "";
+  if (existingStrategy) {
+    currentContext = `
+\u3010\u73FE\u5728\u306E\u63D0\u6848\u6E08\u307F\u4F5C\u6226\u30E1\u30E2\u3011:
+- \u6700\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF: ${existingStrategy.bottleneck}
+- \u4F9D\u5B58\u95A2\u4FC2: ${existingStrategy.dependency}
+- \u57FA\u672C\u65B9\u91DD: ${existingStrategy.policy}
+- Phase 1 \u30BF\u30B9\u30AF\u6848:
+${existingStrategy.phase1Tasks.map((t, i) => `  ${i + 1}. ${t}`).join("\n")}
+`;
+  }
+  let feedbackContext = "";
+  if (feedback) {
+    feedbackContext = `
+\u3010\u30E6\u30FC\u30B6\u30FC\u304B\u3089\u306E\u4FEE\u6B63\u30D5\u30A3\u30FC\u30C9\u30D0\u30C3\u30AF\u6307\u793A\u3011:
+"${feedback}"
+\u4E0A\u8A18\u306E\u4FEE\u6B63\u6307\u793A\u306B\u5F93\u3044\u3001\u4F5C\u6226\u30E1\u30E2\u304A\u3088\u3073 Phase 1 \u30BF\u30B9\u30AF\u6848\u3092\u518D\u8ABF\u6574\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+`;
+  }
+  return `\u3042\u306A\u305F\u306F\u4F34\u8D70\u578B\u306EAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
+\u30E6\u30FC\u30B6\u30FC\u304B\u3089\u4E0E\u3048\u3089\u308C\u305F\u304A\u984C\u306B\u5BFE\u3057\u3066\u300C\u4F5C\u6226\uFF08\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u5206\u6790\uFF09\u300D\u3068\u300CPhase 1 \u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u30BF\u30B9\u30AF\u6848\u300D\u3092\u7B56\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+${systemRules}
+
+\u3010\u304A\u984C\u3011:
+"${topic}"
+${currentContext}${feedbackContext}
+
+\u3010\u4F5C\u6210\u4E0A\u306E\u7D76\u5BFE\u9075\u5B88\u30EB\u30FC\u30EB\u3011:
+1. **\u4F5C\u6226\u306E\u7B56\u5B9A**:
+   - \u6700\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF: \u4F55\u304C\u6700\u5927\u306E\u4E0D\u78BA\u5B9F\u6027/\u969C\u58C1\u3067\u3042\u308B\u304B\u3092\u660E\u78BA\u5316
+   - \u4F9D\u5B58\u95A2\u4FC2: \u4F55\u304C\u6C7A\u307E\u308C\u3070\u6B21\u306B\u4F55\u304C\u6C7A\u307E\u308B\u304B\u306E\u6D41\u308C
+   - \u57FA\u672C\u65B9\u91DD: \u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u3092\u89E3\u6D88\u3059\u308B\u305F\u3081\u306E\u6226\u7565
+2. **Phase 1 \u30BF\u30B9\u30AF\u6848\u306E\u5236\u7D04**:
+   - \u4E00\u767A\u3067\u5927\u91CF\u306E\u5168\u30BF\u30B9\u30AF\u3092\u4F5C\u3089\u305A\u3001**\u300C\u4E0D\u78BA\u5B9F\u6027\u3092\u6F70\u3059\u305F\u3081\u306E\u6700\u521D\u306E1\u301C3\u500B\u306EPhase 1\u30BF\u30B9\u30AF\u300D\u306E\u307F**\u3092\u63D0\u6848\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - \u30BF\u30B9\u30AF\u306E\u30BF\u30A4\u30C8\u30EB\u306F**\u5FC5\u305A\u300C\u301C\u3092\u958B\u304F\u300D\u300C\u301C\u3092\u5165\u529B\u3059\u308B\u300D\u300C\u301C\u3092\u691C\u7D22\u3059\u308B\u300D\u306A\u3069\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF08Next Physical Action / 15\u301C30\u5206\u3067\u5B8C\u4E86\u3059\u308B\u4F5C\u696D\uFF09**\u3067\u59CB\u3081\u3066\u304F\u3060\u3055\u3044\u3002
+   - \u300C\u301C\u306E\u691C\u8A0E\u300D\u300C\u301C\u306E\u8ABF\u6574\u300D\u300C\u301C\u306E\u8ABF\u67FB\u300D\u300C\u301C\u306E\u78BA\u8A8D\u300D\u306A\u3069\u306E\u66D6\u6627\u30FB\u62BD\u8C61\u7684\u306A\u8868\u73FE\u306F**\u5B8C\u5168\u7981\u6B62**\u3067\u3059\u3002
+
+\u3010\u30EC\u30B9\u30DD\u30F3\u30B9\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
+\u4EE5\u4E0B\u306E\u69CB\u9020\u306B\u4E00\u81F4\u3059\u308B\u6709\u52B9\u306AJSON\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u5FC5\u305A\u3059\u3079\u3066\u65E5\u672C\u8A9E\u3067\u8A18\u8FF0\u3057\u3066\u304F\u3060\u3055\u3044\u3002JSON\u306E\u5916\u5074\u306BMarkdown\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3084\u8AAC\u660E\u6587\u3092\u4E00\u5207\u542B\u3081\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
+
+{
+  "bottleneck": "\u6700\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u306E\u89E3\u8AAC",
+  "dependency": "\u4F9D\u5B58\u95A2\u4FC2\u306E\u6D41\u308C",
+  "policy": "\u57FA\u672C\u65B9\u91DD",
+  "phase1Tasks": [
+    "\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u3007\u3007\u306E\u30B5\u30A4\u30C8\u3067\u6599\u91D1\u30D7\u30E9\u30F3\u3092\u78BA\u8A8D\u3059\u308B",
+    "\u30CE\u30FC\u30C8\u3092\u958B\u304D\u3007\u3007\u306E\u8981\u4EF6\u30921\u884C\u3067\u30E1\u30E2\u3059\u308B"
+  ]
+}
+`;
+}
+var init_strategyPrompt = __esm({
+  "src/prompts/strategyPrompt.ts"() {
+    "use strict";
+    init_systemRules();
+  }
+});
+
+// src/prompts/index.ts
+var init_prompts = __esm({
+  "src/prompts/index.ts"() {
+    "use strict";
+    init_systemRules();
+    init_taskBreakdownPrompt();
+    init_taskRefinePrompt();
+    init_taskReschedulePrompt();
+    init_strategyPrompt();
+  }
+});
+
+// src/services/AIService.ts
+var AIService_exports = {};
+__export(AIService_exports, {
+  AIService: () => AIService
+});
+function getExtendedEnv() {
+  const home = os.homedir();
+  const extraPaths = [
+    path.join(home, ".local", "bin"),
+    path.join(home, ".antigravity", "bin"),
+    path.join(home, ".gemini", "antigravity", "bin"),
+    "/usr/local/bin",
+    "/opt/homebrew/bin",
+    "/usr/bin",
+    "/bin"
+  ];
+  const currentPath = process.env.PATH || "";
+  const combinedPath = extraPaths.concat(currentPath.split(":")).filter(Boolean);
+  const uniquePath = Array.from(new Set(combinedPath)).join(":");
+  return {
+    ...process.env,
+    PATH: uniquePath
+  };
+}
+function resolveCommandPath(command) {
+  if (path.isAbsolute(command)) {
+    return command;
+  }
+  const home = os.homedir();
+  const searchDirs = [
+    path.join(home, ".local", "bin"),
+    path.join(home, ".antigravity", "bin"),
+    path.join(home, ".gemini", "antigravity", "bin"),
+    "/usr/local/bin",
+    "/opt/homebrew/bin",
+    "/usr/bin",
+    "/bin"
+  ];
+  for (const dir of searchDirs) {
+    const fullPath = path.join(dir, command);
+    if (fs.existsSync(fullPath)) {
+      return fullPath;
+    }
+  }
+  return command;
+}
+var import_child_process, import_util, os, path, fs, import_obsidian3, execAsync, AIService;
+var init_AIService = __esm({
+  "src/services/AIService.ts"() {
+    "use strict";
+    import_child_process = require("child_process");
+    import_util = require("util");
+    os = __toESM(require("os"));
+    path = __toESM(require("path"));
+    fs = __toESM(require("fs"));
+    import_obsidian3 = require("obsidian");
+    init_prompts();
+    execAsync = (0, import_util.promisify)(import_child_process.exec);
+    AIService = class {
+      constructor(plugin) {
+        this.plugin = plugin;
+      }
+      /**
+       * Retrieve custom rule contents from vault file if specified
+       */
+      async getVaultRuleContent() {
+        var _a;
+        const rulePath = (_a = this.plugin.settings.customRuleFilePath) == null ? void 0 : _a.trim();
+        if (!rulePath)
+          return void 0;
+        try {
+          const file = this.plugin.app.vault.getAbstractFileByPath((0, import_obsidian3.normalizePath)(rulePath));
+          if (file && file instanceof import_obsidian3.TFile) {
+            return await this.plugin.app.vault.read(file);
+          }
+        } catch (e) {
+          console.warn("[TaskManager AI] Could not read rule file from vault:", e);
+        }
+        return void 0;
+      }
+      /**
+       * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
+       */
+      async refineTaskWithTree(rootTask, subtree, instruction) {
+        const vaultRule = await this.getVaultRuleContent();
+        const prompt = buildTaskRefinePrompt(
+          rootTask,
+          subtree,
+          instruction,
+          this.plugin.settings.customTaskRules,
+          vaultRule
+        );
+        try {
+          const output = await this.runCLI(prompt);
+          const parsed = this.extractJSONObject(output);
+          if (parsed) {
+            const rawToAdd = parsed.subtasksToAdd || [];
+            const normalizedToAdd = rawToAdd.map((item) => {
+              if (typeof item === "string") {
+                return { title: item, parentId: rootTask.id };
+              }
+              return { title: item.title, parentId: item.parentId || rootTask.id };
+            });
+            return {
+              explanation: parsed.explanation || "\u30BF\u30B9\u30AF\u69CB\u9020\u3092\u65E5\u672C\u8A9E\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u306B\u66F4\u65B0\u3057\u307E\u3057\u305F\u3002",
+              subtasksToAdd: normalizedToAdd,
+              subtaskIdsToRemove: parsed.subtaskIdsToRemove || [],
+              subtaskUpdates: parsed.subtaskUpdates || []
+            };
+          }
+        } catch (err) {
+          console.warn("[TaskManager AI] Refine CLI failed, using smart fallback:", err);
+        }
+        return {
+          explanation: `\u6307\u793A\u306B\u57FA\u3065\u304D\u65E5\u672C\u8A9E\u306E\u7269\u7406\u884C\u52D5\u30BF\u30B9\u30AF\u3092\u8FFD\u52A0\u3057\u307E\u3057\u305F: "${instruction}"`,
+          subtasksToAdd: [{ title: `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${instruction}\u300D\u306E\u30E1\u30E2\u30921\u884C\u4F5C\u6210\u3059\u308B`, parentId: rootTask.id }],
+          subtaskIdsToRemove: [],
+          subtaskUpdates: []
+        };
+      }
+      /**
+       * Ask AI (Antigravity CLI) to break down a parent task into subtask titles
+       */
+      async breakdownTask(task) {
+        const vaultRule = await this.getVaultRuleContent();
+        const prompt = buildTaskBreakdownPrompt(
+          task,
+          this.plugin.settings.customTaskRules,
+          vaultRule
+        );
+        try {
+          const output = await this.runCLI(prompt);
+          const parsed = this.extractJSONArray(output);
+          if (parsed && parsed.length > 0) {
+            return parsed;
+          }
+        } catch (err) {
+          console.warn("[TaskManager AI] CLI execution failed, using fallback:", err);
+        }
+        return [
+          `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${task.title}\u300D\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u30921\u884C\u66F8\u304F`,
+          `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${task.title}\u300D\u306E\u95A2\u9023\u8CC7\u6599\u3092\u691C\u7D22\u3059\u308B`,
+          `\u30BF\u30FC\u30DF\u30CA\u30EB\u3092\u958B\u304D\u5B9F\u884C\u30ED\u30B0\u3092\u78BA\u8A8D\u3059\u308B`
+        ];
+      }
+      /**
+       * Ask AI (Antigravity CLI) to reschedule overdue/unscheduled tasks
+       */
+      async rescheduleTasks(tasks) {
+        const vaultRule = await this.getVaultRuleContent();
+        const prompt = buildTaskReschedulePrompt(
+          tasks,
+          this.plugin.settings.customTaskRules,
+          vaultRule
+        );
+        try {
+          const output = await this.runCLI(prompt);
+          const parsed = this.extractJSONObject(output);
+          if (parsed && Object.keys(parsed).length > 0) {
+            return parsed;
+          }
+        } catch (err) {
+          console.warn("[TaskManager AI] CLI execution failed, using fallback:", err);
+        }
+        const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+        const result = {};
+        for (const t of tasks) {
+          if (t.status !== "done" && (!t.scheduled || t.scheduled < todayStr)) {
+            result[t.id] = todayStr;
+          }
+        }
+        return result;
+      }
+      async runCLI(promptText) {
+        const commandName = this.plugin.settings.antigravityCommand || "agy";
+        const exePath = resolveCommandPath(commandName);
+        const env = getExtendedEnv();
+        const escapedPrompt = promptText.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "\\$").replace(/`/g, "\\`");
+        const cmd = `"${exePath}" -p "${escapedPrompt}"`;
+        const { stdout } = await execAsync(cmd, {
+          env,
+          timeout: 25e3,
+          maxBuffer: 1024 * 1024 * 5
+        });
+        return stdout.trim();
+      }
+      /**
+       * Formulate strategy (bottleneck analysis) and Phase 1 tasks for a topic or user feedback
+       */
+      async generateStrategy(topic, feedback, existingStrategy) {
+        const vaultRule = await this.getVaultRuleContent();
+        const prompt = buildStrategyPrompt(
+          topic,
+          feedback,
+          existingStrategy,
+          this.plugin.settings.customTaskRules,
+          vaultRule
+        );
+        try {
+          const output = await this.runCLI(prompt);
+          const parsed = this.extractJSONObject(output);
+          if (parsed && parsed.bottleneck && Array.isArray(parsed.phase1Tasks)) {
+            return {
+              bottleneck: parsed.bottleneck || "\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u306E\u7279\u5B9A",
+              dependency: parsed.dependency || "\u4E8B\u524D\u306E\u57FA\u672C\u6761\u4EF6\u8A2D\u5B9A",
+              policy: parsed.policy || "Phase 1\u306B\u3088\u308B\u4E0D\u78BA\u5B9F\u6027\u306E\u65E9\u671F\u89E3\u6D88",
+              phase1Tasks: parsed.phase1Tasks.length > 0 ? parsed.phase1Tasks : [
+                `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306B\u95A2\u9023\u3059\u308B\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`,
+                `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u524D\u63D0\u6761\u4EF6\u30921\u884C\u5165\u529B\u3059\u308B`
+              ]
+            };
+          }
+        } catch (err) {
+          console.warn("[TaskManager AI] Strategy CLI execution failed, using fallback:", err);
+        }
+        return {
+          bottleneck: `\u300C${topic}\u300D\u306B\u304A\u3051\u308B\u521D\u671F\u8ABF\u67FB\u3068\u4E0D\u78BA\u5B9F\u6027\u306E\u6574\u7406`,
+          dependency: "\u60C5\u5831\u53CE\u96C6 \u2794 \u5B9F\u884C\u30D7\u30E9\u30F3\u6C7A\u5B9A",
+          policy: "\u307E\u305A\u306F\u6700\u5C11\u624B\u6570\u306E\u7269\u7406\u884C\u52D5\u3067\u524D\u63D0\u60C5\u5831\u3092\u63C3\u3048\u308B",
+          phase1Tasks: [
+            `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u57FA\u672C\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`,
+            `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u3067\u5FC5\u8981\u306A\u9805\u76EE\u30921\u884C\u5165\u529B\u3059\u308B`
+          ]
+        };
+      }
+      extractJSONArray(text) {
+        try {
+          const cleaned = text.replace(/```json/g, "").replace(/```/g, "");
+          const match = cleaned.match(/\[[\s\S]*\]/);
+          if (match) {
+            const jsonStr = match[0];
+            const arr = JSON.parse(jsonStr);
+            if (Array.isArray(arr)) {
+              return arr.map((item) => String(item));
+            }
+          }
+        } catch (e) {
+          console.error("[TaskManager AI] Failed to parse JSON array:", text);
+        }
+        return null;
+      }
+      extractJSONObject(text) {
+        try {
+          const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+          const match = cleaned.match(/\{[\s\S]*\}/);
+          if (match) {
+            const jsonStr = match[0];
+            const obj = JSON.parse(jsonStr);
+            if (typeof obj === "object" && obj !== null) {
+              return obj;
+            }
+          }
+        } catch (e) {
+          console.error("[TaskManager AI] Failed to parse JSON object:", text);
+        }
+        return null;
+      }
+    };
+  }
+});
+
+// src/services/UndoService.ts
+var UndoService_exports = {};
+__export(UndoService_exports, {
+  UndoService: () => UndoService
+});
+var import_obsidian4, UndoService;
+var init_UndoService = __esm({
+  "src/services/UndoService.ts"() {
+    "use strict";
+    import_obsidian4 = require("obsidian");
+    UndoService = class {
+      constructor(app) {
+        this.app = app;
+        this.historyStack = [];
+        this.maxHistory = 10;
+      }
+      /**
+       * Record current states of tasks before AI modification
+       */
+      recordSnapshot(description, targetTasks) {
+        const snapshots = targetTasks.map((t) => ({
+          filePath: t.file.path,
+          title: t.title,
+          status: t.status,
+          priority: t.priority,
+          parent: t.parent,
+          scheduled: t.scheduled,
+          due: t.due,
+          isNewFile: false
+        }));
+        const actionSnapshot = {
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          description,
+          snapshots,
+          createdFilePaths: []
+        };
+        this.historyStack.push(actionSnapshot);
+        if (this.historyStack.length > this.maxHistory) {
+          this.historyStack.shift();
+        }
+        return actionSnapshot;
+      }
+      /**
+       * Register newly created file paths during this action (for full rollback)
+       */
+      registerCreatedFile(actionSnapshot, filePath) {
+        actionSnapshot.createdFilePaths.push(filePath);
+      }
+      /**
+       * Check if undo is available
+       */
+      canUndo() {
+        return this.historyStack.length > 0;
+      }
+      /**
+       * Perform Rollback (Undo) of the last AI action
+       */
+      async undo() {
+        const action = this.historyStack.pop();
+        if (!action)
+          return null;
+        for (const filePath of action.createdFilePaths) {
+          const file = this.app.vault.getAbstractFileByPath(filePath);
+          if (file && file instanceof import_obsidian4.TFile) {
+            await this.app.vault.delete(file);
+          }
+        }
+        for (const snap of action.snapshots) {
+          const file = this.app.vault.getAbstractFileByPath(snap.filePath);
+          if (file && file instanceof import_obsidian4.TFile) {
+            await this.app.fileManager.processFrontMatter(file, (fm) => {
+              fm.title = snap.title;
+              fm.status = snap.status;
+              fm.priority = snap.priority;
+              if (snap.parent !== void 0)
+                fm.parent = snap.parent;
+              else
+                delete fm.parent;
+              if (snap.scheduled !== void 0)
+                fm.scheduled = snap.scheduled;
+              else
+                delete fm.scheduled;
+              if (snap.due !== void 0)
+                fm.due = snap.due;
+              else
+                delete fm.due;
+              fm.updated = (/* @__PURE__ */ new Date()).toISOString();
+            });
+          }
+        }
+        return action.description;
+      }
+    };
+  }
+});
+
+// src/views/AICopilotModal.ts
+var AICopilotModal_exports = {};
+__export(AICopilotModal_exports, {
+  AICopilotModal: () => AICopilotModal
+});
+var import_obsidian5, AICopilotModal;
+var init_AICopilotModal = __esm({
+  "src/views/AICopilotModal.ts"() {
+    "use strict";
+    import_obsidian5 = require("obsidian");
+    AICopilotModal = class extends import_obsidian5.Modal {
+      constructor(app, task, aiService, taskService, undoService, onApplied) {
+        super(app);
+        this.task = task;
+        this.aiService = aiService;
+        this.taskService = taskService;
+        this.undoService = undoService;
+        this.onApplied = onApplied;
+        this.currentState = "STATE_INPUT";
+        this.topic = "";
+        this.feedback = "";
+        this.strategyResult = null;
+        this.editableTasks = [];
+        if (task) {
+          this.topic = task.title;
+        }
+      }
+      onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass("jira-ai-copilot-modal");
+        this.renderModal();
+      }
+      onClose() {
+        const { contentEl } = this;
+        contentEl.empty();
+      }
+      renderModal() {
+        const { contentEl } = this;
+        contentEl.empty();
+        switch (this.currentState) {
+          case "STATE_INPUT":
+            this.renderInputState(contentEl);
+            break;
+          case "STATE_GENERATING":
+            this.renderGeneratingState(contentEl);
+            break;
+          case "STATE_PREVIEW":
+            this.renderPreviewState(contentEl);
+            break;
+          case "STATE_COMMITTED":
+            this.renderCommittedState(contentEl);
+            break;
+        }
+      }
+      /**
+       * 1. STATE_INPUT: お題入力フォーム
+       */
+      renderInputState(container) {
+        container.createEl("h2", {
+          text: "\u2728 AI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC: \u4F5C\u6226\u7B56\u5B9A",
+          cls: "jira-modal-title"
+        });
+        container.createEl("p", {
+          text: "\u304A\u984C\uFF08\u3084\u308A\u305F\u3044\u3053\u3068\uFF09\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002AI\u304C\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u3092\u5206\u6790\u3057\u3001Phase 1\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF0815\u301C30\u5206\u5358\u4F4D\uFF09\u3092\u63D0\u6848\u3057\u307E\u3059\u3002",
+          cls: "jira-modal-subtext"
+        });
+        const formGroup = container.createDiv({ cls: "jira-modal-form-group" });
+        const inputEl = formGroup.createEl("input", {
+          type: "text",
+          placeholder: "\u4F8B: \u540D\u53E4\u5C4B\u65C5\u884C\uFF08\u30B8\u30D6\u30EA\u30FB\u30EC\u30B4\u30E9\u30F3\u30C9\uFF09\u3001\u65B0\u6A5F\u80FD\u306E\u8A2D\u8A08\u3001\u78BA\u5B9A\u7533\u544A...",
+          value: this.topic,
+          cls: "jira-modal-input-large"
+        });
+        inputEl.focus();
+        inputEl.addEventListener("input", (e) => {
+          this.topic = e.target.value;
+        });
+        const actionBtnBar = container.createDiv({ cls: "jira-modal-action-bar" });
+        const submitBtn = actionBtnBar.createEl("button", {
+          text: "\u4F5C\u6226\u3092\u7ACB\u3066\u308B \u{1F680}",
+          cls: "mod-cta jira-modal-btn-primary"
+        });
+        const cancelBtn = actionBtnBar.createEl("button", {
+          text: "\u30AD\u30E3\u30F3\u30BB\u30EB",
+          cls: "jira-modal-btn-secondary"
+        });
+        cancelBtn.addEventListener("click", () => this.close());
+        const startGeneration = () => {
+          const val = inputEl.value.trim();
+          if (!val) {
+            new import_obsidian5.Notice("\u26A0\uFE0F \u304A\u984C\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002");
+            return;
+          }
+          this.topic = val;
+          this.currentState = "STATE_GENERATING";
+          this.renderModal();
+          this.executeGenerateStrategy();
+        };
+        submitBtn.addEventListener("click", startGeneration);
+        inputEl.addEventListener("keydown", (e) => {
+          if (e.key === "Enter")
+            startGeneration();
+        });
+      }
+      /**
+       * 2. STATE_GENERATING: AI思考中（ローディング）
+       */
+      renderGeneratingState(container) {
+        container.createEl("h2", {
+          text: "\u{1F916} AI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u601D\u8003\u4E2D...",
+          cls: "jira-modal-title"
+        });
+        const loadingBox = container.createDiv({ cls: "jira-modal-loading-box" });
+        loadingBox.createDiv({ cls: "jira-spinner" });
+        loadingBox.createEl("p", {
+          text: "\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u3092\u5206\u6790\u3057\u3001\u4E0D\u78BA\u5B9F\u6027\u3092\u6F70\u3059 Phase 1 \u4F5C\u6226\u3092\u7B56\u5B9A\u3057\u3066\u3044\u307E\u3059...",
+          cls: "jira-loading-text"
+        });
+      }
+      /**
+       * 3. STATE_PREVIEW: 人間によるプレビューとインタラクティブ修正
+       */
+      renderPreviewState(container) {
+        container.createEl("h2", {
+          text: `\u{1F3AF} \u4F5C\u6226\u30D7\u30EC\u30D3\u30E5\u30FC: ${this.topic}`,
+          cls: "jira-modal-title"
+        });
+        if (!this.strategyResult)
+          return;
+        const calloutBox = container.createDiv({ cls: "jira-modal-callout-box" });
+        calloutBox.createDiv({
+          cls: "jira-callout-title",
+          text: "\u{1F4A1} AI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u306E\u4F5C\u6226\u30E1\u30E2"
+        });
+        const calloutContent = calloutBox.createDiv({ cls: "jira-callout-body" });
+        const bnDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
+        bnDiv.createEl("strong", { text: "\u6700\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF: " });
+        bnDiv.createEl("span", { text: this.strategyResult.bottleneck });
+        const depDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
+        depDiv.createEl("strong", { text: "\u4F9D\u5B58\u95A2\u4FC2: " });
+        depDiv.createEl("span", { text: this.strategyResult.dependency });
+        const polDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
+        polDiv.createEl("strong", { text: "\u57FA\u672C\u65B9\u91DD: " });
+        polDiv.createEl("span", { text: this.strategyResult.policy });
+        const tasksSection = container.createDiv({ cls: "jira-modal-tasks-section" });
+        tasksSection.createEl("h3", {
+          text: "\u{1F4CD} Phase 1: \u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u30FB\u4E0D\u78BA\u5B9F\u6027\u306E\u89E3\u6D88 (15\u301C30\u5206\u7269\u7406\u884C\u52D5)",
+          cls: "jira-section-title"
+        });
+        const tasksContainer = tasksSection.createDiv({ cls: "jira-editable-task-list" });
+        this.editableTasks.forEach((item, index) => {
+          const row = tasksContainer.createDiv({ cls: "jira-editable-task-row" });
+          const chk = row.createEl("input", {
+            type: "checkbox",
+            cls: "jira-task-chk"
+          });
+          chk.checked = item.enabled;
+          chk.addEventListener("change", () => {
+            this.editableTasks[index].enabled = chk.checked;
+          });
+          const textInput = row.createEl("input", {
+            type: "text",
+            value: item.text,
+            cls: "jira-task-text-input"
+          });
+          textInput.addEventListener("input", (e) => {
+            this.editableTasks[index].text = e.target.value;
+          });
+          const delBtn = row.createEl("button", {
+            text: "\u2715",
+            cls: "jira-task-del-btn"
+          });
+          delBtn.title = "\u30BF\u30B9\u30AF\u3092\u524A\u9664";
+          delBtn.addEventListener("click", () => {
+            this.editableTasks.splice(index, 1);
+            this.renderModal();
+          });
+        });
+        const addTaskBtn = tasksSection.createEl("button", {
+          text: "+ \u30BF\u30B9\u30AF\u3092\u8FFD\u52A0",
+          cls: "jira-add-task-btn"
+        });
+        addTaskBtn.addEventListener("click", () => {
+          this.editableTasks.push({ text: "\u30CE\u30FC\u30C8\u3092\u958B\u304D...\u3092\u5165\u529B\u3059\u308B", enabled: true });
+          this.renderModal();
+        });
+        const feedbackBox = container.createDiv({ cls: "jira-modal-feedback-box" });
+        feedbackBox.createEl("label", {
+          text: "\u{1F4AC} \u4F5C\u6226\u30FB\u30BF\u30B9\u30AF\u306E\u4FEE\u6B63\u30D5\u30A3\u30FC\u30C9\u30D0\u30C3\u30AF:",
+          cls: "jira-feedback-label"
+        });
+        const feedbackInput = feedbackBox.createEl("input", {
+          type: "text",
+          placeholder: "\u4F8B: \u8ECA\u79FB\u52D5\u306B\u5909\u66F4\u3057\u3066\u3001\u30BF\u30B9\u30AF\u30922\u3064\u306B\u6E1B\u3089\u3057\u3066...",
+          value: this.feedback,
+          cls: "jira-modal-feedback-input"
+        });
+        feedbackInput.addEventListener("input", (e) => {
+          this.feedback = e.target.value;
+        });
+        const reGenerateBtn = feedbackBox.createEl("button", {
+          text: "\u518D\u63D0\u6848\u3055\u305B\u308B \u{1F504}",
+          cls: "jira-modal-btn-secondary"
+        });
+        reGenerateBtn.addEventListener("click", () => {
+          this.currentState = "STATE_GENERATING";
+          this.renderModal();
+          this.executeGenerateStrategy(this.feedback);
+        });
+        const actionBar = container.createDiv({ cls: "jira-modal-action-bar" });
+        const commitBtn = actionBar.createEl("button", {
+          text: "\u3053\u306E\u4F5C\u6226\u3067\u78BA\u5B9A\uFF08\u30CE\u30FC\u30C8\u3078\u66F8\u304D\u8FBC\u3080\uFF09 \u{1F4DD}",
+          cls: "mod-cta jira-modal-btn-primary"
+        });
+        commitBtn.addEventListener("click", () => this.commitStrategy());
+        const cancelBtn = actionBar.createEl("button", {
+          text: "\u30AD\u30E3\u30F3\u30BB\u30EB",
+          cls: "jira-modal-btn-secondary"
+        });
+        cancelBtn.addEventListener("click", () => this.close());
+      }
+      /**
+       * 4. STATE_COMMITTED: 挿入完了
+       */
+      renderCommittedState(container) {
+        container.createEl("h2", {
+          text: "\u2705 \u4F5C\u6226\u3068Phase 1\u30BF\u30B9\u30AF\u3092\u66F8\u304D\u8FBC\u307F\u307E\u3057\u305F\uFF01",
+          cls: "jira-modal-title"
+        });
+        setTimeout(() => this.close(), 1e3);
+      }
+      /**
+       * AIによる作戦策定の実行
+       */
+      async executeGenerateStrategy(feedbackText) {
+        try {
+          const result = await this.aiService.generateStrategy(
+            this.topic,
+            feedbackText,
+            this.strategyResult || void 0
+          );
+          this.strategyResult = result;
+          this.editableTasks = result.phase1Tasks.map((t) => ({
+            text: t,
+            enabled: true
+          }));
+          this.feedback = "";
+          this.currentState = "STATE_PREVIEW";
+        } catch (e) {
+          console.error("[TaskManager AI] Strategy generation error:", e);
+          new import_obsidian5.Notice("\u274C \u4F5C\u6226\u306E\u7B56\u5B9A\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002");
+          this.currentState = "STATE_INPUT";
+        } finally {
+          this.renderModal();
+        }
+      }
+      /**
+       * 承認された最終編集結果をノートへ書き込み
+       */
+      async commitStrategy() {
+        var _a;
+        if (!this.strategyResult)
+          return;
+        const selectedTasks = this.editableTasks.filter((t) => t.enabled && t.text.trim().length > 0).map((t) => t.text.trim());
+        if (selectedTasks.length === 0) {
+          new import_obsidian5.Notice("\u26A0\uFE0F \u9078\u629E\u3055\u308C\u305FPhase 1\u30BF\u30B9\u30AF\u304C\u3042\u308A\u307E\u305B\u3093\u30021\u3064\u4EE5\u4E0A\u30C1\u30A7\u30C3\u30AF\u3092\u5165\u308C\u3066\u304F\u3060\u3055\u3044\u3002");
+          return;
+        }
+        const success = await this.taskService.saveStrategyToNote(
+          this.topic,
+          this.strategyResult,
+          selectedTasks,
+          (_a = this.task) == null ? void 0 : _a.file
+        );
+        if (success) {
+          this.currentState = "STATE_COMMITTED";
+          this.renderModal();
+          if (this.onApplied) {
+            this.onApplied();
+          }
+        }
+      }
+    };
+  }
+});
 
 // src/main.ts
 var main_exports = {};
@@ -99,807 +1231,10 @@ var TaskManagerSettingTab = class extends import_obsidian.PluginSettingTab {
 
 // src/views/TaskManagerView.ts
 var import_obsidian6 = require("obsidian");
-
-// src/services/TaskService.ts
-var import_obsidian2 = require("obsidian");
-var TaskService = class {
-  constructor(app, plugin) {
-    this.app = app;
-    this.plugin = plugin;
-  }
-  /**
-   * Get all task notes inside configured folder or vault
-   */
-  getAllTasks() {
-    const folderPath = (0, import_obsidian2.normalizePath)(this.plugin.settings.taskFolder);
-    const files = this.app.vault.getMarkdownFiles();
-    const tasks = [];
-    for (const file of files) {
-      if (folderPath && folderPath !== "." && folderPath !== "/") {
-        if (!file.path.startsWith(folderPath + "/") && file.path !== folderPath) {
-          continue;
-        }
-      }
-      const cache = this.app.metadataCache.getFileCache(file);
-      const fm = (cache == null ? void 0 : cache.frontmatter) || {};
-      const title = fm.title || file.basename;
-      const id = fm.id || file.basename;
-      const status = this.normalizeStatus(fm.status);
-      const priority = this.normalizePriority(fm.priority);
-      tasks.push({
-        id,
-        title,
-        status,
-        priority,
-        type: fm.type || (fm.parent ? "subtask" : "task"),
-        parent: fm.parent || void 0,
-        due: fm.due || void 0,
-        scheduled: fm.scheduled || void 0,
-        assignee: fm.assignee || "",
-        epic: fm.epic || "",
-        created: fm.created || "",
-        updated: fm.updated || "",
-        file
-      });
-    }
-    return tasks;
-  }
-  /**
-   * Recursively get all descendant tasks (subtasks, sub-subtasks, etc.) for a root task
-   */
-  getTaskSubtree(rootTaskId) {
-    const allTasks = this.getAllTasks();
-    const result = [];
-    const traverse = (parentId, currentDepth) => {
-      const children = allTasks.filter((t) => t.parent === parentId);
-      for (const child of children) {
-        result.push({ task: child, depth: currentDepth });
-        traverse(child.id, currentDepth + 1);
-      }
-    };
-    traverse(rootTaskId, 1);
-    return result;
-  }
-  /**
-   * Generate collision-free ASCII ID and filename: Prefix + Timestamp + Jitter
-   * Example: TASK-20260808225340-a8f3
-   */
-  generateUniqueId() {
-    const prefix = this.plugin.settings.idPrefix || "TASK-";
-    const now = /* @__PURE__ */ new Date();
-    const timestamp = now.toISOString().replace(/[-T:]/g, "").slice(0, 14);
-    const jitter = Math.random().toString(36).substring(2, 6).toLowerCase();
-    return `${prefix}${timestamp}-${jitter}`;
-  }
-  /**
-   * Create a new Task note with standard Frontmatter
-   */
-  async createTask(title, status = "todo", priority = "medium", options) {
-    const folderPath = (0, import_obsidian2.normalizePath)(this.plugin.settings.taskFolder);
-    if (folderPath && folderPath !== "." && folderPath !== "/") {
-      const folder = this.app.vault.getAbstractFileByPath(folderPath);
-      if (!folder) {
-        await this.app.vault.createFolder(folderPath);
-      }
-    }
-    const idStr = this.generateUniqueId();
-    const fileName = `${idStr}.md`;
-    const filePath = folderPath && folderPath !== "." && folderPath !== "/" ? `${folderPath}/${fileName}` : fileName;
-    const now = (/* @__PURE__ */ new Date()).toISOString();
-    const taskType = (options == null ? void 0 : options.type) || ((options == null ? void 0 : options.parent) ? "subtask" : "task");
-    const frontmatterLines = [
-      "---",
-      `id: ${idStr}`,
-      `title: "${title.replace(/"/g, '\\"')}"`,
-      `status: ${status}`,
-      `priority: ${priority}`,
-      `type: ${taskType}`
-    ];
-    if (options == null ? void 0 : options.parent)
-      frontmatterLines.push(`parent: "${options.parent}"`);
-    if (options == null ? void 0 : options.due)
-      frontmatterLines.push(`due: "${options.due}"`);
-    if (options == null ? void 0 : options.scheduled)
-      frontmatterLines.push(`scheduled: "${options.scheduled}"`);
-    frontmatterLines.push(
-      `created: ${now}`,
-      `updated: ${now}`,
-      "---",
-      "",
-      `# ${title}`,
-      "",
-      "## Description",
-      ""
-    );
-    const newFile = await this.app.vault.create(filePath, frontmatterLines.join("\n"));
-    return newFile;
-  }
-  /**
-   * Convenient wrapper to create a subtask under a parent task or subtask
-   */
-  async createSubtask(parentTask, title) {
-    return this.createTask(title, "todo", "medium", {
-      parent: parentTask.id,
-      type: "subtask",
-      due: parentTask.due,
-      scheduled: parentTask.scheduled
-    });
-  }
-  /**
-   * Create a subtask under a specific parent ID string
-   */
-  async createSubtaskByParentId(parentId, title) {
-    const allTasks = this.getAllTasks();
-    const parentTask = allTasks.find((t) => t.id === parentId);
-    return this.createTask(title, "todo", "medium", {
-      parent: parentId,
-      type: "subtask",
-      due: parentTask == null ? void 0 : parentTask.due,
-      scheduled: parentTask == null ? void 0 : parentTask.scheduled
-    });
-  }
-  /**
-   * Update task status in Frontmatter
-   */
-  async updateTaskStatus(file, status) {
-    await this.app.fileManager.processFrontMatter(file, (fm) => {
-      fm.status = status;
-      fm.updated = (/* @__PURE__ */ new Date()).toISOString();
-    });
-  }
-  /**
-   * Update scheduled date and due date
-   */
-  async updateTaskSchedule(file, scheduled, due) {
-    await this.app.fileManager.processFrontMatter(file, (fm) => {
-      if (scheduled !== void 0)
-        fm.scheduled = scheduled;
-      if (due !== void 0)
-        fm.due = due;
-      fm.updated = (/* @__PURE__ */ new Date()).toISOString();
-    });
-  }
-  /**
-   * Open the task Markdown note in workspace
-   */
-  async openTaskNote(file) {
-    const leaf = this.app.workspace.getLeaf("tab");
-    await leaf.openFile(file);
-  }
-  normalizeStatus(status) {
-    if (typeof status === "string") {
-      const s = status.toLowerCase();
-      if (s === "in_progress" || s === "in progress" || s === "doing")
-        return "in_progress";
-      if (s === "done" || s === "completed")
-        return "done";
-    }
-    return "todo";
-  }
-  normalizePriority(priority) {
-    if (typeof priority === "string") {
-      const p = priority.toLowerCase();
-      if (p === "low")
-        return "low";
-      if (p === "high")
-        return "high";
-      if (p === "highest")
-        return "highest";
-    }
-    return "medium";
-  }
-};
-
-// src/services/AIService.ts
-var import_child_process = require("child_process");
-var import_util = require("util");
-var os = __toESM(require("os"));
-var path = __toESM(require("path"));
-var fs = __toESM(require("fs"));
-var import_obsidian3 = require("obsidian");
-
-// src/prompts/systemRules.ts
-function getBaseSystemRules() {
-  return `\u3010AI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC \u7D76\u5BFE\u9075\u5B88\u30EB\u30FC\u30EB\u3011
-1. \u3010\u65E5\u672C\u8A9E\u51FA\u529B\u306E\u7D76\u5BFE\u5F37\u5236\u3011:
-   - \u751F\u6210\u30FB\u51FA\u529B\u3059\u308B\u3059\u3079\u3066\u306E\u30BF\u30B9\u30AF\u30BF\u30A4\u30C8\u30EB\u3001\u30B5\u30D6\u30BF\u30B9\u30AF\u540D\u3001\u304A\u3088\u3073\u89E3\u8AAC\u6587\u306F\u3001\u5FC5\u305A\u81EA\u7136\u306A\u65E5\u672C\u8A9E\u3067\u8A18\u8FF0\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u82F1\u8A9E\u3067\u306E\u51FA\u529B\u306F\u7981\u6B62\u3067\u3059\u3002
-
-2. \u301015\u301C30\u5206 Next Physical Action (\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5) \u3078\u306E\u5F37\u5236\u5206\u89E3\u3011:
-   - \u3059\u3079\u3066\u306E\u30BF\u30B9\u30AF/\u30B5\u30D6\u30BF\u30B9\u30AF\u306F\u300115\u301C30\u5206\u4EE5\u5185\u3067\u7D42\u308F\u308B\u6700\u5C0F\u9650\u306E\u884C\u52D5\u5358\u4F4D\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-   - \u30BF\u30A4\u30C8\u30EB\u306E\u52D5\u8A5E\u306F\u3001\u4EBA\u9593\u304C\u5373\u5EA7\u306B\u4F53\u3092\u52D5\u304B\u305B\u308B\u300C\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u300D\u3067\u59CB\u3081\u3066\u304F\u3060\u3055\u3044\u3002
-     (\u4F8B: \u300C\u301C\u306E\u753B\u9762\u3092\u958B\u304F\u300D\u300C\u301C\u306E\u30D5\u30A1\u30A4\u30EB\u30921\u884C\u4F5C\u6210\u3059\u308B\u300D\u300C\u301C\u306EURL\u3092\u30D6\u30E9\u30A6\u30B6\u3067\u691C\u7D22\u3059\u308B\u300D\u300C\u301C\u3092\u5165\u529B\u3059\u308B\u300D)
-
-3. \u3010\u62BD\u8C61\u7684\u30FB\u66D6\u6627\u306A\u8868\u73FE\u306E\u7D76\u5BFE\u7981\u6B62\u3011:
-   - \u4EE5\u4E0B\u306E\u62BD\u8C61\u7684\u30FB\u66D6\u6627\u306A\u8A00\u8449\u3092\u30BF\u30B9\u30AF\u540D\u306B\u4F7F\u7528\u3059\u308B\u3053\u3068\u3092\u56FA\u304F\u7981\u6B62\u3057\u307E\u3059\u3002
-     \xD7 \u7981\u6B62\u8A9E: \u300C\u691C\u8A0E\u3059\u308B\u300D\u300C\u8ABF\u6574\u3059\u308B\u300D\u300C\u8ABF\u67FB\u3059\u308B\u300D\u300C\u78BA\u8A8D\u3059\u308B\u300D\u300C\u5BFE\u5FDC\u3059\u308B\u300D\u300C\u5B9F\u65BD\u3059\u308B\u300D\u300C\u8003\u3048\u308B\u300D\u300C\u628A\u63E1\u3059\u308B\u300D\u300C\u9032\u3081\u308B\u300D
-   - \u4E0A\u8A18\u306E\u3088\u3046\u306A\u66D6\u6627\u306A\u4F5C\u696D\u306F\u3001\u5FC5\u305A\u300C\u3069\u3053\u3092\u958B\u304D\u3001\u4F55\u3092\u5165\u529B/\u66F8\u304F\u304B\u300D\u3068\u3044\u3046\u5177\u4F53\u884C\u52D5\u306B\u843D\u3068\u3057\u8FBC\u3093\u3067\u304F\u3060\u3055\u3044\u3002
-`;
-}
-function buildFullSystemRules(customSettingsPrompt, vaultRuleContent) {
-  const rules = [getBaseSystemRules()];
-  if (customSettingsPrompt == null ? void 0 : customSettingsPrompt.trim()) {
-    rules.push(`\u3010\u30E6\u30FC\u30B6\u30FC\u5B9A\u7FA9\u30AB\u30B9\u30BF\u30E0\u30EB\u30FC\u30EB (\u8A2D\u5B9A\u753B\u9762)\u3011:
-${customSettingsPrompt.trim()}`);
-  }
-  if (vaultRuleContent == null ? void 0 : vaultRuleContent.trim()) {
-    rules.push(`\u3010\u30E6\u30FC\u30B6\u30FC\u5B9A\u7FA9\u30AB\u30B9\u30BF\u30E0\u30EB\u30FC\u30EB (Vault\u5185\u30D5\u30A1\u30A4\u30EB)\u3011:
-${vaultRuleContent.trim()}`);
-  }
-  return rules.join("\n\n");
-}
-
-// src/prompts/taskBreakdownPrompt.ts
-function buildTaskBreakdownPrompt(task, customSettingsPrompt, vaultRuleContent) {
-  const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
-  return `\u3042\u306A\u305F\u306FAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
-\u89AA\u30BF\u30B9\u30AF\u300C${task.title}\u300D\u3092\u300115\u301C30\u5206\u3067\u5B9F\u884C\u53EF\u80FD\u306A3\u301C5\u500B\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF08Next Physical Action\uFF09\u306E\u30B5\u30D6\u30BF\u30B9\u30AF\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-
-${systemRules}
-
-\u3010\u51FA\u529B\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
-\u4EE5\u4E0B\u306E\u5F62\u5F0F\u306E\u6709\u52B9\u306AJSON\u914D\u5217\uFF08\u6587\u5B57\u5217\u306E\u914D\u5217\uFF09\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-\u5FC5\u305A\u3059\u3079\u3066\u65E5\u672C\u8A9E\u3067\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002JSON\u306E\u5916\u5074\u306B\u306F\u8AAC\u660E\u6587\u3084Markdown\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u4E00\u5207\u542B\u3081\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
-
-\u4F8B:
-["Chrome\u3092\u958B\u3044\u3066\u516C\u5F0F\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8URL\u306B\u30A2\u30AF\u30BB\u30B9\u3059\u308B", "\u30A8\u30C7\u30A3\u30BF\u3092\u958B\u304Dsrc/main.ts\u306E1\u884C\u76EE\u306B\u30B3\u30E1\u30F3\u30C8\u3092\u66F8\u304F", "\u30BF\u30FC\u30DF\u30CA\u30EB\u3092\u958B\u304Dnpm run test\u30B3\u30DE\u30F3\u30C9\u3092\u5B9F\u884C\u3059\u308B"]`;
-}
-
-// src/prompts/taskRefinePrompt.ts
-function buildTaskRefinePrompt(rootTask, subtree, instruction, customSettingsPrompt, vaultRuleContent) {
-  const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
-  const treeLines = [
-    `- ${rootTask.id}: ${rootTask.title} [\u30B9\u30C6\u30FC\u30BF\u30B9: ${rootTask.status}, \u5B9F\u65BD\u4E88\u5B9A\u65E5: ${rootTask.scheduled || "\u672A\u8A2D\u5B9A"}]`
-  ];
-  for (const node of subtree) {
-    const indent = "  ".repeat(node.depth);
-    treeLines.push(
-      `${indent}- ${node.task.id}: ${node.task.title} (\u89AAID: ${node.task.parent}) [\u30B9\u30C6\u30FC\u30BF\u30B9: ${node.task.status}, \u5B9F\u65BD\u4E88\u5B9A\u65E5: ${node.task.scheduled || "\u672A\u8A2D\u5B9A"}]`
-    );
-  }
-  return `\u3042\u306A\u305F\u306F\u4F34\u8D70\u578B\u306EAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
-\u672C\u65E5\u306E\u65E5\u4ED8: ${todayStr}
-
-${systemRules}
-
-\u3010\u73FE\u5728\u306E\u30BF\u30B9\u30AF\u30FB\u30B5\u30D6\u30BF\u30B9\u30AF\u968E\u5C64\u30C4\u30EA\u30FC\u3011:
-${treeLines.join("\n")}
-
-\u3010\u30E6\u30FC\u30B6\u30FC\u304B\u3089\u306E\u58C1\u6253\u3061\u30FB\u4FEE\u6B63\u6307\u793A\u3011:
-"${instruction}"
-
-\u6307\u793A\u3092\u5206\u6790\u3057\u3001\u30BF\u30B9\u30AF\u30C4\u30EA\u30FC\u306B\u5BFE\u3059\u308B\u8FFD\u52A0\u30FB\u5909\u66F4\u6848\u3092\u4F5C\u6210\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-\u8FFD\u52A0\u30FB\u5909\u66F4\u3059\u308B\u30B5\u30D6\u30BF\u30B9\u30AF\u540D\u306F\u5FC5\u305A15\u301C30\u5206\u3067\u5B8C\u4E86\u3059\u308B\u65E5\u672C\u8A9E\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u306B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-
-\u3010\u30EC\u30B9\u30DD\u30F3\u30B9\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
-\u4EE5\u4E0B\u306E\u69CB\u9020\u306B\u4E00\u81F4\u3059\u308B\u6709\u52B9\u306AJSON\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-\u5FC5\u305A\u3059\u3079\u3066\u65E5\u672C\u8A9E\u3067\u8A18\u8FF0\u3057\u3066\u304F\u3060\u3055\u3044\u3002JSON\u306E\u5916\u5074\u306BMarkdown\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3084\u8AAC\u660E\u6587\u3092\u4E00\u5207\u542B\u3081\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
-
-{
-  "explanation": "\u884C\u3063\u305F\u5909\u66F4\u5185\u5BB9\u306E\u7C21\u6F54\u306A\u8AAC\u660E\uFF08\u65E5\u672C\u8A9E1\u6587\uFF09",
-  "subtasksToAdd": [
-    { "title": "\u30A8\u30C7\u30A3\u30BF\u3092\u958B\u304D\u8A2D\u5B9A\u30D5\u30A1\u30A4\u30EB\u306E\u8A72\u5F53\u884C\u3092\u7DE8\u96C6\u3059\u308B", "parentId": "${rootTask.id}" }
-  ],
-  "subtaskIdsToRemove": ["TASK-XXX"],
-  "subtaskUpdates": [
-    { "id": "TASK-YYY", "title": "\u66F4\u65B0\u5F8C\u306E\u65E5\u672C\u8A9E\u5177\u4F53\u884C\u52D5\u30BF\u30A4\u30C8\u30EB", "scheduled": "${todayStr}" }
-  ]
-}
-\u203B subtasksToAdd \u5185\u306E parentId \u3092\u7701\u7565\u3057\u305F\u5834\u5408\u306F\u3001\u81EA\u52D5\u7684\u306B "${rootTask.id}" \u304C\u89AA\u3068\u306A\u308A\u307E\u3059\u3002`;
-}
-
-// src/prompts/taskReschedulePrompt.ts
-function buildTaskReschedulePrompt(tasks, customSettingsPrompt, vaultRuleContent) {
-  const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
-  const taskSummaries = tasks.map((t) => ({
-    id: t.id,
-    title: t.title,
-    status: t.status,
-    due: t.due || "\u672A\u8A2D\u5B9A",
-    scheduled: t.scheduled || "\u672A\u8A2D\u5B9A"
-  }));
-  return `\u3042\u306A\u305F\u306F\u30B9\u30DE\u30FC\u30C8\u306AAI\u30B9\u30B1\u30B8\u30E5\u30FC\u30EB\u30D1\u30FC\u30C8\u30CA\u30FC\u3067\u3059\u3002
-\u672C\u65E5\u306E\u65E5\u4ED8: ${todayStr}
-
-${systemRules}
-
-\u3010\u5206\u6790\u5BFE\u8C61\u30BF\u30B9\u30AF\u4E00\u89A7\u3011:
-${JSON.stringify(taskSummaries, null, 2)}
-
-\u671F\u9650\u5207\u308C\uFF08OVERDUE\uFF09\u307E\u305F\u306F\u672A\u30B9\u30B1\u30B8\u30E5\u30FC\u30EB\uFF08UNSCHEDULED\uFF09\u3067\u672A\u5B8C\u4E86\u306E\u30BF\u30B9\u30AF\u306B\u5BFE\u3057\u3066\u3001\u672C\u65E5\uFF08${todayStr}\uFF09\u4EE5\u964D\u306E\u7121\u7406\u306E\u306A\u3044\u304A\u3059\u3059\u3081\u5B9F\u65BD\u4E88\u5B9A\u65E5\uFF08YYYY-MM-DD\uFF09\u3092\u5272\u308A\u632F\u3063\u3066\u304F\u3060\u3055\u3044\u3002
-
-\u3010\u30EC\u30B9\u30DD\u30F3\u30B9\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
-\u30BF\u30B9\u30AFID\u304B\u3089\u65B0\u3057\u3044\u5B9F\u65BD\u4E88\u5B9A\u65E5\u6587\u5B57\u5217\u3078\u306E\u30DE\u30C3\u30D4\u30F3\u30B0\u3092\u8868\u3059\u6709\u52B9\u306AJSON\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-
-\u4F8B:
-{
-  "TASK-20260808-a8f3": "${todayStr}"
-}
-JSON\u306E\u5916\u5074\u306B\u30C6\u30AD\u30B9\u30C8\u3084\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u542B\u3081\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002`;
-}
-
-// src/services/AIService.ts
-var execAsync = (0, import_util.promisify)(import_child_process.exec);
-function getExtendedEnv() {
-  const home = os.homedir();
-  const extraPaths = [
-    path.join(home, ".local", "bin"),
-    path.join(home, ".antigravity", "bin"),
-    path.join(home, ".gemini", "antigravity", "bin"),
-    "/usr/local/bin",
-    "/opt/homebrew/bin",
-    "/usr/bin",
-    "/bin"
-  ];
-  const currentPath = process.env.PATH || "";
-  const combinedPath = extraPaths.concat(currentPath.split(":")).filter(Boolean);
-  const uniquePath = Array.from(new Set(combinedPath)).join(":");
-  return {
-    ...process.env,
-    PATH: uniquePath
-  };
-}
-function resolveCommandPath(command) {
-  if (path.isAbsolute(command)) {
-    return command;
-  }
-  const home = os.homedir();
-  const searchDirs = [
-    path.join(home, ".local", "bin"),
-    path.join(home, ".antigravity", "bin"),
-    path.join(home, ".gemini", "antigravity", "bin"),
-    "/usr/local/bin",
-    "/opt/homebrew/bin",
-    "/usr/bin",
-    "/bin"
-  ];
-  for (const dir of searchDirs) {
-    const fullPath = path.join(dir, command);
-    if (fs.existsSync(fullPath)) {
-      return fullPath;
-    }
-  }
-  return command;
-}
-var AIService = class {
-  constructor(plugin) {
-    this.plugin = plugin;
-  }
-  /**
-   * Retrieve custom rule contents from vault file if specified
-   */
-  async getVaultRuleContent() {
-    var _a;
-    const rulePath = (_a = this.plugin.settings.customRuleFilePath) == null ? void 0 : _a.trim();
-    if (!rulePath)
-      return void 0;
-    try {
-      const file = this.plugin.app.vault.getAbstractFileByPath((0, import_obsidian3.normalizePath)(rulePath));
-      if (file && file instanceof import_obsidian3.TFile) {
-        return await this.plugin.app.vault.read(file);
-      }
-    } catch (e) {
-      console.warn("[TaskManager AI] Could not read rule file from vault:", e);
-    }
-    return void 0;
-  }
-  /**
-   * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
-   */
-  async refineTaskWithTree(rootTask, subtree, instruction) {
-    const vaultRule = await this.getVaultRuleContent();
-    const prompt = buildTaskRefinePrompt(
-      rootTask,
-      subtree,
-      instruction,
-      this.plugin.settings.customTaskRules,
-      vaultRule
-    );
-    try {
-      const output = await this.runCLI(prompt);
-      const parsed = this.extractJSONObject(output);
-      if (parsed) {
-        const rawToAdd = parsed.subtasksToAdd || [];
-        const normalizedToAdd = rawToAdd.map((item) => {
-          if (typeof item === "string") {
-            return { title: item, parentId: rootTask.id };
-          }
-          return { title: item.title, parentId: item.parentId || rootTask.id };
-        });
-        return {
-          explanation: parsed.explanation || "\u30BF\u30B9\u30AF\u69CB\u9020\u3092\u65E5\u672C\u8A9E\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u306B\u66F4\u65B0\u3057\u307E\u3057\u305F\u3002",
-          subtasksToAdd: normalizedToAdd,
-          subtaskIdsToRemove: parsed.subtaskIdsToRemove || [],
-          subtaskUpdates: parsed.subtaskUpdates || []
-        };
-      }
-    } catch (err) {
-      console.warn("[TaskManager AI] Refine CLI failed, using smart fallback:", err);
-    }
-    return {
-      explanation: `\u6307\u793A\u306B\u57FA\u3065\u304D\u65E5\u672C\u8A9E\u306E\u7269\u7406\u884C\u52D5\u30BF\u30B9\u30AF\u3092\u8FFD\u52A0\u3057\u307E\u3057\u305F: "${instruction}"`,
-      subtasksToAdd: [{ title: `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${instruction}\u300D\u306E\u30E1\u30E2\u30921\u884C\u4F5C\u6210\u3059\u308B`, parentId: rootTask.id }],
-      subtaskIdsToRemove: [],
-      subtaskUpdates: []
-    };
-  }
-  /**
-   * Ask AI (Antigravity CLI) to break down a parent task into subtask titles
-   */
-  async breakdownTask(task) {
-    const vaultRule = await this.getVaultRuleContent();
-    const prompt = buildTaskBreakdownPrompt(
-      task,
-      this.plugin.settings.customTaskRules,
-      vaultRule
-    );
-    try {
-      const output = await this.runCLI(prompt);
-      const parsed = this.extractJSONArray(output);
-      if (parsed && parsed.length > 0) {
-        return parsed;
-      }
-    } catch (err) {
-      console.warn("[TaskManager AI] CLI execution failed, using fallback:", err);
-    }
-    return [
-      `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${task.title}\u300D\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u30921\u884C\u66F8\u304F`,
-      `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${task.title}\u300D\u306E\u95A2\u9023\u8CC7\u6599\u3092\u691C\u7D22\u3059\u308B`,
-      `\u30BF\u30FC\u30DF\u30CA\u30EB\u3092\u958B\u304D\u5B9F\u884C\u30ED\u30B0\u3092\u78BA\u8A8D\u3059\u308B`
-    ];
-  }
-  /**
-   * Ask AI (Antigravity CLI) to reschedule overdue/unscheduled tasks
-   */
-  async rescheduleTasks(tasks) {
-    const vaultRule = await this.getVaultRuleContent();
-    const prompt = buildTaskReschedulePrompt(
-      tasks,
-      this.plugin.settings.customTaskRules,
-      vaultRule
-    );
-    try {
-      const output = await this.runCLI(prompt);
-      const parsed = this.extractJSONObject(output);
-      if (parsed && Object.keys(parsed).length > 0) {
-        return parsed;
-      }
-    } catch (err) {
-      console.warn("[TaskManager AI] CLI execution failed, using fallback:", err);
-    }
-    const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-    const result = {};
-    for (const t of tasks) {
-      if (t.status !== "done" && (!t.scheduled || t.scheduled < todayStr)) {
-        result[t.id] = todayStr;
-      }
-    }
-    return result;
-  }
-  async runCLI(promptText) {
-    const commandName = this.plugin.settings.antigravityCommand || "agy";
-    const exePath = resolveCommandPath(commandName);
-    const env = getExtendedEnv();
-    const escapedPrompt = promptText.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "\\$").replace(/`/g, "\\`");
-    const cmd = `"${exePath}" -p "${escapedPrompt}"`;
-    const { stdout } = await execAsync(cmd, {
-      env,
-      timeout: 25e3,
-      maxBuffer: 1024 * 1024 * 5
-    });
-    return stdout.trim();
-  }
-  extractJSONArray(text) {
-    try {
-      const match = text.match(/\[[\s\S]*\]/);
-      if (match) {
-        const jsonStr = match[0];
-        const arr = JSON.parse(jsonStr);
-        if (Array.isArray(arr)) {
-          return arr.map((item) => String(item));
-        }
-      }
-    } catch (e) {
-      console.error("[TaskManager AI] Failed to parse JSON array:", text);
-    }
-    return null;
-  }
-  extractJSONObject(text) {
-    try {
-      const match = text.match(/\{[\s\S]*\}/);
-      if (match) {
-        const jsonStr = match[0];
-        const obj = JSON.parse(jsonStr);
-        if (typeof obj === "object" && obj !== null) {
-          return obj;
-        }
-      }
-    } catch (e) {
-      console.error("[TaskManager AI] Failed to parse JSON object:", text);
-    }
-    return null;
-  }
-};
-
-// src/services/UndoService.ts
-var import_obsidian4 = require("obsidian");
-var UndoService = class {
-  constructor(app) {
-    this.app = app;
-    this.historyStack = [];
-    this.maxHistory = 10;
-  }
-  /**
-   * Record current states of tasks before AI modification
-   */
-  recordSnapshot(description, targetTasks) {
-    const snapshots = targetTasks.map((t) => ({
-      filePath: t.file.path,
-      title: t.title,
-      status: t.status,
-      priority: t.priority,
-      parent: t.parent,
-      scheduled: t.scheduled,
-      due: t.due,
-      isNewFile: false
-    }));
-    const actionSnapshot = {
-      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-      description,
-      snapshots,
-      createdFilePaths: []
-    };
-    this.historyStack.push(actionSnapshot);
-    if (this.historyStack.length > this.maxHistory) {
-      this.historyStack.shift();
-    }
-    return actionSnapshot;
-  }
-  /**
-   * Register newly created file paths during this action (for full rollback)
-   */
-  registerCreatedFile(actionSnapshot, filePath) {
-    actionSnapshot.createdFilePaths.push(filePath);
-  }
-  /**
-   * Check if undo is available
-   */
-  canUndo() {
-    return this.historyStack.length > 0;
-  }
-  /**
-   * Perform Rollback (Undo) of the last AI action
-   */
-  async undo() {
-    const action = this.historyStack.pop();
-    if (!action)
-      return null;
-    for (const filePath of action.createdFilePaths) {
-      const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (file && file instanceof import_obsidian4.TFile) {
-        await this.app.vault.delete(file);
-      }
-    }
-    for (const snap of action.snapshots) {
-      const file = this.app.vault.getAbstractFileByPath(snap.filePath);
-      if (file && file instanceof import_obsidian4.TFile) {
-        await this.app.fileManager.processFrontMatter(file, (fm) => {
-          fm.title = snap.title;
-          fm.status = snap.status;
-          fm.priority = snap.priority;
-          if (snap.parent !== void 0)
-            fm.parent = snap.parent;
-          else
-            delete fm.parent;
-          if (snap.scheduled !== void 0)
-            fm.scheduled = snap.scheduled;
-          else
-            delete fm.scheduled;
-          if (snap.due !== void 0)
-            fm.due = snap.due;
-          else
-            delete fm.due;
-          fm.updated = (/* @__PURE__ */ new Date()).toISOString();
-        });
-      }
-    }
-    return action.description;
-  }
-};
-
-// src/views/AICopilotModal.ts
-var import_obsidian5 = require("obsidian");
-var AICopilotModal = class extends import_obsidian5.Modal {
-  constructor(app, task, aiService, taskService, undoService, onApplied) {
-    super(app);
-    this.task = task;
-    this.aiService = aiService;
-    this.taskService = taskService;
-    this.undoService = undoService;
-    this.onApplied = onApplied;
-    this.pendingResult = null;
-    this.chatHistory = [];
-    this.isLoading = false;
-    this.subtree = [];
-    this.subtree = this.taskService.getTaskSubtree(task.id);
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("jira-ai-copilot-modal");
-    this.renderModal();
-  }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-  renderModal() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.createEl("h2", {
-      text: `\u2728 AI Copilot: ${this.task.id} ${this.task.title}`,
-      cls: "jira-modal-title"
-    });
-    const currentTreeBox = contentEl.createDiv({ cls: "jira-modal-tree-box" });
-    currentTreeBox.createDiv({
-      cls: "jira-modal-box-label",
-      text: `Current Subtask Hierarchy Tree (${this.subtree.length} descendant tasks):`
-    });
-    if (this.subtree.length === 0) {
-      currentTreeBox.createEl("p", {
-        text: "No subtasks yet. Ask AI to break it down!",
-        cls: "jira-modal-empty-text"
-      });
-    } else {
-      const treeContainer = currentTreeBox.createDiv({ cls: "jira-modal-tree-container" });
-      for (const node of this.subtree) {
-        const indentPx = (node.depth - 1) * 20;
-        const rowEl = treeContainer.createDiv({ cls: "jira-modal-tree-row" });
-        rowEl.style.paddingLeft = `${indentPx}px`;
-        const dateInfo = node.task.scheduled ? ` [\u{1F4C5} ${node.task.scheduled}]` : "";
-        const parentInfo = node.depth > 1 ? ` (Parent: ${node.task.parent})` : "";
-        rowEl.createEl("span", {
-          cls: "jira-tree-bullet",
-          text: node.depth > 1 ? "\u2514\u2500 " : "\u251C\u2500 "
-        });
-        rowEl.createEl("span", {
-          cls: "jira-tree-text",
-          text: `${node.task.id}: ${node.task.title}${parentInfo}${dateInfo}`
-        });
-      }
-    }
-    const quickBar = contentEl.createDiv({ cls: "jira-modal-quick-bar" });
-    quickBar.createDiv({ cls: "jira-modal-box-label", text: "Quick One-Tap Instructions:" });
-    const quickButtons = [
-      { label: "\u{1F50D} Breakdown Subtasks", prompt: "Break down this task and its subtasks into 3-5 detailed technical action items." },
-      { label: "\u{1F4C5} Optimize Schedule", prompt: "Schedule all subtasks and sub-subtasks starting from today evenly across upcoming days." },
-      { label: "\u{1F9EA} Add Testing Steps", prompt: "Add concrete testing and verification subtasks under the relevant parent task." }
-    ];
-    for (const q of quickButtons) {
-      const btn = quickBar.createEl("button", { text: q.label, cls: "jira-quick-btn" });
-      btn.addEventListener("click", () => this.handleInstruction(q.prompt));
-    }
-    if (this.chatHistory.length > 0) {
-      const chatBox = contentEl.createDiv({ cls: "jira-modal-chat-box" });
-      for (const msg of this.chatHistory) {
-        const msgEl = chatBox.createDiv({
-          cls: `jira-chat-msg msg-${msg.sender}`
-        });
-        msgEl.createEl("span", {
-          cls: "msg-role",
-          text: msg.sender === "user" ? "\u{1F464} You: " : "\u{1F916} AI: "
-        });
-        msgEl.createEl("span", { text: msg.text });
-      }
-    }
-    if (this.pendingResult) {
-      const previewBox = contentEl.createDiv({ cls: "jira-modal-diff-preview" });
-      previewBox.createDiv({
-        cls: "jira-modal-box-label",
-        text: `Proposed Changes: ${this.pendingResult.explanation}`
-      });
-      if (this.pendingResult.subtasksToAdd.length > 0) {
-        const addSec = previewBox.createDiv({ cls: "jira-diff-section diff-add" });
-        addSec.createEl("strong", { text: "\u2795 Tasks to Create:" });
-        const ul = addSec.createEl("ul");
-        for (const item of this.pendingResult.subtasksToAdd) {
-          const pText = item.parentId ? ` (under ${item.parentId})` : "";
-          ul.createEl("li", { text: `${item.title}${pText}` });
-        }
-      }
-      if (this.pendingResult.subtaskUpdates.length > 0) {
-        const updateSec = previewBox.createDiv({ cls: "jira-diff-section diff-update" });
-        updateSec.createEl("strong", { text: "\u270F\uFE0F Tasks to Update:" });
-        const ul = updateSec.createEl("ul");
-        for (const u of this.pendingResult.subtaskUpdates) {
-          ul.createEl("li", { text: `${u.id}: ${u.title || "keep title"} ${u.scheduled ? `(Scheduled: ${u.scheduled})` : ""}` });
-        }
-      }
-      const applyBar = previewBox.createDiv({ cls: "jira-modal-apply-bar" });
-      const applyBtn = applyBar.createEl("button", {
-        text: "\u2705 Apply Changes to Vault",
-        cls: "mod-cta jira-apply-btn"
-      });
-      applyBtn.addEventListener("click", () => this.applyChanges());
-    }
-    const formEl = contentEl.createDiv({ cls: "jira-modal-form" });
-    const inputEl = formEl.createEl("input", {
-      type: "text",
-      placeholder: this.isLoading ? "AI is thinking..." : "Type instruction (e.g. 'Add a subtask for TASK-002')...",
-      cls: "jira-modal-input"
-    });
-    inputEl.disabled = this.isLoading;
-    const sendBtn = formEl.createEl("button", {
-      text: this.isLoading ? "\u23F3" : "Send \u{1F4AC}",
-      cls: "jira-modal-send-btn"
-    });
-    sendBtn.disabled = this.isLoading;
-    const submit = () => {
-      const text = inputEl.value.trim();
-      if (text && !this.isLoading) {
-        this.handleInstruction(text);
-      }
-    };
-    sendBtn.addEventListener("click", submit);
-    inputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter")
-        submit();
-    });
-  }
-  async handleInstruction(instruction) {
-    this.isLoading = true;
-    this.chatHistory.push({ sender: "user", text: instruction });
-    this.renderModal();
-    try {
-      this.subtree = this.taskService.getTaskSubtree(this.task.id);
-      const result = await this.aiService.refineTaskWithTree(
-        this.task,
-        this.subtree,
-        instruction
-      );
-      this.pendingResult = result;
-      this.chatHistory.push({ sender: "ai", text: result.explanation });
-    } catch (e) {
-      console.error(e);
-      new import_obsidian5.Notice("\u274C Failed to communicate with AI.");
-    } finally {
-      this.isLoading = false;
-      this.renderModal();
-    }
-  }
-  async applyChanges() {
-    if (!this.pendingResult)
-      return;
-    const allSubtreeTasks = this.subtree.map((n) => n.task);
-    const snapshot = this.undoService.recordSnapshot(
-      `AI Refine Tree on ${this.task.id}`,
-      [this.task, ...allSubtreeTasks]
-    );
-    for (const req of this.pendingResult.subtasksToAdd) {
-      const targetParentId = req.parentId || this.task.id;
-      const newFile = await this.taskService.createSubtaskByParentId(targetParentId, req.title);
-      this.undoService.registerCreatedFile(snapshot, newFile.path);
-    }
-    const allTasks = this.taskService.getAllTasks();
-    for (const u of this.pendingResult.subtaskUpdates) {
-      const target = allTasks.find((s) => s.id === u.id);
-      if (target) {
-        if (u.scheduled !== void 0) {
-          await this.taskService.updateTaskSchedule(target.file, u.scheduled);
-        }
-        if (u.status !== void 0) {
-          await this.taskService.updateTaskStatus(target.file, u.status);
-        }
-      }
-    }
-    new import_obsidian5.Notice("\u2728 AI changes applied successfully!");
-    this.onApplied();
-    this.close();
-  }
-};
-
-// src/views/TaskManagerView.ts
+init_TaskService();
+init_AIService();
+init_UndoService();
+init_AICopilotModal();
 var VIEW_TYPE_TASK_MANAGER = "jira-task-manager-view";
 var TaskManagerView = class extends import_obsidian6.ItemView {
   constructor(leaf, plugin) {
@@ -1001,6 +1336,22 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
         this.render();
       });
     }
+    const aiStrategyBtn = controlsEl.createEl("button", {
+      text: "\u2728 AI \u4F5C\u6226\u7B56\u5B9A",
+      cls: "jira-tm-btn-ai"
+    });
+    aiStrategyBtn.title = "\u304A\u984C\u304B\u3089\u4F5C\u6226\uFF08\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u5206\u6790\uFF09\u3092\u7ACB\u3066\u3001Phase 1\u30BF\u30B9\u30AF\u3092\u30CE\u30FC\u30C8\u3078\u66F8\u304D\u8FBC\u307F\u307E\u3059";
+    aiStrategyBtn.addEventListener("click", () => {
+      const modal = new AICopilotModal(
+        this.app,
+        null,
+        this.aiService,
+        this.taskService,
+        this.undoService,
+        () => this.render()
+      );
+      modal.open();
+    });
     const aiRescheduleBtn = controlsEl.createEl("button", {
       text: "\u{1F504} AI Reschedule",
       cls: "jira-tm-btn-ai"
@@ -1303,6 +1654,27 @@ var TaskManagerPlugin = class extends import_obsidian7.Plugin {
       name: "Open JIRA Task Manager",
       callback: () => {
         this.activateView();
+      }
+    });
+    this.addCommand({
+      id: "open-ai-scrum-master-strategy",
+      name: "Open AI Scrum Master: Formulate Strategy",
+      callback: () => {
+        const { AIService: AIService2 } = (init_AIService(), __toCommonJS(AIService_exports));
+        const { TaskService: TaskService2 } = (init_TaskService(), __toCommonJS(TaskService_exports));
+        const { UndoService: UndoService2 } = (init_UndoService(), __toCommonJS(UndoService_exports));
+        const { AICopilotModal: AICopilotModal2 } = (init_AICopilotModal(), __toCommonJS(AICopilotModal_exports));
+        const aiService = new AIService2(this);
+        const taskService = new TaskService2(this.app, this);
+        const undoService = new UndoService2(this.app);
+        const modal = new AICopilotModal2(
+          this.app,
+          null,
+          aiService,
+          taskService,
+          undoService
+        );
+        modal.open();
       }
     });
     this.addSettingTab(new TaskManagerSettingTab(this.app, this));

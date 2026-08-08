@@ -1,5 +1,5 @@
-import { App, TFile, normalizePath } from "obsidian";
-import { TaskItem, TaskPriority, TaskStatus, TaskType } from "../types";
+import { App, TFile, normalizePath, MarkdownView, Notice } from "obsidian";
+import { TaskItem, TaskPriority, TaskStatus, TaskType, StrategyResult } from "../types";
 import TaskManagerPlugin from "../main";
 
 export interface TaskTreeNode {
@@ -219,5 +219,83 @@ export class TaskService {
 			if (p === "highest") return "highest";
 		}
 		return "medium";
+	}
+
+	/**
+	 * Save strategy memo and Phase 1 tasks.
+	 * Priority: targetFile (開き元ノート) > active editor > existing task with matching title > create new.
+	 */
+	async saveStrategyToNote(
+		topic: string,
+		strategy: StrategyResult,
+		selectedTasks: string[],
+		targetFile?: TFile
+	): Promise<boolean> {
+		const taskLines = selectedTasks.map((t) => `- [ ] ${t}`).join("\n");
+		const contentToInsert = [
+			"",
+			"> [!strategy] AIスクラムマスターの作戦メモ",
+			`> - **最優先ボトルネック**: ${strategy.bottleneck}`,
+			`> - **依存関係**: ${strategy.dependency}`,
+			`> - **基本方針**: ${strategy.policy}`,
+			"",
+			"## 📍 Phase 1: ボトルネック・不確実性の解消",
+			taskLines,
+			"",
+		].join("\n");
+
+		// Case 1: 開き元のタスクノートが指定されている → そこへ直接書き込み
+		if (targetFile) {
+			return this.appendContentToFile(targetFile, contentToInsert);
+		}
+
+		// Case 2: Active Markdown editor が開いている
+		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (activeView && activeView.editor) {
+			const editor = activeView.editor;
+			const lastLine = editor.lineCount();
+			editor.replaceRange("\n" + contentToInsert, { line: lastLine, ch: 0 });
+			new Notice("✨ アクティブノートに作戦とPhase 1タスクを書き込みました！");
+			return true;
+		}
+
+		// Case 3: Active file がMarkdownファイル
+		const activeFile = this.app.workspace.getActiveFile();
+		if (activeFile && activeFile.extension === "md") {
+			return this.appendContentToFile(activeFile, contentToInsert);
+		}
+
+		// Case 4: 同じタイトルの既存タスクノートを探す
+		const existingTask = this.findTaskByTitle(topic);
+		if (existingTask) {
+			return this.appendContentToFile(existingTask.file, contentToInsert,
+				`✨ 既存ノート「${existingTask.title}」に作戦とPhase 1タスクを追記しました！`);
+		}
+
+		// Case 5: どれにも該当しない → 新規ノート作成
+		const todayStr = new Date().toISOString().split("T")[0];
+		const newFile = await this.createTask(topic, "todo", "medium", { scheduled: todayStr });
+		return this.appendContentToFile(newFile, contentToInsert,
+			`✨ 「${topic}」の新規タスクノートを作成し、作戦とPhase 1タスクを記録しました！`);
+	}
+
+	/**
+	 * ファイル末尾にコンテンツを追記してノートを開く
+	 */
+	private async appendContentToFile(file: TFile, content: string, noticeMsg?: string): Promise<boolean> {
+		const existing = await this.app.vault.read(file);
+		await this.app.vault.modify(file, existing.trimEnd() + "\n\n" + content);
+		await this.openTaskNote(file);
+		new Notice(noticeMsg || "✨ 作戦とPhase 1タスクをノートに書き込みました！");
+		return true;
+	}
+
+	/**
+	 * Find an existing task by title (case-insensitive, trimmed match)
+	 */
+	findTaskByTitle(title: string): TaskItem | undefined {
+		const allTasks = this.getAllTasks();
+		const normalized = title.trim().toLowerCase();
+		return allTasks.find((t) => t.title.trim().toLowerCase() === normalized);
 	}
 }

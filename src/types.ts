@@ -20,6 +20,15 @@ export interface TaskItem {
 	file: TFile;
 }
 
+export type ModalState = "STATE_INPUT" | "STATE_GENERATING" | "STATE_PREVIEW" | "STATE_COMMITTED";
+
+export interface StrategyResult {
+	bottleneck: string;
+	dependency: string;
+	policy: string;
+	phase1Tasks: string[];
+}
+
 export interface TaskManagerSettings {
 	taskFolder: string;
 	idPrefix: string;
