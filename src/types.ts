@@ -1,8 +1,28 @@
 import { TFile } from "obsidian";
 
-export type TaskStatus = "todo" | "in_progress" | "done";
+export type TaskStatus = "todo" | "in_progress" | "done" | "deprecated";
 export type TaskPriority = "low" | "medium" | "high" | "highest";
 export type TaskType = "epic" | "task" | "subtask";
+
+export type NodeType = "goal" | "strategy" | "action";
+export type NodeStatus = TaskStatus;
+
+export interface TaskNode {
+	id: string;               // 不変のUUID/ID
+	title: string;            // ノード名（目的・作戦名・TODO名）
+	nodeType: NodeType;       // 目標 / 作戦（方針）/ 実行TODO
+	parentId?: string;        // 親ノードのID（思考の系譜）
+	status: NodeStatus;       // ステータス
+	priority?: TaskPriority;  // 優先度
+	due?: string;             //期日 YYYY-MM-DD
+	scheduled?: string;       // 実施予定日 YYYY-MM-DD
+	assignee?: string;
+	created?: string;
+	updated?: string;
+	filePath: string;         // Vault内の相対ファイルパス
+	file: TFile;              // Obsidian TFile オブジェクト
+	content?: string;         // 本文・補足メモ
+}
 
 export interface TaskItem {
 	id: string;
@@ -10,7 +30,9 @@ export interface TaskItem {
 	status: TaskStatus;
 	priority: TaskPriority;
 	type?: TaskType;
+	nodeType?: NodeType;
 	parent?: string; // ID of parent task
+	parentId?: string; // Alias for parent ID (思考の系譜)
 	due?: string; // YYYY-MM-DD
 	scheduled?: string; // YYYY-MM-DD
 	assignee?: string;

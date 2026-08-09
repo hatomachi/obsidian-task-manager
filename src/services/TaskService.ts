@@ -1,5 +1,5 @@
 import { App, TFile, normalizePath, MarkdownView, Notice } from "obsidian";
-import { TaskItem, TaskPattern, TaskPriority, TaskStatus, TaskType, StrategyResult } from "../types";
+import { TaskItem, TaskNode, NodeType, NodeStatus, TaskPattern, TaskPriority, TaskStatus, TaskType, StrategyResult } from "../types";
 import TaskManagerPlugin from "../main";
 
 export interface TaskTreeNode {
@@ -7,17 +7,22 @@ export interface TaskTreeNode {
 	depth: number;
 }
 
+export interface TaskNodeTreeNode {
+	node: TaskNode;
+	depth: number;
+}
+
 export class TaskService {
 	constructor(private app: App, private plugin: TaskManagerPlugin) {}
 
 	/**
-	 * Get all task notes inside configured folder or vault
+	 * Get all TaskNodes inside configured folder or vault (Goal -> Strategy -> Action)
 	 */
-	getAllTasks(): TaskItem[] {
+	getAllTaskNodes(): TaskNode[] {
 		const folderPath = normalizePath(this.plugin.settings.taskFolder);
 		const files = this.app.vault.getMarkdownFiles();
 
-		const tasks: TaskItem[] = [];
+		const nodes: TaskNode[] = [];
 
 		for (const file of files) {
 			if (folderPath && folderPath !== "." && folderPath !== "/") {
@@ -31,27 +36,52 @@ export class TaskService {
 
 			const title = fm.title || file.basename;
 			const id = fm.id || file.basename;
-			const status: TaskStatus = this.normalizeStatus(fm.status);
+			const parentId = fm.parentId || fm.parent || undefined;
+			const nodeType = this.normalizeNodeType(fm.nodeType || fm.type, parentId);
+			const status: NodeStatus = this.normalizeStatus(fm.status);
 			const priority: TaskPriority = this.normalizePriority(fm.priority);
 
-			tasks.push({
+			nodes.push({
 				id,
 				title,
+				nodeType,
+				parentId,
 				status,
 				priority,
-				type: fm.type || (fm.parent ? "subtask" : "task"),
-				parent: fm.parent || undefined,
-				due: fm.due || undefined,
+				due: fm.due || fm.due_date || undefined,
 				scheduled: fm.scheduled || undefined,
 				assignee: fm.assignee || "",
-				epic: fm.epic || "",
 				created: fm.created || "",
 				updated: fm.updated || "",
+				filePath: file.path,
 				file,
 			});
 		}
 
-		return tasks;
+		return nodes;
+	}
+
+	/**
+	 * Get all task notes inside configured folder or vault (Backward Compatible)
+	 */
+	getAllTasks(): TaskItem[] {
+		const nodes = this.getAllTaskNodes();
+		return nodes.map((node) => ({
+			id: node.id,
+			title: node.title,
+			status: node.status,
+			priority: node.priority || "medium",
+			type: (node.nodeType === "goal" ? "epic" : node.nodeType === "strategy" ? "task" : "subtask") as TaskType,
+			nodeType: node.nodeType,
+			parent: node.parentId,
+			parentId: node.parentId,
+			due: node.due,
+			scheduled: node.scheduled,
+			assignee: node.assignee,
+			created: node.created,
+			updated: node.updated,
+			file: node.file,
+		}));
 	}
 
 	/**
@@ -90,13 +120,13 @@ export class TaskService {
 	}
 
 	/**
-	 * Create a new Task note with standard Frontmatter
+	 * Create a new TaskNode note with standard Goal/Strategy/Action Frontmatter
 	 */
-	async createTask(
+	async createTaskNode(
 		title: string,
-		status: TaskStatus = "todo",
-		priority: TaskPriority = "medium",
-		options?: { parent?: string; due?: string; scheduled?: string; type?: TaskType }
+		nodeType: NodeType = "action",
+		status: NodeStatus = "todo",
+		options?: { parentId?: string; priority?: TaskPriority; due?: string; scheduled?: string }
 	): Promise<TFile> {
 		const folderPath = normalizePath(this.plugin.settings.taskFolder);
 
@@ -107,28 +137,28 @@ export class TaskService {
 			}
 		}
 
-		// Generate ASCII Unique ID (Prefix + Timestamp + Jitter)
 		const idStr = this.generateUniqueId();
-		
-		// Pure ASCII Filename to prevent conflicts and OS path issues
 		const fileName = `${idStr}.md`;
 		const filePath = folderPath && folderPath !== "." && folderPath !== "/"
 			? `${folderPath}/${fileName}`
 			: fileName;
 
 		const now = new Date().toISOString();
-		const taskType = options?.type || (options?.parent ? "subtask" : "task");
+		const priority = options?.priority || "medium";
 
 		const frontmatterLines = [
 			"---",
 			`id: ${idStr}`,
 			`title: "${title.replace(/"/g, '\\"')}"`,
+			`nodeType: ${nodeType}`,
 			`status: ${status}`,
 			`priority: ${priority}`,
-			`type: ${taskType}`,
 		];
 
-		if (options?.parent) frontmatterLines.push(`parent: "${options.parent}"`);
+		if (options?.parentId) {
+			frontmatterLines.push(`parentId: "${options.parentId}"`);
+			frontmatterLines.push(`parent: "${options.parentId}"`);
+		}
 		if (options?.due) frontmatterLines.push(`due: "${options.due}"`);
 		if (options?.scheduled) frontmatterLines.push(`scheduled: "${options.scheduled}"`);
 
@@ -139,7 +169,7 @@ export class TaskService {
 			"",
 			`# ${title}`,
 			"",
-			"## Description",
+			"## 文脈・説明メモ",
 			""
 		);
 
@@ -148,12 +178,44 @@ export class TaskService {
 	}
 
 	/**
+	 * Ensure Frontmatter has a unique ID, generating one if missing
+	 */
+	async ensureNodeId(file: TFile): Promise<string> {
+		let assignedId = "";
+		await this.app.fileManager.processFrontMatter(file, (fm) => {
+			if (!fm.id) {
+				fm.id = this.generateUniqueId();
+				fm.updated = new Date().toISOString();
+			}
+			assignedId = fm.id;
+		});
+		return assignedId;
+	}
+
+	/**
+	 * Create a new Task note with standard Frontmatter (Backward Compatible)
+	 */
+	async createTask(
+		title: string,
+		status: TaskStatus = "todo",
+		priority: TaskPriority = "medium",
+		options?: { parent?: string; due?: string; scheduled?: string; type?: TaskType }
+	): Promise<TFile> {
+		const nodeType: NodeType = options?.type === "epic" ? "goal" : options?.parent ? "action" : "strategy";
+		return this.createTaskNode(title, nodeType, status, {
+			parentId: options?.parent,
+			priority,
+			due: options?.due,
+			scheduled: options?.scheduled,
+		});
+	}
+
+	/**
 	 * Convenient wrapper to create a subtask under a parent task or subtask
 	 */
 	async createSubtask(parentTask: TaskItem, title: string): Promise<TFile> {
-		return this.createTask(title, "todo", "medium", {
-			parent: parentTask.id,
-			type: "subtask",
+		return this.createTaskNode(title, "action", "todo", {
+			parentId: parentTask.id,
 			due: parentTask.due,
 			scheduled: parentTask.scheduled,
 		});
@@ -163,13 +225,12 @@ export class TaskService {
 	 * Create a subtask under a specific parent ID string
 	 */
 	async createSubtaskByParentId(parentId: string, title: string): Promise<TFile> {
-		const allTasks = this.getAllTasks();
-		const parentTask = allTasks.find((t) => t.id === parentId);
-		return this.createTask(title, "todo", "medium", {
-			parent: parentId,
-			type: "subtask",
-			due: parentTask?.due,
-			scheduled: parentTask?.scheduled,
+		const allNodes = this.getAllTaskNodes();
+		const parentNode = allNodes.find((n) => n.id === parentId);
+		return this.createTaskNode(title, "action", "todo", {
+			parentId: parentId,
+			due: parentNode?.due,
+			scheduled: parentNode?.scheduled,
 		});
 	}
 
@@ -202,11 +263,23 @@ export class TaskService {
 		await leaf.openFile(file);
 	}
 
-	private normalizeStatus(status: any): TaskStatus {
+	private normalizeNodeType(rawType: any, parentId?: string): NodeType {
+		if (typeof rawType === "string") {
+			const t = rawType.toLowerCase();
+			if (t === "goal" || t === "epic" || t === "theme") return "goal";
+			if (t === "strategy" || t === "policy" || t === "initiative") return "strategy";
+			if (t === "action" || t === "task" || t === "subtask") return "action";
+		}
+		if (parentId) return "action";
+		return "action";
+	}
+
+	private normalizeStatus(status: any): NodeStatus {
 		if (typeof status === "string") {
 			const s = status.toLowerCase();
 			if (s === "in_progress" || s === "in progress" || s === "doing") return "in_progress";
 			if (s === "done" || s === "completed") return "done";
+			if (s === "deprecated" || s === "ボツ" || s === "cancelled") return "deprecated";
 		}
 		return "todo";
 	}

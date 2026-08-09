@@ -51,12 +51,12 @@ var init_TaskService = __esm({
         this.plugin = plugin;
       }
       /**
-       * Get all task notes inside configured folder or vault
+       * Get all TaskNodes inside configured folder or vault (Goal -> Strategy -> Action)
        */
-      getAllTasks() {
+      getAllTaskNodes() {
         const folderPath = (0, import_obsidian2.normalizePath)(this.plugin.settings.taskFolder);
         const files = this.app.vault.getMarkdownFiles();
-        const tasks = [];
+        const nodes = [];
         for (const file of files) {
           if (folderPath && folderPath !== "." && folderPath !== "/") {
             if (!file.path.startsWith(folderPath + "/") && file.path !== folderPath) {
@@ -67,25 +67,49 @@ var init_TaskService = __esm({
           const fm = (cache == null ? void 0 : cache.frontmatter) || {};
           const title = fm.title || file.basename;
           const id = fm.id || file.basename;
+          const parentId = fm.parentId || fm.parent || void 0;
+          const nodeType = this.normalizeNodeType(fm.nodeType || fm.type, parentId);
           const status = this.normalizeStatus(fm.status);
           const priority = this.normalizePriority(fm.priority);
-          tasks.push({
+          nodes.push({
             id,
             title,
+            nodeType,
+            parentId,
             status,
             priority,
-            type: fm.type || (fm.parent ? "subtask" : "task"),
-            parent: fm.parent || void 0,
-            due: fm.due || void 0,
+            due: fm.due || fm.due_date || void 0,
             scheduled: fm.scheduled || void 0,
             assignee: fm.assignee || "",
-            epic: fm.epic || "",
             created: fm.created || "",
             updated: fm.updated || "",
+            filePath: file.path,
             file
           });
         }
-        return tasks;
+        return nodes;
+      }
+      /**
+       * Get all task notes inside configured folder or vault (Backward Compatible)
+       */
+      getAllTasks() {
+        const nodes = this.getAllTaskNodes();
+        return nodes.map((node) => ({
+          id: node.id,
+          title: node.title,
+          status: node.status,
+          priority: node.priority || "medium",
+          type: node.nodeType === "goal" ? "epic" : node.nodeType === "strategy" ? "task" : "subtask",
+          nodeType: node.nodeType,
+          parent: node.parentId,
+          parentId: node.parentId,
+          due: node.due,
+          scheduled: node.scheduled,
+          assignee: node.assignee,
+          created: node.created,
+          updated: node.updated,
+          file: node.file
+        }));
       }
       /**
        * Recursively get all descendant tasks (subtasks, sub-subtasks, etc.) for a root task
@@ -115,9 +139,9 @@ var init_TaskService = __esm({
         return `${prefix}${timestamp}-${jitter}`;
       }
       /**
-       * Create a new Task note with standard Frontmatter
+       * Create a new TaskNode note with standard Goal/Strategy/Action Frontmatter
        */
-      async createTask(title, status = "todo", priority = "medium", options) {
+      async createTaskNode(title, nodeType = "action", status = "todo", options) {
         const folderPath = (0, import_obsidian2.normalizePath)(this.plugin.settings.taskFolder);
         if (folderPath && folderPath !== "." && folderPath !== "/") {
           const folder = this.app.vault.getAbstractFileByPath(folderPath);
@@ -129,17 +153,19 @@ var init_TaskService = __esm({
         const fileName = `${idStr}.md`;
         const filePath = folderPath && folderPath !== "." && folderPath !== "/" ? `${folderPath}/${fileName}` : fileName;
         const now = (/* @__PURE__ */ new Date()).toISOString();
-        const taskType = (options == null ? void 0 : options.type) || ((options == null ? void 0 : options.parent) ? "subtask" : "task");
+        const priority = (options == null ? void 0 : options.priority) || "medium";
         const frontmatterLines = [
           "---",
           `id: ${idStr}`,
           `title: "${title.replace(/"/g, '\\"')}"`,
+          `nodeType: ${nodeType}`,
           `status: ${status}`,
-          `priority: ${priority}`,
-          `type: ${taskType}`
+          `priority: ${priority}`
         ];
-        if (options == null ? void 0 : options.parent)
-          frontmatterLines.push(`parent: "${options.parent}"`);
+        if (options == null ? void 0 : options.parentId) {
+          frontmatterLines.push(`parentId: "${options.parentId}"`);
+          frontmatterLines.push(`parent: "${options.parentId}"`);
+        }
         if (options == null ? void 0 : options.due)
           frontmatterLines.push(`due: "${options.due}"`);
         if (options == null ? void 0 : options.scheduled)
@@ -151,19 +177,44 @@ var init_TaskService = __esm({
           "",
           `# ${title}`,
           "",
-          "## Description",
+          "## \u6587\u8108\u30FB\u8AAC\u660E\u30E1\u30E2",
           ""
         );
         const newFile = await this.app.vault.create(filePath, frontmatterLines.join("\n"));
         return newFile;
       }
       /**
+       * Ensure Frontmatter has a unique ID, generating one if missing
+       */
+      async ensureNodeId(file) {
+        let assignedId = "";
+        await this.app.fileManager.processFrontMatter(file, (fm) => {
+          if (!fm.id) {
+            fm.id = this.generateUniqueId();
+            fm.updated = (/* @__PURE__ */ new Date()).toISOString();
+          }
+          assignedId = fm.id;
+        });
+        return assignedId;
+      }
+      /**
+       * Create a new Task note with standard Frontmatter (Backward Compatible)
+       */
+      async createTask(title, status = "todo", priority = "medium", options) {
+        const nodeType = (options == null ? void 0 : options.type) === "epic" ? "goal" : (options == null ? void 0 : options.parent) ? "action" : "strategy";
+        return this.createTaskNode(title, nodeType, status, {
+          parentId: options == null ? void 0 : options.parent,
+          priority,
+          due: options == null ? void 0 : options.due,
+          scheduled: options == null ? void 0 : options.scheduled
+        });
+      }
+      /**
        * Convenient wrapper to create a subtask under a parent task or subtask
        */
       async createSubtask(parentTask, title) {
-        return this.createTask(title, "todo", "medium", {
-          parent: parentTask.id,
-          type: "subtask",
+        return this.createTaskNode(title, "action", "todo", {
+          parentId: parentTask.id,
           due: parentTask.due,
           scheduled: parentTask.scheduled
         });
@@ -172,13 +223,12 @@ var init_TaskService = __esm({
        * Create a subtask under a specific parent ID string
        */
       async createSubtaskByParentId(parentId, title) {
-        const allTasks = this.getAllTasks();
-        const parentTask = allTasks.find((t) => t.id === parentId);
-        return this.createTask(title, "todo", "medium", {
-          parent: parentId,
-          type: "subtask",
-          due: parentTask == null ? void 0 : parentTask.due,
-          scheduled: parentTask == null ? void 0 : parentTask.scheduled
+        const allNodes = this.getAllTaskNodes();
+        const parentNode = allNodes.find((n) => n.id === parentId);
+        return this.createTaskNode(title, "action", "todo", {
+          parentId,
+          due: parentNode == null ? void 0 : parentNode.due,
+          scheduled: parentNode == null ? void 0 : parentNode.scheduled
         });
       }
       /**
@@ -209,6 +259,20 @@ var init_TaskService = __esm({
         const leaf = this.app.workspace.getLeaf("tab");
         await leaf.openFile(file);
       }
+      normalizeNodeType(rawType, parentId) {
+        if (typeof rawType === "string") {
+          const t = rawType.toLowerCase();
+          if (t === "goal" || t === "epic" || t === "theme")
+            return "goal";
+          if (t === "strategy" || t === "policy" || t === "initiative")
+            return "strategy";
+          if (t === "action" || t === "task" || t === "subtask")
+            return "action";
+        }
+        if (parentId)
+          return "action";
+        return "action";
+      }
       normalizeStatus(status) {
         if (typeof status === "string") {
           const s = status.toLowerCase();
@@ -216,6 +280,8 @@ var init_TaskService = __esm({
             return "in_progress";
           if (s === "done" || s === "completed")
             return "done";
+          if (s === "deprecated" || s === "\u30DC\u30C4" || s === "cancelled")
+            return "deprecated";
         }
         return "todo";
       }
