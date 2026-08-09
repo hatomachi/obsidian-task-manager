@@ -471,16 +471,43 @@ ${siblingLines.length > 0 ? siblingLines.join("\n") : "  (\u306A\u3057)"}
   }
   const targetTitle = ((_a = aiContextPayload == null ? void 0 : aiContextPayload.selectedNode) == null ? void 0 : _a.title) || task.title;
   return `\u3042\u306A\u305F\u306FAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
-\u89AA\u30CE\u30FC\u30C9/\u4F5C\u6226\u300C${targetTitle}\u300D\u304A\u3088\u3073\u4E0A\u4F4D\u306E\u601D\u8003\u7CFB\u8B5C\u306B\u57FA\u3065\u304D\u300115\u301C30\u5206\u3067\u5B9F\u884C\u53EF\u80FD\u306A3\u301C5\u500B\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF08Next Physical Action / Action\u30CE\u30FC\u30C9\uFF09\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u76F4\u8FD1\u306E\u4F5C\u6226\u300C${targetTitle}\u300D\u304A\u3088\u3073\u4E0A\u4F4D\u306E\u601D\u8003\u7CFB\u8B5C\u306B\u57FA\u3065\u304D\u3001\u30ED\u30FC\u30EA\u30F3\u30B0\u30A6\u30A7\u30FC\u30D6\u5206\u89E3\uFF08\u76F4\u8FD1\u5B9F\u884C\u3059\u308B\u4F5C\u696D\u306E\u307F\u7CBE\u7DFB\u5316\uFF09\u3092\u884C\u3044\u300115\u301C30\u5206\u3067\u5B9F\u884C\u53EF\u80FD\u306A3\u301C5\u500B\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF08Next Physical Action / Action\u30CE\u30FC\u30C9\uFF09\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
 
 ${systemRules}${patternPromptSection}${contextPayloadSection}
 
-\u3010\u51FA\u529B\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
-\u4EE5\u4E0B\u306E\u5F62\u5F0F\u306E\u6709\u52B9\u306AJSON\u914D\u5217\uFF08\u6587\u5B57\u5217\u306E\u914D\u5217\uFF09\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-\u5FC5\u305A\u3059\u3079\u3066\u65E5\u672C\u8A9E\u3067\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002JSON\u306E\u5916\u5074\u306B\u306F\u8AAC\u660E\u6587\u3084Markdown\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u4E00\u5207\u542B\u3081\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
+\u3010\u4F5C\u6210\u4E0A\u306E\u7D76\u5BFE\u30EB\u30FC\u30EB\u3011:
+1. **\u30ED\u30FC\u30EA\u30F3\u30B0\u30A6\u30A7\u30FC\u30D6\u5206\u89E3\u306E\u5FB9\u5E95**:
+   - \u5965\u306E\u672A\u6765\u307E\u3067\u4E00\u62EC\u3067\u30A6\u30A9\u30FC\u30BF\u30FC\u30D5\u30A9\u30FC\u30EB\u4F5C\u6210\u305B\u305A\u3001\u624B\u524D\u306E\u76F4\u8FD1 Strategy \u306E\u307F\u30923\u301C5\u500B\u306E\u7269\u7406\u884C\u52D5\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+2. **\u5404\u30A2\u30AF\u30B7\u30E7\u30F3\u306E\u6642\u7CFB\u5217\u30FB\u6642\u9593\u898B\u7A4D\u3082\u308A\u5C5E\u6027**:
+   - \`sequenceOrder\`: \u7740\u624B\u9806\u5E8F\uFF081, 2, 3... \u306E1\u304B\u3089\u59CB\u307E\u308B\u6607\u9806\uFF09\u3002
+   - \`estimatedMinutes\`: \u4E88\u60F3\u6240\u8981\u5206\uFF0815, 30, 45, 60 \u306A\u3069\u306E\u5206\u5358\u4F4D\u306E\u6570\u5024\uFF09\u3002
+   - \`dependsOn\`: \u5148\u884C\u4F9D\u5B58\u306E\u3042\u308B\u30BF\u30B9\u30AF\u306EID\u30EA\u30B9\u30C8\uFF08\u7121\u3051\u308C\u3070 \`[]\`\uFF09\u3002
+   - \`rationale\`: \u306A\u305C\u3053\u306E\u9806\u5E8F\u30FB\u6642\u9593\u3067\u5B9F\u884C\u3059\u308B\u304B\u306E\u524D\u88C1\u304D\u7406\u7531\u30E1\u30E2\u3002
+   - \`title\`: \u300C\u301C\u3092\u958B\u304F\u300D\u300C\u301C\u3092\u5165\u529B\u3059\u308B\u300D\u300C\u301C\u3092\u691C\u7D22\u3059\u308B\u300D\u7B49\u306E\u5177\u4F53\u7684\u52D5\u8A5E\u3067\u59CB\u307E\u308B15\u301C30\u5206\u7269\u7406\u884C\u52D5\u3002
 
-\u4F8B:
-["Chrome\u3092\u958B\u3044\u3066\u516C\u5F0F\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8URL\u306B\u30A2\u30AF\u30BB\u30B9\u3059\u308B", "\u30A8\u30C7\u30A3\u30BF\u3092\u958B\u304Dsrc/main.ts\u306E1\u884C\u76EE\u306B\u30B3\u30E1\u30F3\u30C8\u3092\u66F8\u304F", "\u30BF\u30FC\u30DF\u30CA\u30EB\u3092\u958B\u304Dnpm run test\u30B3\u30DE\u30F3\u30C9\u3092\u5B9F\u884C\u3059\u308B"]`;
+\u3010\u51FA\u529B\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
+\u4EE5\u4E0B\u306E\u69CB\u9020\u306B\u4E00\u81F4\u3059\u308B\u6709\u52B9\u306AJSON\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u5FC5\u305A\u3059\u3079\u3066\u65E5\u672C\u8A9E\u3067\u8A18\u8FF0\u3057\u3066\u304F\u3060\u3055\u3044\u3002JSON\u306E\u5916\u5074\u306B\u306F\u8AAC\u660E\u6587\u3084Markdown\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u4E00\u5207\u542B\u3081\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
+
+{
+  "actions": [
+    {
+      "title": "Chrome\u3092\u958B\u3044\u3066\u516C\u5F0F\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8URL\u306B\u30A2\u30AF\u30BB\u30B9\u3059\u308B",
+      "sequenceOrder": 1,
+      "estimatedMinutes": 30,
+      "dependsOn": [],
+      "rationale": "\u4ED5\u69D8\u306E\u4E0D\u78BA\u5B9F\u6027\u3092\u6700\u521D\u306B\u78BA\u8A8D\u3059\u308B\u305F\u3081"
+    },
+    {
+      "title": "\u30A8\u30C7\u30A3\u30BF\u3092\u958B\u304Dsrc/main.ts\u306E1\u884C\u76EE\u306B\u30B3\u30E1\u30F3\u30C8\u3092\u66F8\u304F",
+      "sequenceOrder": 2,
+      "estimatedMinutes": 30,
+      "dependsOn": [],
+      "rationale": "\u524D\u30B9\u30C6\u30C3\u30D7\u306E\u4ED5\u69D8\u3092\u30B3\u30FC\u30C9\u30B3\u30E1\u30F3\u30C8\u306B\u8D77\u3053\u3059\u305F\u3081"
+    }
+  ]
+}
+`;
 }
 var init_taskBreakdownPrompt = __esm({
   "src/prompts/taskBreakdownPrompt.ts"() {
@@ -711,13 +738,16 @@ ${systemRules}${patternPromptSection}${contextPayloadSection}
 ${currentContext}${feedbackContext}
 
 \u3010\u4F5C\u6210\u4E0A\u306E\u7D76\u5BFE\u9075\u5B88\u30EB\u30FC\u30EB\u3011:
-1. **\u4F5C\u6226\u306E\u7B56\u5B9A**:
+1. **\u4F5C\u6226\u306E\u7B56\u5B9A (proposedStrategies)**:
    - \u6700\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF: \u4F55\u304C\u6700\u5927\u306E\u4E0D\u78BA\u5B9F\u6027/\u969C\u58C1\u3067\u3042\u308B\u304B\u3092\u660E\u78BA\u5316
    - \u4F9D\u5B58\u95A2\u4FC2: \u4F55\u304C\u6C7A\u307E\u308C\u3070\u6B21\u306B\u4F55\u304C\u6C7A\u307E\u308B\u304B\u306E\u6D41\u308C
    - \u57FA\u672C\u65B9\u91DD: \u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u3092\u89E3\u6D88\u3059\u308B\u305F\u3081\u306E\u6226\u7565
-   - \u63D0\u6848\u4F5C\u6226 (proposedStrategies): \u76EE\u6A19\u9054\u6210\u306E\u305F\u3081\u306E\u5177\u4F53\u7684\u4F5C\u6226 (Strategy) \u306E\u30BF\u30A4\u30C8\u30EB\u3068\u6982\u8981\uFF081\u301C3\u4EF6\uFF09
+   - \u63D0\u6848\u4F5C\u6226 (proposedStrategies): \u76EE\u6A19\u9054\u6210\u306E\u305F\u3081\u306E\u5177\u4F53\u7684\u4F5C\u6226 (Strategy) \u306E\u30BF\u30A4\u30C8\u30EB\u30FB\u6982\u8981\u30FB\u6642\u9593\u4E88\u7B97 (\`appetiteHours\` / \u6295\u8CC7\u53EF\u80FD\u6642\u9593\u67A0)\u30FB\u5B9F\u65BD\u6642\u671F (\`timeframe\`)\uFF081\u301C3\u4EF6\uFF09
+   - \`appetiteHours\` (\u6642\u9593\u4E88\u7B97): \u30DC\u30C8\u30E0\u30A2\u30C3\u30D7\u306E\u7A4D\u7B97\u3067\u306F\u306A\u304F\u3001\u300C\u3053\u306E\u4F5C\u6226\u306B\u4F55\u6642\u9593\u3092\u6295\u8CC7\u3059\u308B\u304B\u300D\u306E\u4E0A\u9650\u6295\u8CC7\u6642\u9593\u6570\uFF08\u6570\u5024\u3002\u4F8B: 20, 40, 80\uFF09\u3002
+   - \`timeframe\` (\u5B9F\u65BD\u6642\u671F): \u76F8\u5BFE\u7684\u306A\u30D5\u30A7\u30FC\u30BA\u3084\u6642\u671F\uFF08\u6587\u5B57\u5217\u3002\u4F8B: "\u4ECA\u6708", "2026-Q3", "Day 1"\uFF09\u3002
 2. **Phase 1 \u30BF\u30B9\u30AF\u6848\u306E\u5236\u7D04**:
    - \u4E00\u767A\u3067\u5927\u91CF\u306E\u5168\u30BF\u30B9\u30AF\u3092\u4F5C\u3089\u305A\u3001**\u300C\u4E0D\u78BA\u5B9F\u6027\u3092\u6F70\u3059\u305F\u3081\u306E\u6700\u521D\u306E1\u301C3\u500B\u306EPhase 1\u30BF\u30B9\u30AF\u300D\u306E\u307F**\u3092\u63D0\u6848\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - \u5404\u30BF\u30B9\u30AF\u306B\u306F \`sequenceOrder\` (1, 2...), \`estimatedMinutes\` (15\u301C60\u5206), \`dependsOn\` (\u4F9D\u5B58ID\u914D\u5217), \`rationale\` (\u7406\u7531), \`title\` \u3092\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
    - \u30BF\u30B9\u30AF\u306E\u30BF\u30A4\u30C8\u30EB\u306F**\u5FC5\u305A\u300C\u301C\u3092\u958B\u304F\u300D\u300C\u301C\u3092\u5165\u529B\u3059\u308B\u300D\u300C\u301C\u3092\u691C\u7D22\u3059\u308B\u300D\u306A\u3069\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF08Next Physical Action / 15\u301C30\u5206\u3067\u5B8C\u4E86\u3059\u308B\u4F5C\u696D\uFF09**\u3067\u59CB\u3081\u3066\u304F\u3060\u3055\u3044\u3002
    - \u300C\u301C\u306E\u691C\u8A0E\u300D\u300C\u301C\u306E\u8ABF\u6574\u300D\u300C\u301C\u306E\u8ABF\u67FB\u300D\u300C\u301C\u306E\u78BA\u8A8D\u300D\u306A\u3069\u306E\u66D6\u6627\u30FB\u62BD\u8C61\u7684\u306A\u8868\u73FE\u306F**\u5B8C\u5168\u7981\u6B62**\u3067\u3059\u3002
 
@@ -732,12 +762,23 @@ ${currentContext}${feedbackContext}
   "proposedStrategies": [
     {
       "title": "NDP\u30B7\u30B9\u30C6\u30E0\u306ESW\u30D0\u30FC\u30B8\u30E7\u30F3\u30A2\u30C3\u30D7",
-      "description": "\u30D0\u30FC\u30B8\u30E7\u30F3\u30A2\u30C3\u30D7\u624B\u9806\u3092\u6574\u7406\u3057\u7D50\u5408\u30C6\u30B9\u30C8\u3092\u5B9F\u65BD\u3059\u308B\u65B9\u91DD"
+      "description": "\u30D0\u30FC\u30B8\u30E7\u30F3\u30A2\u30C3\u30D7\u624B\u9806\u3092\u6574\u7406\u3057\u7D50\u5408\u30C6\u30B9\u30C8\u3092\u5B9F\u65BD\u3059\u308B\u65B9\u91DD",
+      "appetiteHours": 40,
+      "timeframe": "\u4ECA\u6708"
     }
   ],
   "phase1Tasks": [
     "\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u3007\u3007\u306E\u30B5\u30A4\u30C8\u3067\u6599\u91D1\u30D7\u30E9\u30F3\u3092\u78BA\u8A8D\u3059\u308B",
     "\u30CE\u30FC\u30C8\u3092\u958B\u304D\u3007\u3007\u306E\u8981\u4EF6\u30921\u884C\u3067\u30E1\u30E2\u3059\u308B"
+  ],
+  "phase1Actions": [
+    {
+      "title": "\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u3007\u3007\u306E\u30B5\u30A4\u30C8\u3067\u6599\u91D1\u30D7\u30E9\u30F3\u3092\u78BA\u8A8D\u3059\u308B",
+      "sequenceOrder": 1,
+      "estimatedMinutes": 30,
+      "dependsOn": [],
+      "rationale": "\u6599\u91D1\u524D\u63D0\u6761\u4EF6\u3092\u65E9\u671F\u306B\u78BA\u8A8D\u3059\u308B\u305F\u3081"
+    }
   ]
 }
 `;
@@ -844,9 +885,6 @@ var init_AIService = __esm({
       /**
        * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
        */
-      /**
-       * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
-       */
       async refineTaskWithTree(rootTask, subtree, instruction) {
         const vaultRule = await this.getVaultRuleContent();
         let matchedPatterns = [];
@@ -893,6 +931,7 @@ var init_AIService = __esm({
       }
       /**
        * Ask AI (Antigravity CLI) to break down a node using 前裁き context payload (AIContextPayload)
+       * Returns structured ActionItem array with sequenceOrder, estimatedMinutes, dependsOn, rationale
        */
       async breakdownTaskWithContext(context) {
         const vaultRule = await this.getVaultRuleContent();
@@ -918,7 +957,7 @@ var init_AIService = __esm({
         );
         try {
           const output = await this.runCLI(prompt);
-          const parsed = this.extractJSONArray(output);
+          const parsed = this.extractActionItems(output);
           if (parsed && parsed.length > 0) {
             return parsed;
           }
@@ -926,13 +965,13 @@ var init_AIService = __esm({
           console.warn("[TaskManager AI] breakdownTaskWithContext CLI failed, using fallback:", err);
         }
         return [
-          `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${context.selectedNode.title}\u300D\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u30921\u884C\u66F8\u304F`,
-          `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${context.selectedNode.title}\u300D\u306E\u95A2\u9023\u8CC7\u6599\u3092\u691C\u7D22\u3059\u308B`,
-          `\u30BF\u30FC\u30DF\u30CA\u30EB\u3092\u958B\u304D\u5B9F\u884C\u30ED\u30B0\u3092\u78BA\u8A8D\u3059\u308B`
+          { title: `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${context.selectedNode.title}\u300D\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u30921\u884C\u66F8\u304F`, sequenceOrder: 1, estimatedMinutes: 15, dependsOn: [], rationale: "\u4F5C\u696D\u7740\u624B\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u4F5C\u6210" },
+          { title: `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${context.selectedNode.title}\u300D\u306E\u95A2\u9023\u8CC7\u6599\u3092\u691C\u7D22\u3059\u308B`, sequenceOrder: 2, estimatedMinutes: 30, dependsOn: [], rationale: "\u524D\u63D0\u60C5\u5831\u306E\u53CE\u96C6" },
+          { title: `\u30BF\u30FC\u30DF\u30CA\u30EB\u3092\u958B\u304D\u5B9F\u884C\u30ED\u30B0\u3092\u78BA\u8A8D\u3059\u308B`, sequenceOrder: 3, estimatedMinutes: 15, dependsOn: [], rationale: "\u52D5\u4F5C\u72B6\u6CC1\u306E\u6700\u7D42\u78BA\u8A8D" }
         ];
       }
       /**
-       * Ask AI (Antigravity CLI) to break down a parent task into subtask titles
+       * Ask AI (Antigravity CLI) to break down a parent task into ActionItems
        */
       async breakdownTask(task) {
         const context = this.plugin.taskGraphService ? this.plugin.taskGraphService.buildAIContext(task.id) : null;
@@ -954,7 +993,7 @@ var init_AIService = __esm({
         );
         try {
           const output = await this.runCLI(prompt);
-          const parsed = this.extractJSONArray(output);
+          const parsed = this.extractActionItems(output);
           if (parsed && parsed.length > 0) {
             return parsed;
           }
@@ -962,9 +1001,9 @@ var init_AIService = __esm({
           console.warn("[TaskManager AI] CLI execution failed, using fallback:", err);
         }
         return [
-          `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${task.title}\u300D\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u30921\u884C\u66F8\u304F`,
-          `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${task.title}\u300D\u306E\u95A2\u9023\u8CC7\u6599\u3092\u691C\u7D22\u3059\u308B`,
-          `\u30BF\u30FC\u30DF\u30CA\u30EB\u3092\u958B\u304D\u5B9F\u884C\u30ED\u30B0\u3092\u78BA\u8A8D\u3059\u308B`
+          { title: `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${task.title}\u300D\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u30921\u884C\u66F8\u304F`, sequenceOrder: 1, estimatedMinutes: 15, dependsOn: [], rationale: "\u4F5C\u696D\u7740\u624B\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u4F5C\u6210" },
+          { title: `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${task.title}\u300D\u306E\u95A2\u9023\u8CC7\u6599\u3092\u691C\u7D22\u3059\u308B`, sequenceOrder: 2, estimatedMinutes: 30, dependsOn: [], rationale: "\u524D\u63D0\u60C5\u5831\u306E\u53CE\u96C6" },
+          { title: `\u30BF\u30FC\u30DF\u30CA\u30EB\u3092\u958B\u304D\u5B9F\u884C\u30ED\u30B0\u3092\u78BA\u8A8D\u3059\u308B`, sequenceOrder: 3, estimatedMinutes: 15, dependsOn: [], rationale: "\u52D5\u4F5C\u72B6\u6CC1\u306E\u6700\u7D42\u78BA\u8A8D" }
         ];
       }
       /**
@@ -1031,16 +1070,38 @@ var init_AIService = __esm({
         try {
           const output = await this.runCLI(prompt);
           const parsed = this.extractJSONObject(output);
-          if (parsed && parsed.bottleneck && Array.isArray(parsed.phase1Tasks)) {
+          if (parsed && parsed.bottleneck) {
+            const proposedStrategies = (parsed.proposedStrategies || []).map((ps) => ({
+              title: String(ps.title || "\u4E3B\u8981\u4F5C\u6226"),
+              description: ps.description ? String(ps.description) : void 0,
+              appetiteHours: ps.appetiteHours !== void 0 && ps.appetiteHours !== null ? Number(ps.appetiteHours) : ps.appetite_hours !== void 0 ? Number(ps.appetite_hours) : 20,
+              timeframe: ps.timeframe ? String(ps.timeframe) : "\u4ECA\u6708"
+            }));
+            const rawTasks = Array.isArray(parsed.phase1Tasks) ? parsed.phase1Tasks.map(String) : [];
+            let phase1Actions = [];
+            if (Array.isArray(parsed.phase1Actions) && parsed.phase1Actions.length > 0) {
+              phase1Actions = parsed.phase1Actions.map((item, idx) => ({
+                title: String(item.title || "Phase 1 \u30BF\u30B9\u30AF"),
+                sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : idx + 1,
+                estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 30,
+                dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : [],
+                rationale: item.rationale ? String(item.rationale) : void 0
+              }));
+            } else {
+              phase1Actions = rawTasks.map((t, idx) => ({
+                title: t,
+                sequenceOrder: idx + 1,
+                estimatedMinutes: 30,
+                dependsOn: []
+              }));
+            }
             return {
               bottleneck: parsed.bottleneck || "\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u306E\u7279\u5B9A",
               dependency: parsed.dependency || "\u4E8B\u524D\u306E\u57FA\u672C\u6761\u4EF6\u8A2D\u5B9A",
               policy: parsed.policy || "Phase 1\u306B\u3088\u308B\u4E0D\u78BA\u5B9F\u6027\u306E\u65E9\u671F\u89E3\u6D88",
-              proposedStrategies: parsed.proposedStrategies || [],
-              phase1Tasks: parsed.phase1Tasks.length > 0 ? parsed.phase1Tasks : [
-                `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306B\u95A2\u9023\u3059\u308B\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`,
-                `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u524D\u63D0\u6761\u4EF6\u30921\u884C\u5165\u529B\u3059\u308B`
-              ]
+              proposedStrategies: proposedStrategies.length > 0 ? proposedStrategies : [{ title: `${topic}\u306E\u57FA\u672C\u5206\u6790\u3068\u5BFE\u5FDC\u65B9\u91DD`, appetiteHours: 20, timeframe: "\u4ECA\u6708" }],
+              phase1Tasks: rawTasks.length > 0 ? rawTasks : phase1Actions.map((a) => a.title),
+              phase1Actions
             };
           }
         } catch (err) {
@@ -1050,10 +1111,14 @@ var init_AIService = __esm({
           bottleneck: `\u300C${topic}\u300D\u306B\u304A\u3051\u308B\u521D\u671F\u8ABF\u67FB\u3068\u4E0D\u78BA\u5B9F\u6027\u306E\u6574\u7406`,
           dependency: "\u60C5\u5831\u53CE\u96C6 \u2794 \u5B9F\u884C\u30D7\u30E9\u30F3\u6C7A\u5B9A",
           policy: "\u307E\u305A\u306F\u6700\u5C11\u624B\u6570\u306E\u7269\u7406\u884C\u52D5\u3067\u524D\u63D0\u60C5\u5831\u3092\u63C3\u3048\u308B",
-          proposedStrategies: [{ title: `${topic}\u306E\u57FA\u672C\u5206\u6790\u3068\u5BFE\u5FDC\u65B9\u91DD` }],
+          proposedStrategies: [{ title: `${topic}\u306E\u57FA\u672C\u5206\u6790\u3068\u5BFE\u5FDC\u65B9\u91DD`, appetiteHours: 20, timeframe: "\u4ECA\u6708" }],
           phase1Tasks: [
             `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u57FA\u672C\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`,
             `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u3067\u5FC5\u8981\u306A\u9805\u76EE\u30921\u884C\u5165\u529B\u3059\u308B`
+          ],
+          phase1Actions: [
+            { title: `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u57FA\u672C\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`, sequenceOrder: 1, estimatedMinutes: 30, dependsOn: [] },
+            { title: `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u3067\u5FC5\u8981\u306A\u9805\u76EE\u30921\u884C\u5165\u529B\u3059\u308B`, sequenceOrder: 2, estimatedMinutes: 15, dependsOn: [] }
           ]
         };
       }
@@ -1079,16 +1144,38 @@ var init_AIService = __esm({
         try {
           const output = await this.runCLI(prompt);
           const parsed = this.extractJSONObject(output);
-          if (parsed && parsed.bottleneck && Array.isArray(parsed.phase1Tasks)) {
+          if (parsed && parsed.bottleneck) {
+            const proposedStrategies = (parsed.proposedStrategies || []).map((ps) => ({
+              title: String(ps.title || "\u4E3B\u8981\u4F5C\u6226"),
+              description: ps.description ? String(ps.description) : void 0,
+              appetiteHours: ps.appetiteHours !== void 0 && ps.appetiteHours !== null ? Number(ps.appetiteHours) : ps.appetite_hours !== void 0 ? Number(ps.appetite_hours) : 20,
+              timeframe: ps.timeframe ? String(ps.timeframe) : "\u4ECA\u6708"
+            }));
+            const rawTasks = Array.isArray(parsed.phase1Tasks) ? parsed.phase1Tasks.map(String) : [];
+            let phase1Actions = [];
+            if (Array.isArray(parsed.phase1Actions) && parsed.phase1Actions.length > 0) {
+              phase1Actions = parsed.phase1Actions.map((item, idx) => ({
+                title: String(item.title || "Phase 1 \u30BF\u30B9\u30AF"),
+                sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : idx + 1,
+                estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 30,
+                dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : [],
+                rationale: item.rationale ? String(item.rationale) : void 0
+              }));
+            } else {
+              phase1Actions = rawTasks.map((t, idx) => ({
+                title: t,
+                sequenceOrder: idx + 1,
+                estimatedMinutes: 30,
+                dependsOn: []
+              }));
+            }
             return {
               bottleneck: parsed.bottleneck || "\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u306E\u7279\u5B9A",
               dependency: parsed.dependency || "\u4E8B\u524D\u306E\u57FA\u672C\u6761\u4EF6\u8A2D\u5B9A",
               policy: parsed.policy || "Phase 1\u306B\u3088\u308B\u4E0D\u78BA\u5B9F\u6027\u306E\u65E9\u671F\u89E3\u6D88",
-              proposedStrategies: parsed.proposedStrategies || [],
-              phase1Tasks: parsed.phase1Tasks.length > 0 ? parsed.phase1Tasks : [
-                `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306B\u95A2\u9023\u3059\u308B\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`,
-                `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u524D\u63D0\u6761\u4EF6\u30921\u884C\u5165\u529B\u3059\u308B`
-              ]
+              proposedStrategies: proposedStrategies.length > 0 ? proposedStrategies : [{ title: `${topic}\u306E\u57FA\u672C\u5206\u6790\u3068\u5BFE\u5FDC\u65B9\u91DD`, appetiteHours: 20, timeframe: "\u4ECA\u6708" }],
+              phase1Tasks: rawTasks.length > 0 ? rawTasks : phase1Actions.map((a) => a.title),
+              phase1Actions
             };
           }
         } catch (err) {
@@ -1098,39 +1185,41 @@ var init_AIService = __esm({
           bottleneck: `\u300C${topic}\u300D\u306B\u304A\u3051\u308B\u521D\u671F\u8ABF\u67FB\u3068\u4E0D\u78BA\u5B9F\u6027\u306E\u6574\u7406`,
           dependency: "\u60C5\u5831\u53CE\u96C6 \u2794 \u5B9F\u884C\u30D7\u30E9\u30F3\u6C7A\u5B9A",
           policy: "\u307E\u305A\u306F\u6700\u5C11\u624B\u6570\u306E\u7269\u7406\u884C\u52D5\u3067\u524D\u63D0\u60C5\u5831\u3092\u63C3\u3048\u308B",
-          proposedStrategies: [{ title: `${topic}\u306E\u57FA\u672C\u5206\u6790\u3068\u5BFE\u5FDC\u65B9\u91DD` }],
+          proposedStrategies: [{ title: `${topic}\u306E\u57FA\u672C\u5206\u6790\u3068\u5BFE\u5FDC\u65B9\u91DD`, appetiteHours: 20, timeframe: "\u4ECA\u6708" }],
           phase1Tasks: [
             `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u57FA\u672C\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`,
             `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u3067\u5FC5\u8981\u306A\u9805\u76EE\u30921\u884C\u5165\u529B\u3059\u308B`
+          ],
+          phase1Actions: [
+            { title: `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u57FA\u672C\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`, sequenceOrder: 1, estimatedMinutes: 30, dependsOn: [] },
+            { title: `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u3067\u5FC5\u8981\u306A\u9805\u76EE\u30921\u884C\u5165\u529B\u3059\u308B`, sequenceOrder: 2, estimatedMinutes: 15, dependsOn: [] }
           ]
         };
       }
       /**
        * Programmatically generate Markdown nodes for proposed strategies and phase 1 actions with parentId
        */
-      async createStrategyAndActionsFromAI(parentId, strategyResult) {
+      async createStrategyAndActionsFromAI(parentId, strategyResult, customActions) {
         const taskService = this.plugin.taskService;
         const strategyFiles = [];
         const actionFiles = [];
-        const strategiesToCreate = strategyResult.proposedStrategies && strategyResult.proposedStrategies.length > 0 ? strategyResult.proposedStrategies : [{ title: strategyResult.policy || "\u4E3B\u8981\u653B\u7565\u65B9\u91DD" }];
+        const strategiesToCreate = strategyResult.proposedStrategies && strategyResult.proposedStrategies.length > 0 ? strategyResult.proposedStrategies : [{ title: strategyResult.policy || "\u4E3B\u8981\u653B\u7565\u65B9\u91DD", appetiteHours: 20, timeframe: "\u4ECA\u6708" }];
         for (const strat of strategiesToCreate) {
           const stratFile = await taskService.createTaskNode(
             strat.title,
             "strategy",
             "todo",
-            { parentId }
+            {
+              parentId,
+              appetiteHours: strat.appetiteHours,
+              timeframe: strat.timeframe
+            }
           );
           strategyFiles.push(stratFile);
           const stratId = await taskService.ensureNodeId(stratFile);
-          for (const actionTitle of strategyResult.phase1Tasks) {
-            const actionFile = await taskService.createTaskNode(
-              actionTitle,
-              "action",
-              "todo",
-              { parentId: stratId }
-            );
-            actionFiles.push(actionFile);
-          }
+          const actionsToUse = customActions || strategyResult.phase1Actions || strategyResult.phase1Tasks;
+          const createdActions = await this.createActionNodesFromAI(stratId, actionsToUse);
+          actionFiles.push(...createdActions);
         }
         if (this.plugin.taskGraphService) {
           this.plugin.taskGraphService.refreshGraph();
@@ -1138,24 +1227,100 @@ var init_AIService = __esm({
         return { strategyFiles, actionFiles };
       }
       /**
-       * Programmatically generate Action nodes under a specified parent ID with parentId preserved
+       * Programmatically generate Action nodes under a specified parent ID with parentId and temporal metadata preserved
        */
-      async createActionNodesFromAI(parentId, actionTitles) {
+      async createActionNodesFromAI(parentId, actions) {
+        var _a, _b, _c;
         const taskService = this.plugin.taskService;
         const actionFiles = [];
-        for (const title of actionTitles) {
-          const actionFile = await taskService.createTaskNode(
-            title,
-            "action",
-            "todo",
-            { parentId }
-          );
-          actionFiles.push(actionFile);
+        for (let i = 0; i < actions.length; i++) {
+          const item = actions[i];
+          if (typeof item === "string") {
+            const actionFile = await taskService.createTaskNode(
+              item,
+              "action",
+              "todo",
+              {
+                parentId,
+                sequenceOrder: i + 1,
+                estimatedMinutes: 30,
+                dependsOn: []
+              }
+            );
+            actionFiles.push(actionFile);
+          } else {
+            const actionFile = await taskService.createTaskNode(
+              item.title,
+              "action",
+              "todo",
+              {
+                parentId,
+                sequenceOrder: (_a = item.sequenceOrder) != null ? _a : i + 1,
+                estimatedMinutes: (_b = item.estimatedMinutes) != null ? _b : 30,
+                dependsOn: (_c = item.dependsOn) != null ? _c : []
+              }
+            );
+            actionFiles.push(actionFile);
+          }
         }
         if (this.plugin.taskGraphService) {
           this.plugin.taskGraphService.refreshGraph();
         }
         return actionFiles;
+      }
+      extractActionItems(text) {
+        try {
+          const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+          const objMatch = cleaned.match(/\{[\s\S]*\}/);
+          if (objMatch) {
+            const obj = JSON.parse(objMatch[0]);
+            if (obj && Array.isArray(obj.actions)) {
+              return obj.actions.map((item, idx) => {
+                if (typeof item === "string") {
+                  return {
+                    title: item,
+                    sequenceOrder: idx + 1,
+                    estimatedMinutes: 30,
+                    dependsOn: []
+                  };
+                }
+                return {
+                  title: String(item.title || item.name || "\u7269\u7406\u884C\u52D5"),
+                  sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : typeof item.sequence_order === "number" ? item.sequence_order : idx + 1,
+                  estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : typeof item.estimated_minutes === "number" ? item.estimated_minutes : typeof item.est_min === "number" ? item.est_min : 30,
+                  dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : Array.isArray(item.depends_on) ? item.depends_on.map(String) : [],
+                  rationale: item.rationale ? String(item.rationale) : void 0
+                };
+              });
+            }
+          }
+          const arrMatch = cleaned.match(/\[[\s\S]*\]/);
+          if (arrMatch) {
+            const arr = JSON.parse(arrMatch[0]);
+            if (Array.isArray(arr)) {
+              return arr.map((item, idx) => {
+                if (typeof item === "string") {
+                  return {
+                    title: item,
+                    sequenceOrder: idx + 1,
+                    estimatedMinutes: 30,
+                    dependsOn: []
+                  };
+                }
+                return {
+                  title: String(item.title || item.name || "\u7269\u7406\u884C\u52D5"),
+                  sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : typeof item.sequence_order === "number" ? item.sequence_order : idx + 1,
+                  estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : typeof item.estimated_minutes === "number" ? item.estimated_minutes : typeof item.est_min === "number" ? item.est_min : 30,
+                  dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : Array.isArray(item.depends_on) ? item.depends_on.map(String) : [],
+                  rationale: item.rationale ? String(item.rationale) : void 0
+                };
+              });
+            }
+          }
+        } catch (e) {
+          console.error("[TaskManager AI] Failed to parse ActionItems:", text);
+        }
+        return null;
       }
       extractJSONArray(text) {
         try {
@@ -1454,6 +1619,16 @@ var init_AICopilotModal = __esm({
           const polDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
           polDiv.createEl("strong", { text: "\u57FA\u672C\u65B9\u91DD: " });
           polDiv.createEl("span", { text: this.strategyResult.policy });
+          if (this.strategyResult.proposedStrategies && this.strategyResult.proposedStrategies.length > 0) {
+            const stratDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
+            stratDiv.createEl("strong", { text: "\u63D0\u6848Strategy (\u6642\u9593\u4E88\u7B97/\u6642\u671F): " });
+            const stratBadges = this.strategyResult.proposedStrategies.map((s) => {
+              const appetite = s.appetiteHours !== void 0 ? ` \u23F1\uFE0F ${s.appetiteHours}h` : "";
+              const tf = s.timeframe ? ` \u{1F4C5} ${s.timeframe}` : "";
+              return `\u300C${s.title}\u300D${appetite}${tf}`;
+            }).join(" / ");
+            stratDiv.createEl("span", { text: stratBadges });
+          }
         }
         const tasksSection = container.createDiv({ cls: "jira-modal-tasks-section" });
         tasksSection.createEl("h3", {
@@ -1462,6 +1637,7 @@ var init_AICopilotModal = __esm({
         });
         const tasksContainer = tasksSection.createDiv({ cls: "jira-editable-task-list" });
         this.editableTasks.forEach((item, index) => {
+          var _a, _b;
           const row = tasksContainer.createDiv({ cls: "jira-editable-task-row" });
           const chk = row.createEl("input", {
             type: "checkbox",
@@ -1470,6 +1646,12 @@ var init_AICopilotModal = __esm({
           chk.checked = item.enabled;
           chk.addEventListener("change", () => {
             this.editableTasks[index].enabled = chk.checked;
+          });
+          const seqStr = ((_a = item.actionItem) == null ? void 0 : _a.sequenceOrder) !== void 0 ? `#${item.actionItem.sequenceOrder}` : `#${index + 1}`;
+          const estStr = ((_b = item.actionItem) == null ? void 0 : _b.estimatedMinutes) !== void 0 ? `\u23F1\uFE0F${item.actionItem.estimatedMinutes}m` : "\u23F1\uFE0F30m";
+          row.createEl("span", {
+            cls: "jira-task-seq-badge",
+            text: `[${seqStr} | ${estStr}]`
           });
           const textInput = row.createEl("input", {
             type: "text",
@@ -1494,7 +1676,12 @@ var init_AICopilotModal = __esm({
           cls: "jira-add-task-btn"
         });
         addTaskBtn.addEventListener("click", () => {
-          this.editableTasks.push({ text: "\u30CE\u30FC\u30C8\u3092\u958B\u304D...\u3092\u5165\u529B\u3059\u308B", enabled: true });
+          const nextSeq = this.editableTasks.length + 1;
+          this.editableTasks.push({
+            text: "\u30CE\u30FC\u30C8\u3092\u958B\u304D...\u3092\u5165\u529B\u3059\u308B",
+            enabled: true,
+            actionItem: { title: "\u30CE\u30FC\u30C8\u3092\u958B\u304D...\u3092\u5165\u529B\u3059\u308B", sequenceOrder: nextSeq, estimatedMinutes: 30, dependsOn: [] }
+          });
           this.renderModal();
         });
         const feedbackBox = container.createDiv({ cls: "jira-modal-feedback-box" });
@@ -1550,7 +1737,7 @@ var init_AICopilotModal = __esm({
         try {
           if (((_a = this.targetNode) == null ? void 0 : _a.nodeType) === "strategy" && this.contextPayload) {
             const actions = await this.aiService.breakdownTaskWithContext(this.contextPayload);
-            this.editableTasks = actions.map((a) => ({ text: a, enabled: true }));
+            this.editableTasks = actions.map((a) => ({ text: a.title, enabled: true, actionItem: a }));
             this.strategyResult = null;
           } else if (this.contextPayload) {
             const result = await this.aiService.generateStrategyWithContext(
@@ -1560,7 +1747,15 @@ var init_AICopilotModal = __esm({
               this.strategyResult || void 0
             );
             this.strategyResult = result;
-            this.editableTasks = result.phase1Tasks.map((t) => ({ text: t, enabled: true }));
+            if (result.phase1Actions && result.phase1Actions.length > 0) {
+              this.editableTasks = result.phase1Actions.map((a) => ({ text: a.title, enabled: true, actionItem: a }));
+            } else {
+              this.editableTasks = result.phase1Tasks.map((t, idx) => ({
+                text: t,
+                enabled: true,
+                actionItem: { title: t, sequenceOrder: idx + 1, estimatedMinutes: 30, dependsOn: [] }
+              }));
+            }
           } else {
             const result = await this.aiService.generateStrategy(
               this.topic,
@@ -1568,7 +1763,15 @@ var init_AICopilotModal = __esm({
               this.strategyResult || void 0
             );
             this.strategyResult = result;
-            this.editableTasks = result.phase1Tasks.map((t) => ({ text: t, enabled: true }));
+            if (result.phase1Actions && result.phase1Actions.length > 0) {
+              this.editableTasks = result.phase1Actions.map((a) => ({ text: a.title, enabled: true, actionItem: a }));
+            } else {
+              this.editableTasks = result.phase1Tasks.map((t, idx) => ({
+                text: t,
+                enabled: true,
+                actionItem: { title: t, sequenceOrder: idx + 1, estimatedMinutes: 30, dependsOn: [] }
+              }));
+            }
           }
           this.feedback = "";
           this.currentState = "STATE_PREVIEW";
@@ -1585,29 +1788,38 @@ var init_AICopilotModal = __esm({
        */
       async commitStrategy() {
         var _a, _b, _c;
-        const selectedTasks = this.editableTasks.filter((t) => t.enabled && t.text.trim().length > 0).map((t) => t.text.trim());
-        if (selectedTasks.length === 0) {
+        const selectedItems = this.editableTasks.filter((t) => t.enabled && t.text.trim().length > 0);
+        if (selectedItems.length === 0) {
           new import_obsidian5.Notice("\u26A0\uFE0F \u9078\u629E\u3055\u308C\u305FAction\u30BF\u30B9\u30AF\u304C\u3042\u308A\u307E\u305B\u3093\u30021\u3064\u4EE5\u4E0A\u30C1\u30A7\u30C3\u30AF\u3092\u5165\u308C\u3066\u304F\u3060\u3055\u3044\u3002");
           return;
         }
+        const actionsToCreate = selectedItems.map((item, idx) => {
+          var _a2, _b2, _c2, _d, _e, _f, _g;
+          return {
+            title: item.text.trim(),
+            sequenceOrder: (_b2 = (_a2 = item.actionItem) == null ? void 0 : _a2.sequenceOrder) != null ? _b2 : idx + 1,
+            estimatedMinutes: (_d = (_c2 = item.actionItem) == null ? void 0 : _c2.estimatedMinutes) != null ? _d : 30,
+            dependsOn: (_f = (_e = item.actionItem) == null ? void 0 : _e.dependsOn) != null ? _f : [],
+            rationale: (_g = item.actionItem) == null ? void 0 : _g.rationale
+          };
+        });
         try {
           if (((_a = this.targetNode) == null ? void 0 : _a.nodeType) === "strategy") {
-            await this.aiService.createActionNodesFromAI(this.targetNode.id, selectedTasks);
-            new import_obsidian5.Notice(`\u2728 Strategy\u300C${this.targetNode.title}\u300D\u914D\u4E0B\u306B ${selectedTasks.length} \u4EF6\u306EAction\u30CE\u30FC\u30C9\u3092\u4F5C\u6210\u3057\u307E\u3057\u305F\uFF01`);
+            await this.aiService.createActionNodesFromAI(this.targetNode.id, actionsToCreate);
+            new import_obsidian5.Notice(`\u2728 Strategy\u300C${this.targetNode.title}\u300D\u914D\u4E0B\u306B ${actionsToCreate.length} \u4EF6\u306EAction\u30CE\u30FC\u30C9\u3092\u4F5C\u6210\u3057\u307E\u3057\u305F\uFF01`);
           } else if (this.strategyResult) {
             await this.aiService.createStrategyAndActionsFromAI(
               (_b = this.targetNode) == null ? void 0 : _b.id,
-              {
-                ...this.strategyResult,
-                phase1Tasks: selectedTasks
-              }
+              this.strategyResult,
+              actionsToCreate
             );
-            new import_obsidian5.Notice(`\u2728 ${selectedTasks.length} \u4EF6\u306E\u4F5C\u6226\u30FBAction\u30CE\u30FC\u30C9\u3092\u4F5C\u6210\u3057\u307E\u3057\u305F\uFF01`);
+            new import_obsidian5.Notice(`\u2728 ${actionsToCreate.length} \u4EF6\u306E\u4F5C\u6226\u30FBAction\u30CE\u30FC\u30C9\u3092\u4F5C\u6210\u3057\u307E\u3057\u305F\uFF01`);
           } else {
+            const selectedTitles = actionsToCreate.map((a) => a.title);
             await this.taskService.saveStrategyToNote(
               this.topic,
-              { bottleneck: "\u5206\u6790", dependency: "\u57FA\u672C\u8A2D\u8A08", policy: "\u9806\u6B21\u6D88\u5316", phase1Tasks: selectedTasks },
-              selectedTasks,
+              { bottleneck: "\u5206\u6790", dependency: "\u57FA\u672C\u8A2D\u8A08", policy: "\u9806\u6B21\u6D88\u5316", phase1Tasks: selectedTitles },
+              selectedTitles,
               (_c = this.targetNode) == null ? void 0 : _c.file
             );
           }

@@ -126,11 +126,20 @@ Vault内の .md ノード群 (分散ストレージ)
 ```text
 src/prompts/
 ├── systemRules.ts            <-- 共通ルール（日本語出力強制・NPA物理行動制約・JSONフォーマット制約）
-├── strategyPrompt.ts         <-- Goalから時間予算(appetiteHours)・timeframe付きStrategyを提案するJSONプロンプト
-├── taskBreakdownPrompt.ts    <-- 合意Strategyから直近作業のみをローリングウェーブ分解(seq, est_min, dependsOn付き)するJSONプロンプト
+├── strategyPrompt.ts         <-- Goalから時間予算(appetiteHours)・実施時期(timeframe)付きStrategyおよびPhase 1構造化Actionを提案するJSONプロンプト
+├── taskBreakdownPrompt.ts    <-- 合意Strategyから直近作業のみをローリングウェーブ分解(sequenceOrder, estimatedMinutes, dependsOn, rationale付き)するJSONプロンプト
 ├── taskRefinePrompt.ts       <-- 対話壁打ち (Refine) プロンプト
 └── index.ts                  <-- モジュール集約
 ```
+
+### AI構造化生成パイプラインの動作仕様
+1. **`Strategy` 提案フェーズ (`buildStrategyPrompt` / `AIService.generateStrategyWithContext`)**:
+   - 各提案作戦 (`proposedStrategies`) に投資上限時間枠 `appetiteHours` (例: 40) と相対時期 `timeframe` (例: "今月") を必須保持。
+   - `TaskNode` 生成時に Frontmatter (`appetiteHours`, `timeframe`) へシリアライズ。
+2. **`Action` ローリングウェーブ分解フェーズ (`buildTaskBreakdownPrompt` / `AIService.breakdownTaskWithContext`)**:
+   - 奥の全行程ではなく、直近 Strategy のみを 15〜30分単位の物理行動へ分解。
+   - 各行動に `sequenceOrder` (1, 2...), `estimatedMinutes` (15〜60m), `dependsOn` (先行依存ID), `rationale` (理由メモ) を付加して完全構造化パース。
+   - `TaskNode` 生成時に Frontmatter (`sequenceOrder`, `estimatedMinutes`, `dependsOn`) へ保存。
 
 ---
 

@@ -4,7 +4,7 @@ import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
 import { normalizePath, TFile } from "obsidian";
-import { TaskItem, StrategyResult, AIContextPayload, TaskNode } from "../types";
+import { TaskItem, StrategyResult, AIContextPayload, TaskNode, ActionItem } from "../types";
 import TaskManagerPlugin from "../main";
 import { TaskTreeNode } from "./TaskService";
 import {
@@ -108,9 +108,6 @@ export class AIService {
 	/**
 	 * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
 	 */
-	/**
-	 * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
-	 */
 	async refineTaskWithTree(
 		rootTask: TaskItem,
 		subtree: TaskTreeNode[],
@@ -167,8 +164,9 @@ export class AIService {
 
 	/**
 	 * Ask AI (Antigravity CLI) to break down a node using 前裁き context payload (AIContextPayload)
+	 * Returns structured ActionItem array with sequenceOrder, estimatedMinutes, dependsOn, rationale
 	 */
-	async breakdownTaskWithContext(context: AIContextPayload): Promise<string[]> {
+	async breakdownTaskWithContext(context: AIContextPayload): Promise<ActionItem[]> {
 		const vaultRule = await this.getVaultRuleContent();
 
 		let matchedPatterns: any[] = [];
@@ -196,7 +194,7 @@ export class AIService {
 
 		try {
 			const output = await this.runCLI(prompt);
-			const parsed = this.extractJSONArray(output);
+			const parsed = this.extractActionItems(output);
 			if (parsed && parsed.length > 0) {
 				return parsed;
 			}
@@ -205,16 +203,16 @@ export class AIService {
 		}
 
 		return [
-			`ノートを開き「${context.selectedNode.title}」のアウトラインを1行書く`,
-			`ブラウザを開き「${context.selectedNode.title}」の関連資料を検索する`,
-			`ターミナルを開き実行ログを確認する`,
+			{ title: `ノートを開き「${context.selectedNode.title}」のアウトラインを1行書く`, sequenceOrder: 1, estimatedMinutes: 15, dependsOn: [], rationale: "作業着手のアウトライン作成" },
+			{ title: `ブラウザを開き「${context.selectedNode.title}」の関連資料を検索する`, sequenceOrder: 2, estimatedMinutes: 30, dependsOn: [], rationale: "前提情報の収集" },
+			{ title: `ターミナルを開き実行ログを確認する`, sequenceOrder: 3, estimatedMinutes: 15, dependsOn: [], rationale: "動作状況の最終確認" },
 		];
 	}
 
 	/**
-	 * Ask AI (Antigravity CLI) to break down a parent task into subtask titles
+	 * Ask AI (Antigravity CLI) to break down a parent task into ActionItems
 	 */
-	async breakdownTask(task: TaskItem): Promise<string[]> {
+	async breakdownTask(task: TaskItem): Promise<ActionItem[]> {
 		const context = this.plugin.taskGraphService
 			? this.plugin.taskGraphService.buildAIContext(task.id)
 			: null;
@@ -241,7 +239,7 @@ export class AIService {
 
 		try {
 			const output = await this.runCLI(prompt);
-			const parsed = this.extractJSONArray(output);
+			const parsed = this.extractActionItems(output);
 			if (parsed && parsed.length > 0) {
 				return parsed;
 			}
@@ -250,9 +248,9 @@ export class AIService {
 		}
 
 		return [
-			`ノートを開き「${task.title}」のアウトラインを1行書く`,
-			`ブラウザを開き「${task.title}」の関連資料を検索する`,
-			`ターミナルを開き実行ログを確認する`,
+			{ title: `ノートを開き「${task.title}」のアウトラインを1行書く`, sequenceOrder: 1, estimatedMinutes: 15, dependsOn: [], rationale: "作業着手のアウトライン作成" },
+			{ title: `ブラウザを開き「${task.title}」の関連資料を検索する`, sequenceOrder: 2, estimatedMinutes: 30, dependsOn: [], rationale: "前提情報の収集" },
+			{ title: `ターミナルを開き実行ログを確認する`, sequenceOrder: 3, estimatedMinutes: 15, dependsOn: [], rationale: "動作状況の最終確認" },
 		];
 	}
 
@@ -339,17 +337,43 @@ export class AIService {
 
 		try {
 			const output = await this.runCLI(prompt);
-			const parsed = this.extractJSONObject<StrategyResult>(output);
-			if (parsed && parsed.bottleneck && Array.isArray(parsed.phase1Tasks)) {
+			const parsed = this.extractJSONObject<any>(output);
+			if (parsed && parsed.bottleneck) {
+				const proposedStrategies = (parsed.proposedStrategies || []).map((ps: any) => ({
+					title: String(ps.title || "主要作戦"),
+					description: ps.description ? String(ps.description) : undefined,
+					appetiteHours: ps.appetiteHours !== undefined && ps.appetiteHours !== null
+						? Number(ps.appetiteHours)
+						: (ps.appetite_hours !== undefined ? Number(ps.appetite_hours) : 20),
+					timeframe: ps.timeframe ? String(ps.timeframe) : "今月",
+				}));
+
+				const rawTasks = Array.isArray(parsed.phase1Tasks) ? parsed.phase1Tasks.map(String) : [];
+				let phase1Actions: ActionItem[] = [];
+				if (Array.isArray(parsed.phase1Actions) && parsed.phase1Actions.length > 0) {
+					phase1Actions = parsed.phase1Actions.map((item: any, idx: number) => ({
+						title: String(item.title || "Phase 1 タスク"),
+						sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : idx + 1,
+						estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 30,
+						dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : [],
+						rationale: item.rationale ? String(item.rationale) : undefined,
+					}));
+				} else {
+					phase1Actions = rawTasks.map((t, idx) => ({
+						title: t,
+						sequenceOrder: idx + 1,
+						estimatedMinutes: 30,
+						dependsOn: [],
+					}));
+				}
+
 				return {
 					bottleneck: parsed.bottleneck || "優先ボトルネックの特定",
 					dependency: parsed.dependency || "事前の基本条件設定",
 					policy: parsed.policy || "Phase 1による不確実性の早期解消",
-					proposedStrategies: parsed.proposedStrategies || [],
-					phase1Tasks: parsed.phase1Tasks.length > 0 ? parsed.phase1Tasks : [
-						`ブラウザを開き「${topic}」に関連する情報を検索する`,
-						`ノートを開き「${topic}」の前提条件を1行入力する`,
-					],
+					proposedStrategies: proposedStrategies.length > 0 ? proposedStrategies : [{ title: `${topic}の基本分析と対応方針`, appetiteHours: 20, timeframe: "今月" }],
+					phase1Tasks: rawTasks.length > 0 ? rawTasks : phase1Actions.map(a => a.title),
+					phase1Actions: phase1Actions,
 				};
 			}
 		} catch (err) {
@@ -360,10 +384,14 @@ export class AIService {
 			bottleneck: `「${topic}」における初期調査と不確実性の整理`,
 			dependency: "情報収集 ➔ 実行プラン決定",
 			policy: "まずは最少手数の物理行動で前提情報を揃える",
-			proposedStrategies: [{ title: `${topic}の基本分析と対応方針` }],
+			proposedStrategies: [{ title: `${topic}の基本分析と対応方針`, appetiteHours: 20, timeframe: "今月" }],
 			phase1Tasks: [
 				`ブラウザを開き「${topic}」の基本情報を検索する`,
 				`ノートを開き「${topic}」で必要な項目を1行入力する`,
+			],
+			phase1Actions: [
+				{ title: `ブラウザを開き「${topic}」の基本情報を検索する`, sequenceOrder: 1, estimatedMinutes: 30, dependsOn: [] },
+				{ title: `ノートを開き「${topic}」で必要な項目を1行入力する`, sequenceOrder: 2, estimatedMinutes: 15, dependsOn: [] },
 			],
 		};
 	}
@@ -396,17 +424,43 @@ export class AIService {
 
 		try {
 			const output = await this.runCLI(prompt);
-			const parsed = this.extractJSONObject<StrategyResult>(output);
-			if (parsed && parsed.bottleneck && Array.isArray(parsed.phase1Tasks)) {
+			const parsed = this.extractJSONObject<any>(output);
+			if (parsed && parsed.bottleneck) {
+				const proposedStrategies = (parsed.proposedStrategies || []).map((ps: any) => ({
+					title: String(ps.title || "主要作戦"),
+					description: ps.description ? String(ps.description) : undefined,
+					appetiteHours: ps.appetiteHours !== undefined && ps.appetiteHours !== null
+						? Number(ps.appetiteHours)
+						: (ps.appetite_hours !== undefined ? Number(ps.appetite_hours) : 20),
+					timeframe: ps.timeframe ? String(ps.timeframe) : "今月",
+				}));
+
+				const rawTasks = Array.isArray(parsed.phase1Tasks) ? parsed.phase1Tasks.map(String) : [];
+				let phase1Actions: ActionItem[] = [];
+				if (Array.isArray(parsed.phase1Actions) && parsed.phase1Actions.length > 0) {
+					phase1Actions = parsed.phase1Actions.map((item: any, idx: number) => ({
+						title: String(item.title || "Phase 1 タスク"),
+						sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : idx + 1,
+						estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 30,
+						dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : [],
+						rationale: item.rationale ? String(item.rationale) : undefined,
+					}));
+				} else {
+					phase1Actions = rawTasks.map((t, idx) => ({
+						title: t,
+						sequenceOrder: idx + 1,
+						estimatedMinutes: 30,
+						dependsOn: [],
+					}));
+				}
+
 				return {
 					bottleneck: parsed.bottleneck || "優先ボトルネックの特定",
 					dependency: parsed.dependency || "事前の基本条件設定",
 					policy: parsed.policy || "Phase 1による不確実性の早期解消",
-					proposedStrategies: parsed.proposedStrategies || [],
-					phase1Tasks: parsed.phase1Tasks.length > 0 ? parsed.phase1Tasks : [
-						`ブラウザを開き「${topic}」に関連する情報を検索する`,
-						`ノートを開き「${topic}」の前提条件を1行入力する`,
-					],
+					proposedStrategies: proposedStrategies.length > 0 ? proposedStrategies : [{ title: `${topic}の基本分析と対応方針`, appetiteHours: 20, timeframe: "今月" }],
+					phase1Tasks: rawTasks.length > 0 ? rawTasks : phase1Actions.map(a => a.title),
+					phase1Actions: phase1Actions,
 				};
 			}
 		} catch (err) {
@@ -417,10 +471,14 @@ export class AIService {
 			bottleneck: `「${topic}」における初期調査と不確実性の整理`,
 			dependency: "情報収集 ➔ 実行プラン決定",
 			policy: "まずは最少手数の物理行動で前提情報を揃える",
-			proposedStrategies: [{ title: `${topic}の基本分析と対応方針` }],
+			proposedStrategies: [{ title: `${topic}の基本分析と対応方針`, appetiteHours: 20, timeframe: "今月" }],
 			phase1Tasks: [
 				`ブラウザを開き「${topic}」の基本情報を検索する`,
 				`ノートを開き「${topic}」で必要な項目を1行入力する`,
+			],
+			phase1Actions: [
+				{ title: `ブラウザを開き「${topic}」の基本情報を検索する`, sequenceOrder: 1, estimatedMinutes: 30, dependsOn: [] },
+				{ title: `ノートを開き「${topic}」で必要な項目を1行入力する`, sequenceOrder: 2, estimatedMinutes: 15, dependsOn: [] },
 			],
 		};
 	}
@@ -430,7 +488,8 @@ export class AIService {
 	 */
 	async createStrategyAndActionsFromAI(
 		parentId: string | undefined,
-		strategyResult: StrategyResult
+		strategyResult: StrategyResult,
+		customActions?: (string | ActionItem)[]
 	): Promise<{ strategyFiles: TFile[]; actionFiles: TFile[] }> {
 		const taskService = this.plugin.taskService;
 		const strategyFiles: TFile[] = [];
@@ -438,28 +497,26 @@ export class AIService {
 
 		const strategiesToCreate = strategyResult.proposedStrategies && strategyResult.proposedStrategies.length > 0
 			? strategyResult.proposedStrategies
-			: [{ title: strategyResult.policy || "主要攻略方針" }];
+			: [{ title: strategyResult.policy || "主要攻略方針", appetiteHours: 20, timeframe: "今月" }];
 
 		for (const strat of strategiesToCreate) {
 			const stratFile = await taskService.createTaskNode(
 				strat.title,
 				"strategy",
 				"todo",
-				{ parentId }
+				{
+					parentId,
+					appetiteHours: strat.appetiteHours,
+					timeframe: strat.timeframe,
+				}
 			);
 			strategyFiles.push(stratFile);
 
 			const stratId = await taskService.ensureNodeId(stratFile);
 
-			for (const actionTitle of strategyResult.phase1Tasks) {
-				const actionFile = await taskService.createTaskNode(
-					actionTitle,
-					"action",
-					"todo",
-					{ parentId: stratId }
-				);
-				actionFiles.push(actionFile);
-			}
+			const actionsToUse = customActions || strategyResult.phase1Actions || strategyResult.phase1Tasks;
+			const createdActions = await this.createActionNodesFromAI(stratId, actionsToUse);
+			actionFiles.push(...createdActions);
 		}
 
 		if (this.plugin.taskGraphService) {
@@ -470,23 +527,44 @@ export class AIService {
 	}
 
 	/**
-	 * Programmatically generate Action nodes under a specified parent ID with parentId preserved
+	 * Programmatically generate Action nodes under a specified parent ID with parentId and temporal metadata preserved
 	 */
 	async createActionNodesFromAI(
 		parentId: string,
-		actionTitles: string[]
+		actions: (string | ActionItem)[]
 	): Promise<TFile[]> {
 		const taskService = this.plugin.taskService;
 		const actionFiles: TFile[] = [];
 
-		for (const title of actionTitles) {
-			const actionFile = await taskService.createTaskNode(
-				title,
-				"action",
-				"todo",
-				{ parentId }
-			);
-			actionFiles.push(actionFile);
+		for (let i = 0; i < actions.length; i++) {
+			const item = actions[i];
+			if (typeof item === "string") {
+				const actionFile = await taskService.createTaskNode(
+					item,
+					"action",
+					"todo",
+					{
+						parentId,
+						sequenceOrder: i + 1,
+						estimatedMinutes: 30,
+						dependsOn: [],
+					}
+				);
+				actionFiles.push(actionFile);
+			} else {
+				const actionFile = await taskService.createTaskNode(
+					item.title,
+					"action",
+					"todo",
+					{
+						parentId,
+						sequenceOrder: item.sequenceOrder ?? (i + 1),
+						estimatedMinutes: item.estimatedMinutes ?? 30,
+						dependsOn: item.dependsOn ?? [],
+					}
+				);
+				actionFiles.push(actionFile);
+			}
 		}
 
 		if (this.plugin.taskGraphService) {
@@ -494,6 +572,65 @@ export class AIService {
 		}
 
 		return actionFiles;
+	}
+
+	private extractActionItems(text: string): ActionItem[] | null {
+		try {
+			const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+
+			// First try matching JSON object { "actions": [...] }
+			const objMatch = cleaned.match(/\{[\s\S]*\}/);
+			if (objMatch) {
+				const obj = JSON.parse(objMatch[0]);
+				if (obj && Array.isArray(obj.actions)) {
+					return obj.actions.map((item: any, idx: number) => {
+						if (typeof item === "string") {
+							return {
+								title: item,
+								sequenceOrder: idx + 1,
+								estimatedMinutes: 30,
+								dependsOn: [],
+							};
+						}
+						return {
+							title: String(item.title || item.name || "物理行動"),
+							sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : (typeof item.sequence_order === "number" ? item.sequence_order : idx + 1),
+							estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : (typeof item.estimated_minutes === "number" ? item.estimated_minutes : (typeof item.est_min === "number" ? item.est_min : 30)),
+							dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : (Array.isArray(item.depends_on) ? item.depends_on.map(String) : []),
+							rationale: item.rationale ? String(item.rationale) : undefined,
+						};
+					});
+				}
+			}
+
+			// Fallback: try matching JSON array [...]
+			const arrMatch = cleaned.match(/\[[\s\S]*\]/);
+			if (arrMatch) {
+				const arr = JSON.parse(arrMatch[0]);
+				if (Array.isArray(arr)) {
+					return arr.map((item: any, idx: number) => {
+						if (typeof item === "string") {
+							return {
+								title: item,
+								sequenceOrder: idx + 1,
+								estimatedMinutes: 30,
+								dependsOn: [],
+							};
+						}
+						return {
+							title: String(item.title || item.name || "物理行動"),
+							sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : (typeof item.sequence_order === "number" ? item.sequence_order : idx + 1),
+							estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : (typeof item.estimated_minutes === "number" ? item.estimated_minutes : (typeof item.est_min === "number" ? item.est_min : 30)),
+							dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : (Array.isArray(item.depends_on) ? item.depends_on.map(String) : []),
+							rationale: item.rationale ? String(item.rationale) : undefined,
+						};
+					});
+				}
+			}
+		} catch (e) {
+			console.error("[TaskManager AI] Failed to parse ActionItems:", text);
+		}
+		return null;
 	}
 
 	private extractJSONArray(text: string): string[] | null {
@@ -532,4 +669,5 @@ export class AIService {
 		return null;
 	}
 }
+
 

@@ -83,16 +83,43 @@ ${siblingLines.length > 0 ? siblingLines.join("\n") : "  (なし)"}
 	const targetTitle = aiContextPayload?.selectedNode?.title || task.title;
 
 	return `あなたはAIスクラムマスターです。
-親ノード/作戦「${targetTitle}」および上位の思考系譜に基づき、15〜30分で実行可能な3〜5個の具体的物理行動（Next Physical Action / Actionノード）に分解してください。
+直近の作戦「${targetTitle}」および上位の思考系譜に基づき、ローリングウェーブ分解（直近実行する作業のみ精緻化）を行い、15〜30分で実行可能な3〜5個の具体的物理行動（Next Physical Action / Actionノード）に分解してください。
 
 ${systemRules}${patternPromptSection}${contextPayloadSection}
 
-【出力フォーマットの強制】:
-以下の形式の有効なJSON配列（文字列の配列）のみを出力してください。
-必ずすべて日本語で出力してください。JSONの外側には説明文やMarkdownコードブロックを一切含めないでください。
+【作成上の絶対ルール】:
+1. **ローリングウェーブ分解の徹底**:
+   - 奥の未来まで一括でウォーターフォール作成せず、手前の直近 Strategy のみを3〜5個の物理行動に分解してください。
+2. **各アクションの時系列・時間見積もり属性**:
+   - \`sequenceOrder\`: 着手順序（1, 2, 3... の1から始まる昇順）。
+   - \`estimatedMinutes\`: 予想所要分（15, 30, 45, 60 などの分単位の数値）。
+   - \`dependsOn\`: 先行依存のあるタスクのIDリスト（無ければ \`[]\`）。
+   - \`rationale\`: なぜこの順序・時間で実行するかの前裁き理由メモ。
+   - \`title\`: 「〜を開く」「〜を入力する」「〜を検索する」等の具体的動詞で始まる15〜30分物理行動。
 
-例:
-["Chromeを開いて公式ドキュメントURLにアクセスする", "エディタを開きsrc/main.tsの1行目にコメントを書く", "ターミナルを開きnpm run testコマンドを実行する"]`;
+【出力フォーマットの強制】:
+以下の構造に一致する有効なJSONオブジェクトのみを出力してください。
+必ずすべて日本語で記述してください。JSONの外側には説明文やMarkdownコードブロックを一切含めないでください。
+
+{
+  "actions": [
+    {
+      "title": "Chromeを開いて公式ドキュメントURLにアクセスする",
+      "sequenceOrder": 1,
+      "estimatedMinutes": 30,
+      "dependsOn": [],
+      "rationale": "仕様の不確実性を最初に確認するため"
+    },
+    {
+      "title": "エディタを開きsrc/main.tsの1行目にコメントを書く",
+      "sequenceOrder": 2,
+      "estimatedMinutes": 30,
+      "dependsOn": [],
+      "rationale": "前ステップの仕様をコードコメントに起こすため"
+    }
+  ]
+}
+`;
 }
 
 

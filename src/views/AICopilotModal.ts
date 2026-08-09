@@ -1,5 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
-import { TaskItem, TaskNode, ModalState, StrategyResult, AIContextPayload } from "../types";
+import { TaskItem, TaskNode, ModalState, StrategyResult, AIContextPayload, ActionItem } from "../types";
 import { AIService } from "../services/AIService";
 import { TaskService } from "../services/TaskService";
 import { UndoService } from "../services/UndoService";
@@ -7,6 +7,7 @@ import { UndoService } from "../services/UndoService";
 export interface EditableTaskItem {
 	text: string;
 	enabled: boolean;
+	actionItem?: ActionItem;
 }
 
 export class AICopilotModal extends Modal {
@@ -193,6 +194,17 @@ export class AICopilotModal extends Modal {
 			const polDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
 			polDiv.createEl("strong", { text: "基本方針: " });
 			polDiv.createEl("span", { text: this.strategyResult.policy });
+
+			if (this.strategyResult.proposedStrategies && this.strategyResult.proposedStrategies.length > 0) {
+				const stratDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
+				stratDiv.createEl("strong", { text: "提案Strategy (時間予算/時期): " });
+				const stratBadges = this.strategyResult.proposedStrategies.map((s) => {
+					const appetite = s.appetiteHours !== undefined ? ` ⏱️ ${s.appetiteHours}h` : "";
+					const tf = s.timeframe ? ` 📅 ${s.timeframe}` : "";
+					return `「${s.title}」${appetite}${tf}`;
+				}).join(" / ");
+				stratDiv.createEl("span", { text: stratBadges });
+			}
 		}
 
 		// ② Phase 1 / Action タスク一覧 (編集可能なチェックボックス付きリスト)
@@ -214,6 +226,13 @@ export class AICopilotModal extends Modal {
 			chk.checked = item.enabled;
 			chk.addEventListener("change", () => {
 				this.editableTasks[index].enabled = chk.checked;
+			});
+
+			const seqStr = item.actionItem?.sequenceOrder !== undefined ? `#${item.actionItem.sequenceOrder}` : `#${index + 1}`;
+			const estStr = item.actionItem?.estimatedMinutes !== undefined ? `⏱️${item.actionItem.estimatedMinutes}m` : "⏱️30m";
+			row.createEl("span", {
+				cls: "jira-task-seq-badge",
+				text: `[${seqStr} | ${estStr}]`,
 			});
 
 			const textInput = row.createEl("input", {
@@ -242,7 +261,12 @@ export class AICopilotModal extends Modal {
 			cls: "jira-add-task-btn",
 		});
 		addTaskBtn.addEventListener("click", () => {
-			this.editableTasks.push({ text: "ノートを開き...を入力する", enabled: true });
+			const nextSeq = this.editableTasks.length + 1;
+			this.editableTasks.push({
+				text: "ノートを開き...を入力する",
+				enabled: true,
+				actionItem: { title: "ノートを開き...を入力する", sequenceOrder: nextSeq, estimatedMinutes: 30, dependsOn: [] },
+			});
 			this.renderModal();
 		});
 
@@ -308,7 +332,7 @@ export class AICopilotModal extends Modal {
 			if (this.targetNode?.nodeType === "strategy" && this.contextPayload) {
 				// Strategy node selected: Breakdown into Action nodes directly
 				const actions = await this.aiService.breakdownTaskWithContext(this.contextPayload);
-				this.editableTasks = actions.map((a) => ({ text: a, enabled: true }));
+				this.editableTasks = actions.map((a) => ({ text: a.title, enabled: true, actionItem: a }));
 				this.strategyResult = null;
 			} else if (this.contextPayload) {
 				// Goal / Root node selected with context
@@ -319,7 +343,15 @@ export class AICopilotModal extends Modal {
 					this.strategyResult || undefined
 				);
 				this.strategyResult = result;
-				this.editableTasks = result.phase1Tasks.map((t) => ({ text: t, enabled: true }));
+				if (result.phase1Actions && result.phase1Actions.length > 0) {
+					this.editableTasks = result.phase1Actions.map((a) => ({ text: a.title, enabled: true, actionItem: a }));
+				} else {
+					this.editableTasks = result.phase1Tasks.map((t, idx) => ({
+						text: t,
+						enabled: true,
+						actionItem: { title: t, sequenceOrder: idx + 1, estimatedMinutes: 30, dependsOn: [] },
+					}));
+				}
 			} else {
 				// Fallback without full graph context
 				const result = await this.aiService.generateStrategy(
@@ -328,7 +360,15 @@ export class AICopilotModal extends Modal {
 					this.strategyResult || undefined
 				);
 				this.strategyResult = result;
-				this.editableTasks = result.phase1Tasks.map((t) => ({ text: t, enabled: true }));
+				if (result.phase1Actions && result.phase1Actions.length > 0) {
+					this.editableTasks = result.phase1Actions.map((a) => ({ text: a.title, enabled: true, actionItem: a }));
+				} else {
+					this.editableTasks = result.phase1Tasks.map((t, idx) => ({
+						text: t,
+						enabled: true,
+						actionItem: { title: t, sequenceOrder: idx + 1, estimatedMinutes: 30, dependsOn: [] },
+					}));
+				}
 			}
 
 			this.feedback = "";
@@ -346,36 +386,41 @@ export class AICopilotModal extends Modal {
 	 * 承認された最終編集結果を TaskNode として生成・追加
 	 */
 	private async commitStrategy(): Promise<void> {
-		const selectedTasks = this.editableTasks
-			.filter((t) => t.enabled && t.text.trim().length > 0)
-			.map((t) => t.text.trim());
+		const selectedItems = this.editableTasks.filter((t) => t.enabled && t.text.trim().length > 0);
 
-		if (selectedTasks.length === 0) {
+		if (selectedItems.length === 0) {
 			new Notice("⚠️ 選択されたActionタスクがありません。1つ以上チェックを入れてください。");
 			return;
 		}
 
+		const actionsToCreate: ActionItem[] = selectedItems.map((item, idx) => ({
+			title: item.text.trim(),
+			sequenceOrder: item.actionItem?.sequenceOrder ?? (idx + 1),
+			estimatedMinutes: item.actionItem?.estimatedMinutes ?? 30,
+			dependsOn: item.actionItem?.dependsOn ?? [],
+			rationale: item.actionItem?.rationale,
+		}));
+
 		try {
 			if (this.targetNode?.nodeType === "strategy") {
 				// Strategy node -> Create Action nodes with parentId = targetNode.id
-				await this.aiService.createActionNodesFromAI(this.targetNode.id, selectedTasks);
-				new Notice(`✨ Strategy「${this.targetNode.title}」配下に ${selectedTasks.length} 件のActionノードを作成しました！`);
+				await this.aiService.createActionNodesFromAI(this.targetNode.id, actionsToCreate);
+				new Notice(`✨ Strategy「${this.targetNode.title}」配下に ${actionsToCreate.length} 件のActionノードを作成しました！`);
 			} else if (this.strategyResult) {
 				// Goal node -> Create Strategy and Action nodes with parentId = targetNode.id
 				await this.aiService.createStrategyAndActionsFromAI(
 					this.targetNode?.id,
-					{
-						...this.strategyResult,
-						phase1Tasks: selectedTasks,
-					}
+					this.strategyResult,
+					actionsToCreate
 				);
-				new Notice(`✨ ${selectedTasks.length} 件の作戦・Actionノードを作成しました！`);
+				new Notice(`✨ ${actionsToCreate.length} 件の作戦・Actionノードを作成しました！`);
 			} else {
 				// Fallback to text append if no structured result
+				const selectedTitles = actionsToCreate.map((a) => a.title);
 				await this.taskService.saveStrategyToNote(
 					this.topic,
-					{ bottleneck: "分析", dependency: "基本設計", policy: "順次消化", phase1Tasks: selectedTasks },
-					selectedTasks,
+					{ bottleneck: "分析", dependency: "基本設計", policy: "順次消化", phase1Tasks: selectedTitles },
+					selectedTitles,
 					this.targetNode?.file
 				);
 			}
@@ -391,5 +436,6 @@ export class AICopilotModal extends Modal {
 		}
 	}
 }
+
 
 

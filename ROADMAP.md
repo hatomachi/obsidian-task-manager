@@ -70,16 +70,16 @@
     - [x] Markdown ノードの新規作成・更新時に Frontmatter に追加プロパティが正確に読み書きされること。
     - [x] `npm run build` がエラーなく通り、テストVaultへの同期コピーが正常終了すること。
 
-- [ ] **Phase 7: AIプロンプト ＆ 構造化生成パイプラインの時系列・Appetite対応**
+- [x] **Phase 7: AIプロンプト ＆ 構造化生成パイプラインの時系列・Appetite対応**
   - **概要**: `strategyPrompt` と `taskBreakdownPrompt` のプロンプト刷新、および `AIService` の時間・順序構造化 JSON パースロジック。
   - **主な実装範囲**:
     - `src/prompts/strategyPrompt.ts`: Strategy 提案時に `appetiteHours` (時間予算) と `timeframe` (実施時期) を必須指定させる構造化 JSON プロンプト。
     - `src/prompts/taskBreakdownPrompt.ts`: 直近の Strategy のみを対象としたローリングウェーブ分解。`sequenceOrder` (1,2,3...), `estimatedMinutes` (15~60m), `dependsOn` (依存関係ID), `rationale` を必須とする構造化 JSON プロンプト。
     - `src/services/AIService.ts`: 時間・順序データ構造のパースと、`parentId` だけでなく `sequenceOrder` 等を保持した Markdown ノード生成処理。
   - **完了条件 (DoD)**:
-    - [ ] AIの Strategy 提案レスポンスに `appetiteHours` と `timeframe` が正しく含まれること。
-    - [ ] Action 分解レスポンスに `sequenceOrder`, `estimatedMinutes`, `dependsOn`, `rationale` が正しく含まれ、Markdown ノードへ保存されること。
-    - [ ] `npm run build` が正常に通ること。
+    - [x] AIの Strategy 提案レスポンスに `appetiteHours` と `timeframe` が正しく含まれること。
+    - [x] Action 分解レスポンスに `sequenceOrder`, `estimatedMinutes`, `dependsOn`, `rationale` が正しく含まれ、Markdown ノードへ保存されること。
+    - [x] `npm run build` が正常に通ること。
 
 - [ ] **Phase 8: UI・バッジ表示 ＆ Focus View の sequenceOrder 絞り込み**
   - **概要**: Context Tree View での時間/時期/順序バッジ表示と、Focus View での `sequenceOrder: 1` （着手可能アクション）への絞り込み表示。
