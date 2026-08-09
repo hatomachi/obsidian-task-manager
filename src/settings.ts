@@ -69,6 +69,19 @@ export class TaskManagerSettingTab extends PluginSettingTab {
 					})
 			);
 
+		new Setting(containerEl)
+			.setName("Pattern Folder Path")
+			.setDesc("Directory where task pattern cassettes (SOP folders) are stored.")
+			.addText((text) =>
+				text
+					.setPlaceholder("_task_patterns")
+					.setValue(this.plugin.settings.patternFolderPath || "_task_patterns")
+					.onChange(async (value) => {
+						this.plugin.settings.patternFolderPath = value.trim() || "_task_patterns";
+						await this.plugin.saveSettings();
+					})
+			);
+
 		containerEl.createEl("h3", { text: "AI Engine Settings" });
 
 		new Setting(containerEl)

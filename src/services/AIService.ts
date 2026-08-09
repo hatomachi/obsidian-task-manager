@@ -108,18 +108,30 @@ export class AIService {
 	/**
 	 * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
 	 */
+	/**
+	 * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
+	 */
 	async refineTaskWithTree(
 		rootTask: TaskItem,
 		subtree: TaskTreeNode[],
 		instruction: string
 	): Promise<AIRefineResult> {
 		const vaultRule = await this.getVaultRuleContent();
+
+		let matchedPatterns: any[] = [];
+		if (this.plugin.patternService) {
+			const allPatterns = await this.plugin.patternService.loadAllPatterns();
+			const taskTags = this.plugin.patternService.extractTagsFromTask(rootTask);
+			matchedPatterns = this.plugin.patternService.findMatchingPatterns(taskTags, allPatterns);
+		}
+
 		const prompt = buildTaskRefinePrompt(
 			rootTask,
 			subtree,
 			instruction,
 			this.plugin.settings.customTaskRules,
-			vaultRule
+			vaultRule,
+			matchedPatterns
 		);
 
 		try {
@@ -158,10 +170,19 @@ export class AIService {
 	 */
 	async breakdownTask(task: TaskItem): Promise<string[]> {
 		const vaultRule = await this.getVaultRuleContent();
+
+		let matchedPatterns: any[] = [];
+		if (this.plugin.patternService) {
+			const allPatterns = await this.plugin.patternService.loadAllPatterns();
+			const taskTags = this.plugin.patternService.extractTagsFromTask(task);
+			matchedPatterns = this.plugin.patternService.findMatchingPatterns(taskTags, allPatterns);
+		}
+
 		const prompt = buildTaskBreakdownPrompt(
 			task,
 			this.plugin.settings.customTaskRules,
-			vaultRule
+			vaultRule,
+			matchedPatterns
 		);
 
 		try {
@@ -243,12 +264,21 @@ export class AIService {
 		existingStrategy?: StrategyResult
 	): Promise<StrategyResult> {
 		const vaultRule = await this.getVaultRuleContent();
+
+		let matchedPatterns: any[] = [];
+		if (this.plugin.patternService) {
+			const allPatterns = await this.plugin.patternService.loadAllPatterns();
+			const topicTags = this.plugin.patternService.extractTagsFromText(topic);
+			matchedPatterns = this.plugin.patternService.findMatchingPatterns(topicTags, allPatterns);
+		}
+
 		const prompt = buildStrategyPrompt(
 			topic,
 			feedback,
 			existingStrategy,
 			this.plugin.settings.customTaskRules,
-			vaultRule
+			vaultRule,
+			matchedPatterns
 		);
 
 		try {

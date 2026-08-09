@@ -1,14 +1,60 @@
 import { buildFullSystemRules } from "./systemRules";
-import { StrategyResult } from "../types";
+import { StrategyResult, TaskPattern } from "../types";
 
 export function buildStrategyPrompt(
 	topic: string,
 	feedback?: string,
 	existingStrategy?: StrategyResult,
 	customSettingsPrompt?: string,
-	vaultRuleContent?: string
+	vaultRuleContent?: string,
+	patterns?: TaskPattern[]
 ): string {
 	const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
+
+	let patternPromptSection = "";
+	if (patterns && patterns.length > 0) {
+		const patternBlocks = patterns.map((p) => {
+			const lines: string[] = [`--- パターン名: ${p.name} ---`];
+
+			if (p.phases && p.phases.length > 0) {
+				lines.push("■ 必須ワークフロー（必ずこの順序・要素を含めること）:");
+				p.phases.forEach((phase, idx) => {
+					lines.push(`  ${idx + 1}. ${phase}`);
+				});
+			}
+
+			if (p.constraints && p.constraints.length > 0) {
+				lines.push("■ 絶対制約・ガードレール（絶対に破ってはならないルール）:");
+				p.constraints.forEach((c) => {
+					lines.push(`  - ${c}`);
+				});
+			}
+
+			if (p.templates && Object.keys(p.templates).length > 0) {
+				lines.push("■ 成果物テンプレート (Templates):");
+				for (const [filename, content] of Object.entries(p.templates)) {
+					lines.push(`  [${filename}]:`);
+					lines.push(content.split("\n").map((l) => `    ${l}`).join("\n"));
+				}
+			}
+
+			if (p.examples && p.examples.length > 0) {
+				lines.push("■ 参考となる過去の成功事例 (Few-Shot Context):");
+				p.examples.forEach((ex, idx) => {
+					lines.push(`--- 事例 ${idx + 1} ---`);
+					lines.push(ex);
+				});
+			}
+
+			return lines.join("\n");
+		});
+
+		patternPromptSection = `\n\n【適用される強固な業務パターン・絶対制約（SOP）】
+以下のルールおよび必須フェーズを厳格に遵守してタスクおよび作戦を策定してください。
+
+${patternBlocks.join("\n--------------------------------------------------\n")}
+--------------------------------------------------`;
+	}
 
 	let currentContext = "";
 	if (existingStrategy) {
@@ -34,7 +80,7 @@ ${existingStrategy.phase1Tasks.map((t, i) => `  ${i + 1}. ${t}`).join("\n")}
 	return `あなたは伴走型のAIスクラムマスターです。
 ユーザーから与えられたお題に対して「作戦（ボトルネック分析）」と「Phase 1 の具体的物理行動タスク案」を策定してください。
 
-${systemRules}
+${systemRules}${patternPromptSection}
 
 【お題】:
 "${topic}"
@@ -65,3 +111,4 @@ ${currentContext}${feedbackContext}
 }
 `;
 }
+

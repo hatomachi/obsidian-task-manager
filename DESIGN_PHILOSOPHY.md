@@ -102,3 +102,37 @@ AIにタスク群を一括修正させたり、スケジュールを自動調整
 - **`scheduled` (Scheduled Date / 実施予定日)**: 今日、明日、あるいは特定の日に実際に作業を行う日。
 
 AIはこの `due` と `scheduled` を観察し、`scheduled` が過去に置き去りにされている（未完了のまま過ぎた）場合に、`due` に間に合うように `scheduled` を未来の日に自動で再配置・提案します。
+
+---
+
+## 7. カセット（タスクパターン）読み込み＆プロンプト注入エンジン
+
+単に AI の素の知識でタスクを分解する段階から、「組織や個人の洗練された業務手順（SOP）・絶対制約・標準成果物」を AI に注入してタスクを遂行させる拡張機構です。
+
+### ① 思考モデル：クラス（型）とインスタンス（実体）
+- **カセット (1フォルダ = 1クラス)**:
+  - Vault 内の `settings.patternFolderPath`（デフォルト: `_task_patterns/<pattern-id>/`）に配置される再利用可能な業務ルールパッケージ。
+  - ルール (`pattern.md`)、成果物の雛形 (`templates/`), 成功事例 (`examples/`) を同封した読み取り専用の「型」。
+- **1カセット = 1フォルダ統一規則**:
+  - 単一 Markdown ファイル形式との複雑な分岐を排除し、「1カセット ＝ 1フォルダ」のシンプルな構造に統一。
+
+### ② カセットフォルダ構造規格
+```text
+_task_patterns/
+└── release-prep/                   <-- pattern.id = "release-prep"
+    ├── pattern.md                  <-- 必須: Frontmatter (id, name, trigger_tags) + 必須ワークフロー + 絶対制約
+    ├── templates/                  <-- 任意: 成果物テンプレート (.md)
+    │   └── release-plan.md
+    └── examples/                   <-- 任意: Few-shot事例 (.md)
+        └── past-release-01.md
+```
+
+### ③ 動的読み込み ＆ タグ自動マッチング (`PatternService.ts`)
+- **ピンポイント走査**: Vault 全体の再帰走査を行わず、`settings.patternFolderPath` 配下のみを高速・安全に走査。
+- **タグ抽出 & マッチング**: タスクのタイトル（例: `#リリース`）や Obsidian `metadataCache` からタグ配列を抽出し、カセットの `trigger_tags`（例: `["#リリース", "#release"]`）と比較して合致するカセットを自動ロード。
+- **フォールバック設計 (Graceful Degradation)**: カセット未存在時や `templates/`, `examples/` 欠損時も例外でクラッシュせず、安全に空要素としてフォールバック処理。
+
+### ④ プロンプト注入アーキテクチャ (`src/prompts/`)
+- ビジネスロジック内へのプロンプト文字列直書きを厳禁とし、プロンプトモジュール (`taskBreakdownPrompt.ts`, `strategyPrompt.ts`, `taskRefinePrompt.ts`) にプロンプト生成責務を集約。
+- マッチしたカセットのSOP（必須ワークフロー、絶対制約、成果物テンプレート、Few-shot事例）を `【適用される強固な業務パターン・絶対制約（SOP）】` として AI へ動的注入。
+

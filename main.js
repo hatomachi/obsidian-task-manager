@@ -337,12 +337,52 @@ var init_systemRules = __esm({
 });
 
 // src/prompts/taskBreakdownPrompt.ts
-function buildTaskBreakdownPrompt(task, customSettingsPrompt, vaultRuleContent) {
+function buildTaskBreakdownPrompt(task, customSettingsPrompt, vaultRuleContent, patterns) {
   const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
+  let patternPromptSection = "";
+  if (patterns && patterns.length > 0) {
+    const patternBlocks = patterns.map((p) => {
+      const lines = [`--- \u30D1\u30BF\u30FC\u30F3\u540D: ${p.name} ---`];
+      if (p.phases && p.phases.length > 0) {
+        lines.push("\u25A0 \u5FC5\u9808\u30EF\u30FC\u30AF\u30D5\u30ED\u30FC\uFF08\u5FC5\u305A\u3053\u306E\u9806\u5E8F\u30FB\u8981\u7D20\u3092\u542B\u3081\u308B\u3053\u3068\uFF09:");
+        p.phases.forEach((phase, idx) => {
+          lines.push(`  ${idx + 1}. ${phase}`);
+        });
+      }
+      if (p.constraints && p.constraints.length > 0) {
+        lines.push("\u25A0 \u7D76\u5BFE\u5236\u7D04\u30FB\u30AC\u30FC\u30C9\u30EC\u30FC\u30EB\uFF08\u7D76\u5BFE\u306B\u7834\u3063\u3066\u306F\u306A\u3089\u306A\u3044\u30EB\u30FC\u30EB\uFF09:");
+        p.constraints.forEach((c) => {
+          lines.push(`  - ${c}`);
+        });
+      }
+      if (p.templates && Object.keys(p.templates).length > 0) {
+        lines.push("\u25A0 \u6210\u679C\u7269\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8 (Templates):");
+        for (const [filename, content] of Object.entries(p.templates)) {
+          lines.push(`  [${filename}]:`);
+          lines.push(content.split("\n").map((l) => `    ${l}`).join("\n"));
+        }
+      }
+      if (p.examples && p.examples.length > 0) {
+        lines.push("\u25A0 \u53C2\u8003\u3068\u306A\u308B\u904E\u53BB\u306E\u6210\u529F\u4E8B\u4F8B (Few-Shot Context):");
+        p.examples.forEach((ex, idx) => {
+          lines.push(`--- \u4E8B\u4F8B ${idx + 1} ---`);
+          lines.push(ex);
+        });
+      }
+      return lines.join("\n");
+    });
+    patternPromptSection = `
+
+\u3010\u9069\u7528\u3055\u308C\u308B\u5F37\u56FA\u306A\u696D\u52D9\u30D1\u30BF\u30FC\u30F3\u30FB\u7D76\u5BFE\u5236\u7D04\uFF08SOP\uFF09\u3011
+\u4EE5\u4E0B\u306E\u30EB\u30FC\u30EB\u304A\u3088\u3073\u5FC5\u9808\u30D5\u30A7\u30FC\u30BA\u3092\u53B3\u683C\u306B\u9075\u5B88\u3057\u3066\u30BF\u30B9\u30AF\u3092\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u624B\u9806\u306E\u98DB\u3073\u8D8A\u3057\u3084\u5236\u7D04\u306E\u7121\u8996\u306F\u8A31\u3055\u308C\u307E\u305B\u3093\u3002
+
+${patternBlocks.join("\n--------------------------------------------------\n")}
+--------------------------------------------------`;
+  }
   return `\u3042\u306A\u305F\u306FAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
 \u89AA\u30BF\u30B9\u30AF\u300C${task.title}\u300D\u3092\u300115\u301C30\u5206\u3067\u5B9F\u884C\u53EF\u80FD\u306A3\u301C5\u500B\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF08Next Physical Action\uFF09\u306E\u30B5\u30D6\u30BF\u30B9\u30AF\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
 
-${systemRules}
+${systemRules}${patternPromptSection}
 
 \u3010\u51FA\u529B\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
 \u4EE5\u4E0B\u306E\u5F62\u5F0F\u306E\u6709\u52B9\u306AJSON\u914D\u5217\uFF08\u6587\u5B57\u5217\u306E\u914D\u5217\uFF09\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
@@ -359,9 +399,49 @@ var init_taskBreakdownPrompt = __esm({
 });
 
 // src/prompts/taskRefinePrompt.ts
-function buildTaskRefinePrompt(rootTask, subtree, instruction, customSettingsPrompt, vaultRuleContent) {
+function buildTaskRefinePrompt(rootTask, subtree, instruction, customSettingsPrompt, vaultRuleContent, patterns) {
   const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
+  let patternPromptSection = "";
+  if (patterns && patterns.length > 0) {
+    const patternBlocks = patterns.map((p) => {
+      const lines = [`--- \u30D1\u30BF\u30FC\u30F3\u540D: ${p.name} ---`];
+      if (p.phases && p.phases.length > 0) {
+        lines.push("\u25A0 \u5FC5\u9808\u30EF\u30FC\u30AF\u30D5\u30ED\u30FC\uFF08\u5FC5\u305A\u3053\u306E\u9806\u5E8F\u30FB\u8981\u7D20\u3092\u542B\u3081\u308B\u3053\u3068\uFF09:");
+        p.phases.forEach((phase, idx) => {
+          lines.push(`  ${idx + 1}. ${phase}`);
+        });
+      }
+      if (p.constraints && p.constraints.length > 0) {
+        lines.push("\u25A0 \u7D76\u5BFE\u5236\u7D04\u30FB\u30AC\u30FC\u30C9\u30EC\u30FC\u30EB\uFF08\u7D76\u5BFE\u306B\u7834\u3063\u3066\u306F\u306A\u3089\u306A\u3044\u30EB\u30FC\u30EB\uFF09:");
+        p.constraints.forEach((c) => {
+          lines.push(`  - ${c}`);
+        });
+      }
+      if (p.templates && Object.keys(p.templates).length > 0) {
+        lines.push("\u25A0 \u6210\u679C\u7269\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8 (Templates):");
+        for (const [filename, content] of Object.entries(p.templates)) {
+          lines.push(`  [${filename}]:`);
+          lines.push(content.split("\n").map((l) => `    ${l}`).join("\n"));
+        }
+      }
+      if (p.examples && p.examples.length > 0) {
+        lines.push("\u25A0 \u53C2\u8003\u3068\u306A\u308B\u904E\u53BB\u306E\u6210\u529F\u4E8B\u4F8B (Few-Shot Context):");
+        p.examples.forEach((ex, idx) => {
+          lines.push(`--- \u4E8B\u4F8B ${idx + 1} ---`);
+          lines.push(ex);
+        });
+      }
+      return lines.join("\n");
+    });
+    patternPromptSection = `
+
+\u3010\u9069\u7528\u3055\u308C\u308B\u5F37\u56FA\u306A\u696D\u52D9\u30D1\u30BF\u30FC\u30F3\u30FB\u7D76\u5BFE\u5236\u7D04\uFF08SOP\uFF09\u3011
+\u4EE5\u4E0B\u306E\u30EB\u30FC\u30EB\u304A\u3088\u3073\u5FC5\u9808\u30D5\u30A7\u30FC\u30BA\u3092\u53B3\u683C\u306B\u9075\u5B88\u3057\u3066\u30BF\u30B9\u30AF\u3092\u8ABF\u6574\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+${patternBlocks.join("\n--------------------------------------------------\n")}
+--------------------------------------------------`;
+  }
   const treeLines = [
     `- ${rootTask.id}: ${rootTask.title} [\u30B9\u30C6\u30FC\u30BF\u30B9: ${rootTask.status}, \u5B9F\u65BD\u4E88\u5B9A\u65E5: ${rootTask.scheduled || "\u672A\u8A2D\u5B9A"}]`
   ];
@@ -374,7 +454,7 @@ function buildTaskRefinePrompt(rootTask, subtree, instruction, customSettingsPro
   return `\u3042\u306A\u305F\u306F\u4F34\u8D70\u578B\u306EAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
 \u672C\u65E5\u306E\u65E5\u4ED8: ${todayStr}
 
-${systemRules}
+${systemRules}${patternPromptSection}
 
 \u3010\u73FE\u5728\u306E\u30BF\u30B9\u30AF\u30FB\u30B5\u30D6\u30BF\u30B9\u30AF\u968E\u5C64\u30C4\u30EA\u30FC\u3011:
 ${treeLines.join("\n")}
@@ -446,8 +526,48 @@ var init_taskReschedulePrompt = __esm({
 });
 
 // src/prompts/strategyPrompt.ts
-function buildStrategyPrompt(topic, feedback, existingStrategy, customSettingsPrompt, vaultRuleContent) {
+function buildStrategyPrompt(topic, feedback, existingStrategy, customSettingsPrompt, vaultRuleContent, patterns) {
   const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
+  let patternPromptSection = "";
+  if (patterns && patterns.length > 0) {
+    const patternBlocks = patterns.map((p) => {
+      const lines = [`--- \u30D1\u30BF\u30FC\u30F3\u540D: ${p.name} ---`];
+      if (p.phases && p.phases.length > 0) {
+        lines.push("\u25A0 \u5FC5\u9808\u30EF\u30FC\u30AF\u30D5\u30ED\u30FC\uFF08\u5FC5\u305A\u3053\u306E\u9806\u5E8F\u30FB\u8981\u7D20\u3092\u542B\u3081\u308B\u3053\u3068\uFF09:");
+        p.phases.forEach((phase, idx) => {
+          lines.push(`  ${idx + 1}. ${phase}`);
+        });
+      }
+      if (p.constraints && p.constraints.length > 0) {
+        lines.push("\u25A0 \u7D76\u5BFE\u5236\u7D04\u30FB\u30AC\u30FC\u30C9\u30EC\u30FC\u30EB\uFF08\u7D76\u5BFE\u306B\u7834\u3063\u3066\u306F\u306A\u3089\u306A\u3044\u30EB\u30FC\u30EB\uFF09:");
+        p.constraints.forEach((c) => {
+          lines.push(`  - ${c}`);
+        });
+      }
+      if (p.templates && Object.keys(p.templates).length > 0) {
+        lines.push("\u25A0 \u6210\u679C\u7269\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8 (Templates):");
+        for (const [filename, content] of Object.entries(p.templates)) {
+          lines.push(`  [${filename}]:`);
+          lines.push(content.split("\n").map((l) => `    ${l}`).join("\n"));
+        }
+      }
+      if (p.examples && p.examples.length > 0) {
+        lines.push("\u25A0 \u53C2\u8003\u3068\u306A\u308B\u904E\u53BB\u306E\u6210\u529F\u4E8B\u4F8B (Few-Shot Context):");
+        p.examples.forEach((ex, idx) => {
+          lines.push(`--- \u4E8B\u4F8B ${idx + 1} ---`);
+          lines.push(ex);
+        });
+      }
+      return lines.join("\n");
+    });
+    patternPromptSection = `
+
+\u3010\u9069\u7528\u3055\u308C\u308B\u5F37\u56FA\u306A\u696D\u52D9\u30D1\u30BF\u30FC\u30F3\u30FB\u7D76\u5BFE\u5236\u7D04\uFF08SOP\uFF09\u3011
+\u4EE5\u4E0B\u306E\u30EB\u30FC\u30EB\u304A\u3088\u3073\u5FC5\u9808\u30D5\u30A7\u30FC\u30BA\u3092\u53B3\u683C\u306B\u9075\u5B88\u3057\u3066\u30BF\u30B9\u30AF\u304A\u3088\u3073\u4F5C\u6226\u3092\u7B56\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+${patternBlocks.join("\n--------------------------------------------------\n")}
+--------------------------------------------------`;
+  }
   let currentContext = "";
   if (existingStrategy) {
     currentContext = `
@@ -470,7 +590,7 @@ ${existingStrategy.phase1Tasks.map((t, i) => `  ${i + 1}. ${t}`).join("\n")}
   return `\u3042\u306A\u305F\u306F\u4F34\u8D70\u578B\u306EAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
 \u30E6\u30FC\u30B6\u30FC\u304B\u3089\u4E0E\u3048\u3089\u308C\u305F\u304A\u984C\u306B\u5BFE\u3057\u3066\u300C\u4F5C\u6226\uFF08\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u5206\u6790\uFF09\u300D\u3068\u300CPhase 1 \u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u30BF\u30B9\u30AF\u6848\u300D\u3092\u7B56\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
 
-${systemRules}
+${systemRules}${patternPromptSection}
 
 \u3010\u304A\u984C\u3011:
 "${topic}"
@@ -603,14 +723,24 @@ var init_AIService = __esm({
       /**
        * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
        */
+      /**
+       * Refine full task hierarchy (parent, subtasks, sub-subtasks) with user instruction
+       */
       async refineTaskWithTree(rootTask, subtree, instruction) {
         const vaultRule = await this.getVaultRuleContent();
+        let matchedPatterns = [];
+        if (this.plugin.patternService) {
+          const allPatterns = await this.plugin.patternService.loadAllPatterns();
+          const taskTags = this.plugin.patternService.extractTagsFromTask(rootTask);
+          matchedPatterns = this.plugin.patternService.findMatchingPatterns(taskTags, allPatterns);
+        }
         const prompt = buildTaskRefinePrompt(
           rootTask,
           subtree,
           instruction,
           this.plugin.settings.customTaskRules,
-          vaultRule
+          vaultRule,
+          matchedPatterns
         );
         try {
           const output = await this.runCLI(prompt);
@@ -645,10 +775,17 @@ var init_AIService = __esm({
        */
       async breakdownTask(task) {
         const vaultRule = await this.getVaultRuleContent();
+        let matchedPatterns = [];
+        if (this.plugin.patternService) {
+          const allPatterns = await this.plugin.patternService.loadAllPatterns();
+          const taskTags = this.plugin.patternService.extractTagsFromTask(task);
+          matchedPatterns = this.plugin.patternService.findMatchingPatterns(taskTags, allPatterns);
+        }
         const prompt = buildTaskBreakdownPrompt(
           task,
           this.plugin.settings.customTaskRules,
-          vaultRule
+          vaultRule,
+          matchedPatterns
         );
         try {
           const output = await this.runCLI(prompt);
@@ -711,12 +848,19 @@ var init_AIService = __esm({
        */
       async generateStrategy(topic, feedback, existingStrategy) {
         const vaultRule = await this.getVaultRuleContent();
+        let matchedPatterns = [];
+        if (this.plugin.patternService) {
+          const allPatterns = await this.plugin.patternService.loadAllPatterns();
+          const topicTags = this.plugin.patternService.extractTagsFromText(topic);
+          matchedPatterns = this.plugin.patternService.findMatchingPatterns(topicTags, allPatterns);
+        }
         const prompt = buildStrategyPrompt(
           topic,
           feedback,
           existingStrategy,
           this.plugin.settings.customTaskRules,
-          vaultRule
+          vaultRule,
+          matchedPatterns
         );
         try {
           const output = await this.runCLI(prompt);
@@ -1170,7 +1314,7 @@ __export(main_exports, {
   default: () => TaskManagerPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian7 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 
 // src/types.ts
 var DEFAULT_SETTINGS = {
@@ -1180,7 +1324,8 @@ var DEFAULT_SETTINGS = {
   defaultPriority: "medium",
   antigravityCommand: "agy",
   customTaskRules: "1. Break down into 15-30 minute physical actions.\n2. Begin with concrete verbs (e.g. 'Open', 'Write', 'Search').\n3. Prohibit vague words like 'Consider', 'Investigate', 'Coordinate'.",
-  customRuleFilePath: ""
+  customRuleFilePath: "",
+  patternFolderPath: "_task_patterns"
 };
 
 // src/settings.ts
@@ -1216,6 +1361,12 @@ var TaskManagerSettingTab = class extends import_obsidian.PluginSettingTab {
     new import_obsidian.Setting(containerEl).setName("Rule File Path in Vault (Optional)").setDesc("Relative path to a Markdown file in your vault containing task rules (e.g. 'templates/task-rules.md').").addText(
       (text) => text.setPlaceholder("templates/task-rules.md").setValue(this.plugin.settings.customRuleFilePath).onChange(async (value) => {
         this.plugin.settings.customRuleFilePath = value.trim();
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian.Setting(containerEl).setName("Pattern Folder Path").setDesc("Directory where task pattern cassettes (SOP folders) are stored.").addText(
+      (text) => text.setPlaceholder("_task_patterns").setValue(this.plugin.settings.patternFolderPath || "_task_patterns").onChange(async (value) => {
+        this.plugin.settings.patternFolderPath = value.trim() || "_task_patterns";
         await this.plugin.saveSettings();
       })
     );
@@ -1638,10 +1789,237 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
   }
 };
 
+// src/services/PatternService.ts
+var import_obsidian7 = require("obsidian");
+var PatternService = class {
+  constructor(plugin) {
+    this.plugin = plugin;
+  }
+  /**
+   * Load all task pattern cassettes from configured patternFolderPath (default: "_task_patterns").
+   * Strict 1 cassette = 1 folder rule.
+   */
+  async loadAllPatterns() {
+    var _a;
+    const rawPath = ((_a = this.plugin.settings.patternFolderPath) == null ? void 0 : _a.trim()) || "_task_patterns";
+    const folderPath = (0, import_obsidian7.normalizePath)(rawPath);
+    const rootFolder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
+    if (!rootFolder || !(rootFolder instanceof import_obsidian7.TFolder)) {
+      return [];
+    }
+    const patterns = [];
+    for (const child of rootFolder.children) {
+      if (!(child instanceof import_obsidian7.TFolder)) {
+        continue;
+      }
+      const cassetteFolder = child;
+      const patternFile = cassetteFolder.children.find(
+        (f) => f instanceof import_obsidian7.TFile && f.name.toLowerCase() === "pattern.md"
+      );
+      if (!patternFile) {
+        continue;
+      }
+      try {
+        const content = await this.plugin.app.vault.read(patternFile);
+        const parsed = this.parsePatternMarkdown(content, cassetteFolder.name);
+        const templates = {};
+        const templatesFolder = cassetteFolder.children.find(
+          (f) => f instanceof import_obsidian7.TFolder && f.name.toLowerCase() === "templates"
+        );
+        if (templatesFolder) {
+          for (const tf of templatesFolder.children) {
+            if (tf instanceof import_obsidian7.TFile && tf.extension === "md") {
+              templates[tf.name] = await this.plugin.app.vault.read(tf);
+            }
+          }
+        }
+        const examples = [];
+        const examplesFolder = cassetteFolder.children.find(
+          (f) => f instanceof import_obsidian7.TFolder && f.name.toLowerCase() === "examples"
+        );
+        if (examplesFolder) {
+          for (const ef of examplesFolder.children) {
+            if (ef instanceof import_obsidian7.TFile && ef.extension === "md") {
+              const exText = await this.plugin.app.vault.read(ef);
+              if (exText.trim()) {
+                examples.push(exText.trim());
+              }
+            }
+          }
+        }
+        patterns.push({
+          id: parsed.id,
+          name: parsed.name,
+          description: parsed.description,
+          triggerTags: parsed.triggerTags,
+          phases: parsed.phases,
+          constraints: parsed.constraints,
+          templates,
+          examples,
+          folderPath: cassetteFolder.path
+        });
+      } catch (err) {
+        console.warn(`[TaskManager PatternService] Failed to load pattern in ${cassetteFolder.path}:`, err);
+      }
+    }
+    return patterns;
+  }
+  /**
+   * Match task tags against pattern triggerTags.
+   * Returns matching patterns if at least one tag matches (case-insensitive & tag-normalized).
+   */
+  findMatchingPatterns(taskTags, patterns) {
+    if (!taskTags || taskTags.length === 0 || !patterns || patterns.length === 0) {
+      return [];
+    }
+    const normalizedTaskTags = taskTags.map((t) => this.normalizeTag(t));
+    return patterns.filter((pattern) => {
+      if (!pattern.triggerTags || pattern.triggerTags.length === 0)
+        return false;
+      const normalizedPatternTags = pattern.triggerTags.map((t) => this.normalizeTag(t));
+      return normalizedPatternTags.some((pt) => normalizedTaskTags.includes(pt));
+    });
+  }
+  /**
+   * Extract tags from task title and metadataCache for task.file.
+   */
+  extractTagsFromTask(task) {
+    var _a;
+    const tagsSet = /* @__PURE__ */ new Set();
+    const titleTags = task.title.match(/#[\w\u3000-\u30FE\u4E00-\u9FA5\uFF00-\uFFEF_-]+/g);
+    if (titleTags) {
+      for (const t of titleTags) {
+        tagsSet.add(this.normalizeTag(t));
+      }
+    }
+    if (task.file) {
+      const cache = this.plugin.app.metadataCache.getFileCache(task.file);
+      if (cache == null ? void 0 : cache.tags) {
+        for (const tagObj of cache.tags) {
+          tagsSet.add(this.normalizeTag(tagObj.tag));
+        }
+      }
+      if ((_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.tags) {
+        const fmTags = cache.frontmatter.tags;
+        if (Array.isArray(fmTags)) {
+          for (const t of fmTags) {
+            tagsSet.add(this.normalizeTag(String(t)));
+          }
+        } else if (typeof fmTags === "string") {
+          for (const t of fmTags.split(",")) {
+            tagsSet.add(this.normalizeTag(t));
+          }
+        }
+      }
+    }
+    return Array.from(tagsSet);
+  }
+  /**
+   * Extract tags from a raw string input (e.g., strategy topic or user prompt)
+   */
+  extractTagsFromText(text) {
+    const tagsSet = /* @__PURE__ */ new Set();
+    const matches = text.match(/#[\w\u3000-\u30FE\u4E00-\u9FA5\uFF00-\uFFEF_-]+/g);
+    if (matches) {
+      for (const t of matches) {
+        tagsSet.add(this.normalizeTag(t));
+      }
+    }
+    return Array.from(tagsSet);
+  }
+  /**
+   * Ensure tag format is consistent (starts with '#', lowercase)
+   */
+  normalizeTag(tag) {
+    let t = tag.trim().toLowerCase();
+    if (!t.startsWith("#")) {
+      t = "#" + t;
+    }
+    return t;
+  }
+  /**
+   * Parse Frontmatter and markdown sections (phases & constraints) from pattern.md
+   */
+  parsePatternMarkdown(content, defaultId) {
+    let id = defaultId;
+    let name = defaultId;
+    let description = void 0;
+    let triggerTags = [];
+    let body = content;
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (fmMatch) {
+      const fmText = fmMatch[1];
+      body = content.slice(fmMatch[0].length);
+      const idMatch = fmText.match(/^id:\s*["']?([^"'\r\n]+)["']?/m);
+      if (idMatch)
+        id = idMatch[1].trim();
+      const nameMatch = fmText.match(/^name:\s*["']?([^"'\r\n]+)["']?/m);
+      if (nameMatch)
+        name = nameMatch[1].trim();
+      const descMatch = fmText.match(/^description:\s*["']?([^"'\r\n]+)["']?/m);
+      if (descMatch)
+        description = descMatch[1].trim();
+      const tagsMatch = fmText.match(/^(?:trigger_tags|triggerTags):\s*(.*)$/m);
+      if (tagsMatch) {
+        const rawTags = tagsMatch[1].trim();
+        if (rawTags.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(rawTags);
+            if (Array.isArray(parsed)) {
+              triggerTags = parsed.map((t) => String(t).trim());
+            }
+          } catch (e) {
+            const items = rawTags.replace(/^\[|\]$/g, "").split(",");
+            triggerTags = items.map((t) => t.replace(/["'\s]/g, "")).filter(Boolean);
+          }
+        } else {
+          triggerTags = rawTags.split(",").map((t) => t.replace(/["'\s]/g, "")).filter(Boolean);
+        }
+      }
+    }
+    const phases = this.extractListItemsUnderHeading(body, ["\u5FC5\u9808\u30EF\u30FC\u30AF\u30D5\u30ED\u30FC", "phases", "workflow"]);
+    const constraints = this.extractListItemsUnderHeading(body, ["\u7D76\u5BFE\u5236\u7D04", "constraints", "guardrails"]);
+    return { id, name, description, triggerTags, phases, constraints };
+  }
+  /**
+   * Helper to extract list items (- , * , 1. ) under a target heading section
+   */
+  extractListItemsUnderHeading(body, headingKeywords) {
+    const lines = body.split(/\r?\n/);
+    let inHeadingSection = false;
+    const result = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const headingMatch = line.match(/^#{1,6}\s+(.*)$/);
+      if (headingMatch) {
+        const title = headingMatch[1].toLowerCase();
+        const matched = headingKeywords.some((keyword) => title.includes(keyword.toLowerCase()));
+        if (matched) {
+          inHeadingSection = true;
+          continue;
+        } else if (inHeadingSection) {
+          break;
+        }
+      }
+      if (inHeadingSection) {
+        const listMatch = line.match(/^(?:\s*[-*]|\s*\d+\.)\s+(.+)$/);
+        if (listMatch) {
+          const item = listMatch[1].trim();
+          if (item) {
+            result.push(item);
+          }
+        }
+      }
+    }
+    return result;
+  }
+};
+
 // src/main.ts
-var TaskManagerPlugin = class extends import_obsidian7.Plugin {
+var TaskManagerPlugin = class extends import_obsidian8.Plugin {
   async onload() {
     await this.loadSettings();
+    this.patternService = new PatternService(this);
     this.registerView(
       VIEW_TYPE_TASK_MANAGER,
       (leaf) => new TaskManagerView(leaf, this)

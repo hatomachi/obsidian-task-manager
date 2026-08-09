@@ -2,12 +2,15 @@ import { Plugin } from "obsidian";
 import { DEFAULT_SETTINGS, TaskManagerSettings } from "./types";
 import { TaskManagerSettingTab } from "./settings";
 import { TaskManagerView, VIEW_TYPE_TASK_MANAGER } from "./views/TaskManagerView";
+import { PatternService } from "./services/PatternService";
 
 export default class TaskManagerPlugin extends Plugin {
 	settings: TaskManagerSettings;
+	patternService: PatternService;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
+		this.patternService = new PatternService(this);
 
 		// Register Main Panel ItemView
 		this.registerView(
