@@ -790,6 +790,128 @@ var init_strategyPrompt = __esm({
   }
 });
 
+// src/prompts/taskResequencePrompt.ts
+function buildQuickActionPrompt(actionType, context, topic, feedback, customSettingsPrompt, vaultRuleContent, patterns) {
+  const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
+  let actionTitle = "";
+  let instructionFocus = "";
+  switch (actionType) {
+    case "appetite":
+      actionTitle = "\u23F1\uFE0F \u6642\u9593\u4E88\u7B97 (Appetite) \u518D\u8A55\u4FA1\u3068\u512A\u5148\u5EA6\u8ABF\u6574";
+      instructionFocus = `\u3010\u5206\u6790\u6307\u793A\u3011
+1. \u73FE\u5728\u306E Strategy \u30CE\u30FC\u30C9\u306B\u304A\u3051\u308B\u6642\u9593\u4E88\u7B97 (appetiteHours) \u3068\u3001\u5C55\u958B\u3055\u308C\u3066\u3044\u308B\u5404 Action \u306E\u4E88\u60F3\u6240\u8981\u6642\u9593 (estimatedMinutes) \u306E\u5408\u8A08\u3092\u6BD4\u8F03\u5206\u6790\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+2. \u3082\u3057 Action \u898B\u7A4D\u3082\u308A\u306E\u5408\u8A08\u304C\u6642\u9593\u4E88\u7B97\u3092\u5927\u5E45\u306B\u30AA\u30FC\u30D0\u30FC\u3057\u3066\u3044\u308B\u3001\u307E\u305F\u306F\u4E0D\u8DB3\u3057\u3066\u3044\u308B\u5834\u5408\u306F\u3001\u512A\u5148\u5EA6\u306E\u4F4E\u3044\u30BF\u30B9\u30AF\u306E\u524A\u6E1B\u30FB\u7D71\u5408\u3001\u307E\u305F\u306F\u4F5C\u6226\u306E\u30B9\u30B3\u30FC\u30D7\u8ABF\u6574\u30FB\u6642\u9593\u4E88\u7B97\u898B\u76F4\u3057\u6848\u3092\u63D0\u793A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+3. Phase 1 \u3068\u3057\u3066\u5B9F\u884C\u3059\u3079\u304D\u7CBE\u7DFB\u306A 15\u301C30\u5206\u5358\u4F4D\u306E\u7269\u7406\u884C\u52D5 (Action\u30EA\u30B9\u30C8) \u306B\u7740\u624B\u9806\u5E8F (sequenceOrder) \u3068\u4E88\u60F3\u6642\u9593 (estimatedMinutes) \u3092\u4ED8\u4E0E\u3057\u3066\u518D\u69CB\u6210\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
+      break;
+    case "critical_path":
+      actionTitle = "\u{1F3AF} \u30AF\u30EA\u30C6\u30A3\u30AB\u30EB\u30D1\u30B9\u62BD\u51FA\u3068\u6700\u512A\u5148\u30EB\u30FC\u30C8\u306E\u518D\u914D\u7F6E";
+      instructionFocus = `\u3010\u5206\u6790\u6307\u793A\u3011
+1. \u9078\u629E\u30CE\u30FC\u30C9\u304A\u3088\u3073\u305D\u306E\u5B50\u30CE\u30FC\u30C9\u7FA4\u306B\u304A\u3051\u308B\u4F9D\u5B58\u95A2\u4FC2 (dependsOn) \u3068\u4E88\u60F3\u6642\u9593\u3092\u7CBE\u67FB\u3057\u3001\u6700\u7D42\u76EE\u6A19\u9054\u6210\u306B\u5411\u3051\u305F\u300C\u30AF\u30EA\u30C6\u30A3\u30AB\u30EB\u30D1\u30B9\uFF08\u6700\u9045\u5EF6\u30FB\u6700\u91CD\u8981\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u30C1\u30A7\u30FC\u30F3\uFF09\u300D\u3092\u7279\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+2. \u30AF\u30EA\u30C6\u30A3\u30AB\u30EB\u30D1\u30B9\u4E0A\u306B\u3042\u308B\u30A2\u30AF\u30B7\u30E7\u30F3\u306B\u512A\u5148\u7684\u306B sequenceOrder = 1, 2, 3... \u3092\u5272\u308A\u5F53\u3066\u3001\u30AF\u30EA\u30C6\u30A3\u30AB\u30EB\u30D1\u30B9\u5916\u306E\u9045\u5EF6\u53EF\u80FD\u30BF\u30B9\u30AF\u306F\u5F8C\u7D9A\u9806\u4F4D\u306B\u914D\u7F6E\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+3. \u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u3068\u306A\u308B\u6700\u91CD\u8981\u30A2\u30AF\u30B7\u30E7\u30F3\u3092 Phase 1 \u7269\u7406\u884C\u52D5\u30EA\u30B9\u30C8\u3068\u3057\u3066\u63D0\u6848\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
+      break;
+    case "resequence":
+      actionTitle = "\u{1F500} \u30D6\u30ED\u30C3\u30AF\u56DE\u907F\u3068\u30BF\u30B9\u30AF\u518D\u7DE8\u6210 (Re-sequencing)";
+      instructionFocus = `\u3010\u5206\u6790\u6307\u793A\u3011
+1. \u30D6\u30ED\u30C3\u30AF\u72B6\u614B (status = 'blocked') \u3084\u30D6\u30ED\u30C3\u30AF\u7406\u7531 (blockedReason) \u304C\u5B58\u5728\u3059\u308B\u30CE\u30FC\u30C9\u3001\u304A\u3088\u3073\u5916\u90E8\u5236\u7D04\u3092\u691C\u51FA\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+2. \u9032\u884C\u4E0D\u80FD\u306A\u30BF\u30B9\u30AF\u306E\u5B8C\u4E86\u3092\u5F85\u3064\u306E\u3067\u306F\u306A\u304F\u3001\u73FE\u5728\u5373\u5EA7\u306B\u7740\u624B\u53EF\u80FD\u306A\u4EE3\u66FF\u30FB\u524D\u5012\u3057\u30A2\u30AF\u30B7\u30E7\u30F3\u3092\u898B\u3064\u3051\u51FA\u3057\u3001\u305D\u308C\u3089\u306E sequenceOrder \u3092 1 \u306B\u524D\u5012\u3057\u8A2D\u5B9A\uFF08Re-sequencing\uFF09\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+3. \u4ECA\u3059\u3050\u624B\u3092\u52D5\u304B\u305B\u308B15\u301C30\u5206\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u30EA\u30B9\u30C8\u3092\u518D\u69CB\u6210\u3057\u3066\u63D0\u6848\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
+      break;
+  }
+  let patternPromptSection = "";
+  if (patterns && patterns.length > 0) {
+    const patternBlocks = patterns.map((p) => {
+      const lines = [`--- \u30D1\u30BF\u30FC\u30F3\u540D: ${p.name} ---`];
+      if (p.phases && p.phases.length > 0) {
+        lines.push("\u25A0 \u5FC5\u9808\u30EF\u30FC\u30AF\u30D5\u30ED\u30FC:");
+        p.phases.forEach((phase, idx) => lines.push(`  ${idx + 1}. ${phase}`));
+      }
+      if (p.constraints && p.constraints.length > 0) {
+        lines.push("\u25A0 \u7D76\u5BFE\u5236\u7D04:");
+        p.constraints.forEach((c) => lines.push(`  - ${c}`));
+      }
+      return lines.join("\n");
+    });
+    patternPromptSection = `
+
+\u3010\u9069\u7528\u3055\u308C\u308B\u5F37\u56FA\u306A\u696D\u52D9\u30D1\u30BF\u30FC\u30F3\u30FB\u7D76\u5BFE\u5236\u7D04\uFF08SOP\uFF09\u3011
+${patternBlocks.join("\n--------------------------------------------------\n")}
+--------------------------------------------------`;
+  }
+  let contextPayloadSection = "";
+  if (context) {
+    const { selectedNode, ancestors, children, siblingStrategies } = context;
+    const ancestorLines = ancestors.map(
+      (a) => `  - [${a.nodeType.toUpperCase()}] ${a.title} (ID: ${a.id}, Status: ${a.status}${a.appetiteHours ? `, Appetite: ${a.appetiteHours}h` : ""}${a.blockedReason ? `, Blocked: ${a.blockedReason}` : ""})`
+    );
+    const childrenLines = children.map(
+      (c) => `  - [${c.nodeType.toUpperCase()}] ${c.title} (ID: ${c.id}, Status: ${c.status}${c.sequenceOrder !== void 0 ? `, Seq: ${c.sequenceOrder}` : ""}${c.estimatedMinutes !== void 0 ? `, Est: ${c.estimatedMinutes}m` : ""}${c.dependsOn && c.dependsOn.length > 0 ? `, Dep: ${c.dependsOn.join(",")}` : ""})`
+    );
+    const siblingLines = (siblingStrategies || []).map(
+      (s) => `  - [STRATEGY] ${s.title} (ID: ${s.id}, Status: ${s.status}${s.appetiteHours ? `, Appetite: ${s.appetiteHours}h` : ""}${s.blockedReason ? `, Blocked: ${s.blockedReason}` : ""})`
+    );
+    contextPayloadSection = `
+\u3010\u524D\u88C1\u304D\u30A4\u30F3\u30E1\u30E2\u30EA\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8 (AIContextPayload)\u3011:
+- \u9078\u629E\u30CE\u30FC\u30C9: [${selectedNode.nodeType.toUpperCase()}] ${selectedNode.title} (ID: ${selectedNode.id}, Status: ${selectedNode.status}${selectedNode.appetiteHours ? `, Appetite: ${selectedNode.appetiteHours}h` : ""}${selectedNode.blockedReason ? `, Blocked: ${selectedNode.blockedReason}` : ""})
+- \u601D\u8003\u306E\u7956\u5148\u30C4\u30EA\u30FC (Ancestors):
+${ancestorLines.length > 0 ? ancestorLines.join("\n") : "  (\u306A\u3057)"}
+- \u76F4\u4E0B\u306E\u5B50\u30BF\u30B9\u30AF/Action\u7FA4 (Children):
+${childrenLines.length > 0 ? childrenLines.join("\n") : "  (\u306A\u3057)"}
+- \u95A2\u9023Strategy\u7FA4 (ADR Context):
+${siblingLines.length > 0 ? siblingLines.join("\n") : "  (\u306A\u3057)"}
+`;
+  }
+  const feedbackSection = feedback ? `
+
+\u3010\u30E6\u30FC\u30B6\u30FC\u304B\u3089\u306E\u8FFD\u52A0\u30D5\u30A3\u30FC\u30C9\u30D0\u30C3\u30AF\u3011:
+"${feedback}"` : "";
+  return `\u3042\u306A\u305F\u306F\u4F34\u8D70\u578B\u306EAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
+\u672C\u65E5\u306E\u65E5\u4ED8: ${todayStr}
+\u30A2\u30AF\u30B7\u30E7\u30F3\u7A2E\u5225: ${actionTitle}
+
+${systemRules}${patternPromptSection}${contextPayloadSection}
+
+\u3010\u73FE\u5728\u306E\u5BFE\u8C61\u30C6\u30FC\u30DE / Goal\u3011:
+"${topic}"
+
+${instructionFocus}${feedbackSection}
+
+\u3010\u30EC\u30B9\u30DD\u30F3\u30B9\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
+\u4EE5\u4E0B\u306E\u69CB\u9020\u306B\u5B8C\u5168\u4E00\u81F4\u3059\u308B\u6709\u52B9\u306AJSON\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u3059\u3079\u3066\u306E\u30D7\u30ED\u30D1\u30C6\u30A3\u5024\u30FB\u65E5\u672C\u8A9E\u30C6\u30AD\u30B9\u30C8\u306F\u81EA\u7136\u306A\u65E5\u672C\u8A9E\u3067\u8A18\u8FF0\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+JSON\u306E\u5916\u5074\u306BMarkdown\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3084\u8AAC\u660E\u6587\u3092\u4E00\u5207\u542B\u3081\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
+
+{
+  "bottleneck": "\u7279\u5B9A\u3055\u308C\u305F\u6700\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u307E\u305F\u306F\u30AF\u30EA\u30C6\u30A3\u30AB\u30EB\u30D1\u30B9\u306E\u8981\u7D04\uFF08\u65E5\u672C\u8A9E1\u6587\uFF09",
+  "dependency": "\u524D\u63D0\u6761\u4EF6\u304A\u3088\u3073\u4F9D\u5B58\u95A2\u4FC2\u306E\u5206\u6790\uFF08\u65E5\u672C\u8A9E1\u6587\uFF09",
+  "policy": "\u518D\u8A55\u4FA1\u30FB\u518D\u7DE8\u6210\u3055\u308C\u305F\u57FA\u672C\u653B\u7565\u65B9\u91DD\uFF08\u65E5\u672C\u8A9E1\u6587\uFF09",
+  "proposedStrategies": [
+    {
+      "title": "\u518D\u8A55\u4FA1\u5F8C\u306E\u4F5C\u6226\u30BF\u30A4\u30C8\u30EB",
+      "description": "\u4F5C\u6226\u306E\u7C21\u6F54\u306A\u8AAC\u660E",
+      "appetiteHours": 20,
+      "timeframe": "\u4ECA\u6708"
+    }
+  ],
+  "phase1Actions": [
+    {
+      "title": "\u30A8\u30C7\u30A3\u30BF\u3092\u958B\u304D\u3007\u3007\u30921\u884C\u8A18\u8FF0\u3059\u308B",
+      "sequenceOrder": 1,
+      "estimatedMinutes": 30,
+      "dependsOn": [],
+      "rationale": "\u524D\u5012\u3057\u7740\u624B\u306E\u7406\u7531\u3084\u30AF\u30EA\u30C6\u30A3\u30AB\u30EB\u30D1\u30B9\u4E0A\u306E\u4F4D\u7F6E\u3065\u3051"
+    }
+  ]
+}`;
+}
+var init_taskResequencePrompt = __esm({
+  "src/prompts/taskResequencePrompt.ts"() {
+    "use strict";
+    init_systemRules();
+  }
+});
+
 // src/prompts/index.ts
 var init_prompts = __esm({
   "src/prompts/index.ts"() {
@@ -799,6 +921,7 @@ var init_prompts = __esm({
     init_taskRefinePrompt();
     init_taskReschedulePrompt();
     init_strategyPrompt();
+    init_taskResequencePrompt();
   }
 });
 
@@ -1123,6 +1246,67 @@ var init_AIService = __esm({
         };
       }
       /**
+       * Phase 9: Quick Action Wall-bashing (Appetite Re-eval, Critical Path, Re-sequencing)
+       */
+      async executeQuickAction(actionType, context, topic, feedback) {
+        const vaultRule = await this.getVaultRuleContent();
+        let matchedPatterns = [];
+        if (this.plugin.patternService) {
+          const allPatterns = await this.plugin.patternService.loadAllPatterns();
+          const topicTags = this.plugin.patternService.extractTagsFromText(topic);
+          matchedPatterns = this.plugin.patternService.findMatchingPatterns(topicTags, allPatterns);
+        }
+        const prompt = buildQuickActionPrompt(
+          actionType,
+          context,
+          topic,
+          feedback,
+          this.plugin.settings.customTaskRules,
+          vaultRule,
+          matchedPatterns
+        );
+        try {
+          const output = await this.runCLI(prompt);
+          const parsed = this.extractJSONObject(output);
+          if (parsed && parsed.bottleneck) {
+            const proposedStrategies = (parsed.proposedStrategies || []).map((ps) => ({
+              title: String(ps.title || "\u4E3B\u8981\u4F5C\u6226"),
+              description: ps.description ? String(ps.description) : void 0,
+              appetiteHours: ps.appetiteHours !== void 0 && ps.appetiteHours !== null ? Number(ps.appetiteHours) : ps.appetite_hours !== void 0 ? Number(ps.appetite_hours) : 20,
+              timeframe: ps.timeframe ? String(ps.timeframe) : "\u4ECA\u6708"
+            }));
+            let phase1Actions = [];
+            if (Array.isArray(parsed.phase1Actions) && parsed.phase1Actions.length > 0) {
+              phase1Actions = parsed.phase1Actions.map((item, idx) => ({
+                title: String(item.title || "Phase 1 \u30BF\u30B9\u30AF"),
+                sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : idx + 1,
+                estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 30,
+                dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : [],
+                rationale: item.rationale ? String(item.rationale) : void 0
+              }));
+            }
+            return {
+              bottleneck: parsed.bottleneck || "\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF/\u518D\u8A55\u4FA1\u5206\u6790",
+              dependency: parsed.dependency || "\u4F9D\u5B58\u95A2\u4FC2\u306E\u6700\u9069\u5316",
+              policy: parsed.policy || "\u518D\u7DE8\u6210\u30A2\u30D7\u30ED\u30FC\u30C1\u306E\u9069\u7528",
+              proposedStrategies: proposedStrategies.length > 0 ? proposedStrategies : [{ title: `${topic}\u306E\u518D\u8A55\u4FA1\u65B9\u91DD`, appetiteHours: 20, timeframe: "\u4ECA\u6708" }],
+              phase1Tasks: phase1Actions.map((a) => a.title),
+              phase1Actions
+            };
+          }
+        } catch (err) {
+          console.warn("[TaskManager AI] executeQuickAction CLI failed, using fallback:", err);
+        }
+        return {
+          bottleneck: `\u300C${topic}\u300D\u306E\u58C1\u6253\u3061\u5206\u6790 (${actionType})`,
+          dependency: "\u4F9D\u5B58\u95A2\u4FC2\u306E\u8ABF\u6574\u30FB\u7740\u624B\u9806\u5E8F\u306E\u518D\u69CB\u7BC9",
+          policy: "\u7740\u624B\u53EF\u80FD\u306A\u30BF\u30B9\u30AF\u3092 sequenceOrder: 1 \u306B\u524D\u5012\u3057\u914D\u7F6E",
+          proposedStrategies: [{ title: `${topic}\u306E\u518D\u7DE8\u6210\u65B9\u91DD`, appetiteHours: 20, timeframe: "\u4ECA\u6708" }],
+          phase1Tasks: [`\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u518D\u8A55\u4FA1\u8A08\u753B\u3092\u30E1\u30E2\u3059\u308B`],
+          phase1Actions: [{ title: `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u518D\u8A55\u4FA1\u8A08\u753B\u3092\u30E1\u30E2\u3059\u308B`, sequenceOrder: 1, estimatedMinutes: 15, dependsOn: [] }]
+        };
+      }
+      /**
        * Formulate strategy (bottleneck analysis) and Phase 1 tasks for a topic or user feedback
        */
       async generateStrategy(topic, feedback, existingStrategy) {
@@ -1233,31 +1417,33 @@ var init_AIService = __esm({
         var _a, _b, _c;
         const taskService = this.plugin.taskService;
         const actionFiles = [];
+        const allNodes = taskService.getAllTaskNodes();
         for (let i = 0; i < actions.length; i++) {
           const item = actions[i];
-          if (typeof item === "string") {
-            const actionFile = await taskService.createTaskNode(
-              item,
-              "action",
-              "todo",
-              {
-                parentId,
-                sequenceOrder: i + 1,
-                estimatedMinutes: 30,
-                dependsOn: []
-              }
-            );
-            actionFiles.push(actionFile);
+          const title = typeof item === "string" ? item : item.title;
+          const seqOrder = typeof item === "string" ? i + 1 : (_a = item.sequenceOrder) != null ? _a : i + 1;
+          const estMin = typeof item === "string" ? 30 : (_b = item.estimatedMinutes) != null ? _b : 30;
+          const dep = typeof item === "string" ? [] : (_c = item.dependsOn) != null ? _c : [];
+          const existingNode = allNodes.find(
+            (n) => n.parentId === parentId && n.title.trim().toLowerCase() === title.trim().toLowerCase()
+          );
+          if (existingNode) {
+            await taskService.updateNodeMetadata(existingNode.file, {
+              sequenceOrder: seqOrder,
+              estimatedMinutes: estMin,
+              dependsOn: dep
+            });
+            actionFiles.push(existingNode.file);
           } else {
             const actionFile = await taskService.createTaskNode(
-              item.title,
+              title,
               "action",
               "todo",
               {
                 parentId,
-                sequenceOrder: (_a = item.sequenceOrder) != null ? _a : i + 1,
-                estimatedMinutes: (_b = item.estimatedMinutes) != null ? _b : 30,
-                dependsOn: (_c = item.dependsOn) != null ? _c : []
+                sequenceOrder: seqOrder,
+                estimatedMinutes: estMin,
+                dependsOn: dep
               }
             );
             actionFiles.push(actionFile);
@@ -1552,6 +1738,7 @@ var init_AICopilotModal = __esm({
         inputEl.addEventListener("input", (e) => {
           this.topic = e.target.value;
         });
+        this.renderQuickActionButtons(container);
         const actionBtnBar = container.createDiv({ cls: "jira-modal-action-bar" });
         const submitBtnText = isStrategyNode ? "\u7269\u7406\u884C\u52D5\u3092\u5C55\u958B \u{1F680}" : "\u4F5C\u6226\u3092\u7ACB\u3066\u308B \u{1F680}";
         const submitBtn = actionBtnBar.createEl("button", {
@@ -1684,6 +1871,7 @@ var init_AICopilotModal = __esm({
           });
           this.renderModal();
         });
+        this.renderQuickActionButtons(container);
         const feedbackBox = container.createDiv({ cls: "jira-modal-feedback-box" });
         feedbackBox.createEl("label", {
           text: "\u{1F4AC} \u4F5C\u6226\u30FB\u30BF\u30B9\u30AF\u306E\u4FEE\u6B63\u30D5\u30A3\u30FC\u30C9\u30D0\u30C3\u30AF:",
@@ -1778,6 +1966,80 @@ var init_AICopilotModal = __esm({
         } catch (e) {
           console.error("[TaskManager AI] Strategy generation error:", e);
           new import_obsidian5.Notice("\u274C \u4F5C\u6226\u306E\u7B56\u5B9A\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002");
+          this.currentState = "STATE_INPUT";
+        } finally {
+          this.renderModal();
+        }
+      }
+      /**
+       * Phase 9: Quick Action Buttons (Appetite再評価, クリティカルパス抽出, Re-sequencing)
+       */
+      renderQuickActionButtons(container) {
+        const quickBar = container.createDiv({ cls: "jira-modal-quick-actions-bar" });
+        quickBar.createEl("span", { cls: "jira-quick-actions-label", text: "\u26A1 AI\u58C1\u6253\u3061\u30B7\u30E7\u30FC\u30C8\u30AB\u30C3\u30C8:" });
+        const appetiteBtn = quickBar.createEl("button", {
+          cls: "jira-quick-action-btn btn-appetite",
+          text: "\u23F1\uFE0F Appetite\u518D\u8A55\u4FA1"
+        });
+        appetiteBtn.title = "\u6642\u9593\u4E88\u7B97 (appetiteHours) \u3068 Action \u898B\u7A4D\u3082\u308A\u306E\u6574\u5408\u6027\u3092\u518D\u8A55\u4FA1\u3057\u307E\u3059";
+        appetiteBtn.addEventListener("click", () => this.handleQuickAction("appetite"));
+        const critBtn = quickBar.createEl("button", {
+          cls: "jira-quick-action-btn btn-critical",
+          text: "\u{1F3AF} \u30AF\u30EA\u30C6\u30A3\u30AB\u30EB\u30D1\u30B9\u62BD\u51FA"
+        });
+        critBtn.title = "\u30B4\u30FC\u30EB\u9054\u6210\u306B\u5411\u3051\u305F\u6700\u512A\u5148\u4F9D\u5B58\u30C1\u30A7\u30FC\u30F3\u3092\u62BD\u51FA\u3057\u3066 sequenceOrder \u3092\u518D\u914D\u7F6E\u3057\u307E\u3059";
+        critBtn.addEventListener("click", () => this.handleQuickAction("critical_path"));
+        const reseqBtn = quickBar.createEl("button", {
+          cls: "jira-quick-action-btn btn-resequence",
+          text: "\u{1F500} \u30BF\u30B9\u30AF\u518D\u7DE8\u6210 (Re-sequence)"
+        });
+        reseqBtn.title = "\u30D6\u30ED\u30C3\u30AF\u72B6\u614B\u306E\u56DE\u907F\u3068\u4ECA\u3059\u3050\u7740\u624B\u53EF\u80FD\u306A\u4EE3\u66FF\u30BF\u30B9\u30AF\u306E\u524D\u5012\u3057\u63D0\u6848\u3092\u884C\u3044\u307E\u3059";
+        reseqBtn.addEventListener("click", () => this.handleQuickAction("resequence"));
+      }
+      handleQuickAction(actionType) {
+        if (!this.topic) {
+          if (this.targetNode) {
+            this.topic = this.targetNode.title;
+          } else {
+            new import_obsidian5.Notice("\u26A0\uFE0F \u304A\u984C\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002");
+            return;
+          }
+        }
+        this.currentState = "STATE_GENERATING";
+        this.renderModal();
+        this.executeQuickActionFlow(actionType);
+      }
+      async executeQuickActionFlow(actionType) {
+        var _a, _b, _c, _d, _e, _f;
+        try {
+          const payloadToUse = this.contextPayload || {
+            selectedNode: {
+              id: ((_a = this.targetNode) == null ? void 0 : _a.id) || "ROOT",
+              title: this.topic || ((_b = this.targetNode) == null ? void 0 : _b.title) || "\u65B0\u898F\u30C6\u30FC\u30DE",
+              nodeType: ((_c = this.targetNode) == null ? void 0 : _c.nodeType) || "goal",
+              status: ((_d = this.targetNode) == null ? void 0 : _d.status) || "todo",
+              file: (_e = this.targetNode) == null ? void 0 : _e.file,
+              filePath: ((_f = this.targetNode) == null ? void 0 : _f.filePath) || ""
+            },
+            ancestors: [],
+            children: [],
+            siblingStrategies: []
+          };
+          const result = await this.aiService.executeQuickAction(
+            actionType,
+            payloadToUse,
+            this.topic,
+            this.feedback || void 0
+          );
+          this.strategyResult = result;
+          if (result.phase1Actions && result.phase1Actions.length > 0) {
+            this.editableTasks = result.phase1Actions.map((a) => ({ text: a.title, enabled: true, actionItem: a }));
+          }
+          this.feedback = "";
+          this.currentState = "STATE_PREVIEW";
+        } catch (e) {
+          console.error("[TaskManager AI] QuickAction error:", e);
+          new import_obsidian5.Notice("\u274C \u58C1\u6253\u3061\u30A2\u30AF\u30B7\u30E7\u30F3\u306E\u5B9F\u884C\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002");
           this.currentState = "STATE_INPUT";
         } finally {
           this.renderModal();

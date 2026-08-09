@@ -1038,4 +1038,75 @@
 	margin-bottom: 8px;
 }
 
+/* Phase 9 Quick Action Shortcuts Styling */
+.jira-modal-quick-actions-bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	margin-bottom: 14px;
+}
+
+.jira-quick-actions-label {
+	font-size: 0.75rem;
+	font-weight: 700;
+	color: var(--text-muted);
+	margin-right: 4px;
+}
+
+.jira-quick-action-btn {
+	padding: 4px 10px;
+	border-radius: 12px;
+	font-size: 0.75rem;
+	font-weight: 600;
+	cursor: pointer;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	transition: all 0.2s ease;
+}
+
+.jira-quick-action-btn:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.jira-quick-action-btn.btn-appetite {
+	background: rgba(14, 165, 233, 0.1);
+	color: #0ea5e9;
+	border-color: rgba(14, 165, 233, 0.3);
+}
+
+.jira-quick-action-btn.btn-appetite:hover {
+	background: #0ea5e9;
+	color: #ffffff;
+}
+
+.jira-quick-action-btn.btn-critical {
+	background: rgba(236, 72, 153, 0.1);
+	color: #ec4899;
+	border-color: rgba(236, 72, 153, 0.3);
+}
+
+.jira-quick-action-btn.btn-critical:hover {
+	background: #ec4899;
+	color: #ffffff;
+}
+
+.jira-quick-action-btn.btn-resequence {
+	background: rgba(245, 158, 11, 0.1);
+	color: #f59e0b;
+	border-color: rgba(245, 158, 11, 0.3);
+}
+
+.jira-quick-action-btn.btn-resequence:hover {
+	background: #f59e0b;
+	color: #ffffff;
+}
+
+
 

@@ -12,7 +12,10 @@ import {
 	buildTaskRefinePrompt,
 	buildTaskReschedulePrompt,
 	buildStrategyPrompt,
+	buildQuickActionPrompt,
+	QuickActionType,
 } from "../prompts";
+
 
 const execAsync = promisify(exec);
 
@@ -397,6 +400,82 @@ export class AIService {
 	}
 
 	/**
+	 * Phase 9: Quick Action Wall-bashing (Appetite Re-eval, Critical Path, Re-sequencing)
+	 */
+	async executeQuickAction(
+		actionType: QuickActionType,
+		context: AIContextPayload,
+		topic: string,
+		feedback?: string
+	): Promise<StrategyResult> {
+		const vaultRule = await this.getVaultRuleContent();
+
+		let matchedPatterns: any[] = [];
+		if (this.plugin.patternService) {
+			const allPatterns = await this.plugin.patternService.loadAllPatterns();
+			const topicTags = this.plugin.patternService.extractTagsFromText(topic);
+			matchedPatterns = this.plugin.patternService.findMatchingPatterns(topicTags, allPatterns);
+		}
+
+		const prompt = buildQuickActionPrompt(
+			actionType,
+			context,
+			topic,
+			feedback,
+			this.plugin.settings.customTaskRules,
+			vaultRule,
+			matchedPatterns
+		);
+
+		try {
+			const output = await this.runCLI(prompt);
+			const parsed = this.extractJSONObject<any>(output);
+			if (parsed && parsed.bottleneck) {
+				const proposedStrategies = (parsed.proposedStrategies || []).map((ps: any) => ({
+					title: String(ps.title || "主要作戦"),
+					description: ps.description ? String(ps.description) : undefined,
+					appetiteHours: ps.appetiteHours !== undefined && ps.appetiteHours !== null
+						? Number(ps.appetiteHours)
+						: (ps.appetite_hours !== undefined ? Number(ps.appetite_hours) : 20),
+					timeframe: ps.timeframe ? String(ps.timeframe) : "今月",
+				}));
+
+				let phase1Actions: ActionItem[] = [];
+				if (Array.isArray(parsed.phase1Actions) && parsed.phase1Actions.length > 0) {
+					phase1Actions = parsed.phase1Actions.map((item: any, idx: number) => ({
+						title: String(item.title || "Phase 1 タスク"),
+						sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : idx + 1,
+						estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 30,
+						dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : [],
+						rationale: item.rationale ? String(item.rationale) : undefined,
+					}));
+				}
+
+				return {
+					bottleneck: parsed.bottleneck || "ボトルネック/再評価分析",
+					dependency: parsed.dependency || "依存関係の最適化",
+					policy: parsed.policy || "再編成アプローチの適用",
+					proposedStrategies: proposedStrategies.length > 0 ? proposedStrategies : [{ title: `${topic}の再評価方針`, appetiteHours: 20, timeframe: "今月" }],
+					phase1Tasks: phase1Actions.map((a) => a.title),
+					phase1Actions: phase1Actions,
+				};
+			}
+		} catch (err) {
+			console.warn("[TaskManager AI] executeQuickAction CLI failed, using fallback:", err);
+		}
+
+		return {
+			bottleneck: `「${topic}」の壁打ち分析 (${actionType})`,
+			dependency: "依存関係の調整・着手順序の再構築",
+			policy: "着手可能なタスクを sequenceOrder: 1 に前倒し配置",
+			proposedStrategies: [{ title: `${topic}の再編成方針`, appetiteHours: 20, timeframe: "今月" }],
+			phase1Tasks: [`ノートを開き「${topic}」の再評価計画をメモする`],
+			phase1Actions: [{ title: `ノートを開き「${topic}」の再評価計画をメモする`, sequenceOrder: 1, estimatedMinutes: 15, dependsOn: [] }],
+		};
+	}
+
+
+	/**
 	 * Formulate strategy (bottleneck analysis) and Phase 1 tasks for a topic or user feedback
 	 */
 	async generateStrategy(
@@ -535,32 +614,36 @@ export class AIService {
 	): Promise<TFile[]> {
 		const taskService = this.plugin.taskService;
 		const actionFiles: TFile[] = [];
+		const allNodes = taskService.getAllTaskNodes();
 
 		for (let i = 0; i < actions.length; i++) {
 			const item = actions[i];
-			if (typeof item === "string") {
-				const actionFile = await taskService.createTaskNode(
-					item,
-					"action",
-					"todo",
-					{
-						parentId,
-						sequenceOrder: i + 1,
-						estimatedMinutes: 30,
-						dependsOn: [],
-					}
-				);
-				actionFiles.push(actionFile);
+			const title = typeof item === "string" ? item : item.title;
+			const seqOrder = typeof item === "string" ? (i + 1) : (item.sequenceOrder ?? (i + 1));
+			const estMin = typeof item === "string" ? 30 : (item.estimatedMinutes ?? 30);
+			const dep = typeof item === "string" ? [] : (item.dependsOn ?? []);
+
+			const existingNode = allNodes.find(
+				(n) => n.parentId === parentId && n.title.trim().toLowerCase() === title.trim().toLowerCase()
+			);
+
+			if (existingNode) {
+				await taskService.updateNodeMetadata(existingNode.file, {
+					sequenceOrder: seqOrder,
+					estimatedMinutes: estMin,
+					dependsOn: dep,
+				});
+				actionFiles.push(existingNode.file);
 			} else {
 				const actionFile = await taskService.createTaskNode(
-					item.title,
+					title,
 					"action",
 					"todo",
 					{
 						parentId,
-						sequenceOrder: item.sequenceOrder ?? (i + 1),
-						estimatedMinutes: item.estimatedMinutes ?? 30,
-						dependsOn: item.dependsOn ?? [],
+						sequenceOrder: seqOrder,
+						estimatedMinutes: estMin,
+						dependsOn: dep,
 					}
 				);
 				actionFiles.push(actionFile);
@@ -573,6 +656,7 @@ export class AIService {
 
 		return actionFiles;
 	}
+
 
 	private extractActionItems(text: string): ActionItem[] | null {
 		try {

@@ -3,6 +3,8 @@ import { TaskItem, TaskNode, ModalState, StrategyResult, AIContextPayload, Actio
 import { AIService } from "../services/AIService";
 import { TaskService } from "../services/TaskService";
 import { UndoService } from "../services/UndoService";
+import { QuickActionType } from "../prompts";
+
 
 export interface EditableTaskItem {
 	text: string;
@@ -115,7 +117,12 @@ export class AICopilotModal extends Modal {
 			this.topic = (e.target as HTMLInputElement).value;
 		});
 
+		// Quick Action Shortcuts Bar
+		this.renderQuickActionButtons(container);
+
+
 		const actionBtnBar = container.createDiv({ cls: "jira-modal-action-bar" });
+
 		
 		const submitBtnText = isStrategyNode ? "物理行動を展開 🚀" : "作戦を立てる 🚀";
 		const submitBtn = actionBtnBar.createEl("button", {
@@ -270,8 +277,13 @@ export class AICopilotModal extends Modal {
 			this.renderModal();
 		});
 
+		// Quick Action Shortcuts Bar in Preview
+		this.renderQuickActionButtons(container);
+
+
 		// ③ フィードバック入力欄
 		const feedbackBox = container.createDiv({ cls: "jira-modal-feedback-box" });
+
 		feedbackBox.createEl("label", {
 			text: "💬 作戦・タスクの修正フィードバック:",
 			cls: "jira-feedback-label",
@@ -383,9 +395,93 @@ export class AICopilotModal extends Modal {
 	}
 
 	/**
+	 * Phase 9: Quick Action Buttons (Appetite再評価, クリティカルパス抽出, Re-sequencing)
+	 */
+	private renderQuickActionButtons(container: HTMLElement): void {
+		const quickBar = container.createDiv({ cls: "jira-modal-quick-actions-bar" });
+		quickBar.createEl("span", { cls: "jira-quick-actions-label", text: "⚡ AI壁打ちショートカット:" });
+
+		const appetiteBtn = quickBar.createEl("button", {
+			cls: "jira-quick-action-btn btn-appetite",
+			text: "⏱️ Appetite再評価",
+		});
+		appetiteBtn.title = "時間予算 (appetiteHours) と Action 見積もりの整合性を再評価します";
+		appetiteBtn.addEventListener("click", () => this.handleQuickAction("appetite"));
+
+		const critBtn = quickBar.createEl("button", {
+			cls: "jira-quick-action-btn btn-critical",
+			text: "🎯 クリティカルパス抽出",
+		});
+		critBtn.title = "ゴール達成に向けた最優先依存チェーンを抽出して sequenceOrder を再配置します";
+		critBtn.addEventListener("click", () => this.handleQuickAction("critical_path"));
+
+		const reseqBtn = quickBar.createEl("button", {
+			cls: "jira-quick-action-btn btn-resequence",
+			text: "🔀 タスク再編成 (Re-sequence)",
+		});
+		reseqBtn.title = "ブロック状態の回避と今すぐ着手可能な代替タスクの前倒し提案を行います";
+		reseqBtn.addEventListener("click", () => this.handleQuickAction("resequence"));
+	}
+
+	private handleQuickAction(actionType: QuickActionType): void {
+		if (!this.topic) {
+			if (this.targetNode) {
+				this.topic = this.targetNode.title;
+			} else {
+				new Notice("⚠️ お題を入力してください。");
+				return;
+			}
+		}
+
+		this.currentState = "STATE_GENERATING";
+		this.renderModal();
+
+		this.executeQuickActionFlow(actionType);
+	}
+
+	private async executeQuickActionFlow(actionType: QuickActionType): Promise<void> {
+		try {
+			const payloadToUse: AIContextPayload = this.contextPayload || {
+				selectedNode: {
+					id: this.targetNode?.id || "ROOT",
+					title: this.topic || this.targetNode?.title || "新規テーマ",
+					nodeType: this.targetNode?.nodeType || "goal",
+					status: this.targetNode?.status || "todo",
+					file: this.targetNode?.file as any,
+					filePath: this.targetNode?.filePath || "",
+				},
+				ancestors: [],
+				children: [],
+				siblingStrategies: [],
+			};
+
+			const result = await this.aiService.executeQuickAction(
+				actionType,
+				payloadToUse,
+				this.topic,
+				this.feedback || undefined
+			);
+			this.strategyResult = result;
+			if (result.phase1Actions && result.phase1Actions.length > 0) {
+				this.editableTasks = result.phase1Actions.map((a) => ({ text: a.title, enabled: true, actionItem: a }));
+			}
+			this.feedback = "";
+			this.currentState = "STATE_PREVIEW";
+		} catch (e) {
+			console.error("[TaskManager AI] QuickAction error:", e);
+			new Notice("❌ 壁打ちアクションの実行に失敗しました。");
+			this.currentState = "STATE_INPUT";
+		} finally {
+			this.renderModal();
+		}
+	}
+
+
+	/**
 	 * 承認された最終編集結果を TaskNode として生成・追加
 	 */
 	private async commitStrategy(): Promise<void> {
+
 		const selectedItems = this.editableTasks.filter((t) => t.enabled && t.text.trim().length > 0);
 
 		if (selectedItems.length === 0) {
