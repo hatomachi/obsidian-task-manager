@@ -43,6 +43,7 @@ export interface StrategyResult {
 
 export interface TaskManagerSettings {
 	taskFolder: string;
+	workFolderPath: string;
 	idPrefix: string;
 	defaultStatus: TaskStatus;
 	defaultPriority: TaskPriority;
@@ -54,6 +55,7 @@ export interface TaskManagerSettings {
 
 export const DEFAULT_SETTINGS: TaskManagerSettings = {
 	taskFolder: "tasks",
+	workFolderPath: "_task_works",
 	idPrefix: "TASK-",
 	defaultStatus: "todo",
 	defaultPriority: "medium",

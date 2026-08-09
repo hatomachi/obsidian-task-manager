@@ -1,5 +1,5 @@
 import { App, TFile, normalizePath, MarkdownView, Notice } from "obsidian";
-import { TaskItem, TaskPriority, TaskStatus, TaskType, StrategyResult } from "../types";
+import { TaskItem, TaskPattern, TaskPriority, TaskStatus, TaskType, StrategyResult } from "../types";
 import TaskManagerPlugin from "../main";
 
 export interface TaskTreeNode {
@@ -223,13 +223,14 @@ export class TaskService {
 
 	/**
 	 * Save strategy memo and Phase 1 tasks.
-	 * Priority: targetFile (開き元ノート) > active editor > existing task with matching title > create new.
+	 * Priority: targetFile (開き元ノート) > active editor > existing task with matching title > create new work folder.
 	 */
 	async saveStrategyToNote(
 		topic: string,
 		strategy: StrategyResult,
 		selectedTasks: string[],
-		targetFile?: TFile
+		targetFile?: TFile,
+		pattern?: TaskPattern
 	): Promise<boolean> {
 		const taskLines = selectedTasks.map((t) => `- [ ] ${t}`).join("\n");
 		const contentToInsert = [
@@ -272,11 +273,20 @@ export class TaskService {
 				`✨ 既存ノート「${existingTask.title}」に作戦とPhase 1タスクを追記しました！`);
 		}
 
-		// Case 5: どれにも該当しない → 新規ノート作成
-		const todayStr = new Date().toISOString().split("T")[0];
-		const newFile = await this.createTask(topic, "todo", "medium", { scheduled: todayStr });
-		return this.appendContentToFile(newFile, contentToInsert,
-			`✨ 「${topic}」の新規タスクノートを作成し、作戦とPhase 1タスクを記録しました！`);
+		// Case 5: 1タスク1ワークフォルダ自動生成 ＆ テンプレート展開エンジン (Phase 2)
+		const workFolderRes = await this.plugin.workFolderService.createWorkFolder(topic, pattern);
+		await this.plugin.workFolderService.appendStrategyAndTasks(
+			workFolderRes.indexFile,
+			strategy,
+			selectedTasks
+		);
+		await this.openTaskNote(workFolderRes.indexFile);
+
+		const tmplMsg = workFolderRes.createdTemplates.length > 0
+			? `（成果物テンプレート ${workFolderRes.createdTemplates.length} 件を展開）`
+			: "";
+		new Notice(`✨ 「${topic}」のワークフォルダを作成し、作戦とPhase 1タスクを記録しました！${tmplMsg}`);
+		return true;
 	}
 
 	/**

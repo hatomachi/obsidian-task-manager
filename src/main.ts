@@ -3,14 +3,17 @@ import { DEFAULT_SETTINGS, TaskManagerSettings } from "./types";
 import { TaskManagerSettingTab } from "./settings";
 import { TaskManagerView, VIEW_TYPE_TASK_MANAGER } from "./views/TaskManagerView";
 import { PatternService } from "./services/PatternService";
+import { WorkFolderService } from "./services/WorkFolderService";
 
 export default class TaskManagerPlugin extends Plugin {
 	settings: TaskManagerSettings;
 	patternService: PatternService;
+	workFolderService: WorkFolderService;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
 		this.patternService = new PatternService(this);
+		this.workFolderService = new WorkFolderService(this.app, this);
 
 		// Register Main Panel ItemView
 		this.registerView(

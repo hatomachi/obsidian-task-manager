@@ -233,9 +233,9 @@ var init_TaskService = __esm({
       }
       /**
        * Save strategy memo and Phase 1 tasks.
-       * Priority: targetFile (開き元ノート) > active editor > existing task with matching title > create new.
+       * Priority: targetFile (開き元ノート) > active editor > existing task with matching title > create new work folder.
        */
-      async saveStrategyToNote(topic, strategy, selectedTasks, targetFile) {
+      async saveStrategyToNote(topic, strategy, selectedTasks, targetFile, pattern) {
         const taskLines = selectedTasks.map((t) => `- [ ] ${t}`).join("\n");
         const contentToInsert = [
           "",
@@ -271,13 +271,16 @@ var init_TaskService = __esm({
             `\u2728 \u65E2\u5B58\u30CE\u30FC\u30C8\u300C${existingTask.title}\u300D\u306B\u4F5C\u6226\u3068Phase 1\u30BF\u30B9\u30AF\u3092\u8FFD\u8A18\u3057\u307E\u3057\u305F\uFF01`
           );
         }
-        const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-        const newFile = await this.createTask(topic, "todo", "medium", { scheduled: todayStr });
-        return this.appendContentToFile(
-          newFile,
-          contentToInsert,
-          `\u2728 \u300C${topic}\u300D\u306E\u65B0\u898F\u30BF\u30B9\u30AF\u30CE\u30FC\u30C8\u3092\u4F5C\u6210\u3057\u3001\u4F5C\u6226\u3068Phase 1\u30BF\u30B9\u30AF\u3092\u8A18\u9332\u3057\u307E\u3057\u305F\uFF01`
+        const workFolderRes = await this.plugin.workFolderService.createWorkFolder(topic, pattern);
+        await this.plugin.workFolderService.appendStrategyAndTasks(
+          workFolderRes.indexFile,
+          strategy,
+          selectedTasks
         );
+        await this.openTaskNote(workFolderRes.indexFile);
+        const tmplMsg = workFolderRes.createdTemplates.length > 0 ? `\uFF08\u6210\u679C\u7269\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8 ${workFolderRes.createdTemplates.length} \u4EF6\u3092\u5C55\u958B\uFF09` : "";
+        new import_obsidian2.Notice(`\u2728 \u300C${topic}\u300D\u306E\u30EF\u30FC\u30AF\u30D5\u30A9\u30EB\u30C0\u3092\u4F5C\u6210\u3057\u3001\u4F5C\u6226\u3068Phase 1\u30BF\u30B9\u30AF\u3092\u8A18\u9332\u3057\u307E\u3057\u305F\uFF01${tmplMsg}`);
+        return true;
       }
       /**
        * ファイル末尾にコンテンツを追記してノートを開く
@@ -1282,7 +1285,7 @@ var init_AICopilotModal = __esm({
        * 承認された最終編集結果をノートへ書き込み
        */
       async commitStrategy() {
-        var _a;
+        var _a, _b, _c;
         if (!this.strategyResult)
           return;
         const selectedTasks = this.editableTasks.filter((t) => t.enabled && t.text.trim().length > 0).map((t) => t.text.trim());
@@ -1290,18 +1293,32 @@ var init_AICopilotModal = __esm({
           new import_obsidian5.Notice("\u26A0\uFE0F \u9078\u629E\u3055\u308C\u305FPhase 1\u30BF\u30B9\u30AF\u304C\u3042\u308A\u307E\u305B\u3093\u30021\u3064\u4EE5\u4E0A\u30C1\u30A7\u30C3\u30AF\u3092\u5165\u308C\u3066\u304F\u3060\u3055\u3044\u3002");
           return;
         }
-        const success = await this.taskService.saveStrategyToNote(
-          this.topic,
-          this.strategyResult,
-          selectedTasks,
-          (_a = this.task) == null ? void 0 : _a.file
-        );
-        if (success) {
-          this.currentState = "STATE_COMMITTED";
-          this.renderModal();
-          if (this.onApplied) {
-            this.onApplied();
+        try {
+          const patternService = (_b = (_a = this.taskService) == null ? void 0 : _a.plugin) == null ? void 0 : _b.patternService;
+          let pattern = void 0;
+          if (patternService) {
+            const allPatterns = await patternService.loadAllPatterns();
+            const topicTags = patternService.extractTagsFromText(this.topic);
+            const matched = patternService.findMatchingPatterns(topicTags, allPatterns);
+            pattern = matched.length > 0 ? matched[0] : void 0;
           }
+          const success = await this.taskService.saveStrategyToNote(
+            this.topic,
+            this.strategyResult,
+            selectedTasks,
+            (_c = this.task) == null ? void 0 : _c.file,
+            pattern
+          );
+          if (success) {
+            this.currentState = "STATE_COMMITTED";
+            this.renderModal();
+            if (this.onApplied) {
+              this.onApplied();
+            }
+          }
+        } catch (e) {
+          console.error("[TaskManager] commitStrategy error:", e);
+          new import_obsidian5.Notice("\u274C \u66F8\u304D\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002\u30B3\u30F3\u30BD\u30FC\u30EB\u3067\u30A8\u30E9\u30FC\u3092\u78BA\u8A8D\u3057\u3066\u304F\u3060\u3055\u3044\u3002");
         }
       }
     };
@@ -1314,11 +1331,12 @@ __export(main_exports, {
   default: () => TaskManagerPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian8 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 
 // src/types.ts
 var DEFAULT_SETTINGS = {
   taskFolder: "tasks",
+  workFolderPath: "_task_works",
   idPrefix: "TASK-",
   defaultStatus: "todo",
   defaultPriority: "medium",
@@ -1342,6 +1360,12 @@ var TaskManagerSettingTab = class extends import_obsidian.PluginSettingTab {
     new import_obsidian.Setting(containerEl).setName("Task Folder").setDesc("Folder path where 1-task-1-note files are stored (e.g. 'tasks').").addText(
       (text) => text.setPlaceholder("tasks").setValue(this.plugin.settings.taskFolder).onChange(async (value) => {
         this.plugin.settings.taskFolder = value.trim();
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian.Setting(containerEl).setName("Work Folder Path").setDesc("Directory where task work folders (_task_works/<task-id>/) are stored.").addText(
+      (text) => text.setPlaceholder("_task_works").setValue(this.plugin.settings.workFolderPath || "_task_works").onChange(async (value) => {
+        this.plugin.settings.workFolderPath = value.trim() || "_task_works";
         await this.plugin.saveSettings();
       })
     );
@@ -2015,11 +2039,121 @@ var PatternService = class {
   }
 };
 
+// src/services/WorkFolderService.ts
+var import_obsidian8 = require("obsidian");
+var WorkFolderService = class {
+  constructor(app, plugin) {
+    this.app = app;
+    this.plugin = plugin;
+  }
+  /**
+   * Generate collision-free ASCII folder ID: Timestamp + Jitter
+   * Example: 20260810153012-a8f3
+   */
+  generateFolderId() {
+    const now = /* @__PURE__ */ new Date();
+    const timestamp = now.toISOString().replace(/[-T:]/g, "").slice(0, 14);
+    const jitter = Math.random().toString(36).substring(2, 6).toLowerCase();
+    return `${timestamp}-${jitter}`;
+  }
+  /**
+   * Create a new task work folder (_task_works/<folder-id>/) with index.md and expanded templates
+   */
+  async createWorkFolder(taskTitle, pattern, parentLink) {
+    const rootWorkFolder = (0, import_obsidian8.normalizePath)(this.plugin.settings.workFolderPath || "_task_works");
+    if (rootWorkFolder && rootWorkFolder !== "." && rootWorkFolder !== "/") {
+      const rootFolder = this.app.vault.getAbstractFileByPath(rootWorkFolder);
+      if (!rootFolder) {
+        await this.app.vault.createFolder(rootWorkFolder);
+      }
+    }
+    const folderId = this.generateFolderId();
+    const folderPath = `${rootWorkFolder}/${folderId}`;
+    await this.app.vault.createFolder(folderPath);
+    const createdTemplates = [];
+    const artifactWikiLinks = [];
+    if (pattern && pattern.templates && Object.keys(pattern.templates).length > 0) {
+      for (const [tmplName, tmplContent] of Object.entries(pattern.templates)) {
+        let fileName = tmplName.endsWith(".md") ? tmplName : `${tmplName}.md`;
+        const tmplFilePath = `${folderPath}/${fileName}`;
+        const templateFile = await this.app.vault.create(tmplFilePath, tmplContent);
+        createdTemplates.push(templateFile);
+        const linkText = fileName.replace(/\.md$/, "");
+        artifactWikiLinks.push(`- [[${folderPath}/${fileName}|${linkText}]]`);
+      }
+    }
+    const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+    const escapedTitle = taskTitle.replace(/"/g, '\\"');
+    const cassetteName = pattern ? pattern.name : "\u6307\u5B9A\u306A\u3057";
+    const cassetteId = pattern ? pattern.id : "none";
+    const parentTaskVal = parentLink ? `"${parentLink}"` : '""';
+    const artifactSectionContent = artifactWikiLinks.length > 0 ? artifactWikiLinks.join("\n") : "(\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8\u6210\u679C\u7269\u306A\u3057)";
+    const indexContentLines = [
+      "---",
+      `task_id: ${folderId}`,
+      `title: "${escapedTitle}"`,
+      "status: in_progress",
+      `created_at: ${nowIso}`,
+      `cassette: ${cassetteId}`,
+      `parent_task: ${parentTaskVal}`,
+      "---",
+      "",
+      `# ${taskTitle}`,
+      "",
+      "## \u{1F916} \u9069\u7528\u4E2D\u306E\u696D\u52D9\u30EB\u30FC\u30EB\uFF08\u30AB\u30BB\u30C3\u30C8\uFF09",
+      `> ${cassetteName}`,
+      "",
+      "## \u{1F4CB} \u30B5\u30D6\u30BF\u30B9\u30AF",
+      "",
+      "## \u{1F4C1} \u95A2\u9023\u6210\u679C\u7269 (Artifacts)",
+      artifactSectionContent,
+      ""
+    ];
+    const indexFilePath = `${folderPath}/index.md`;
+    const indexFile = await this.app.vault.create(indexFilePath, indexContentLines.join("\n"));
+    return {
+      folderId,
+      folderPath,
+      indexFile,
+      createdTemplates
+    };
+  }
+  /**
+   * Append/inject AI Strategy Result and Phase 1 Subtasks into work folder index.md
+   */
+  async appendStrategyAndTasks(indexFile, strategy, selectedTasks) {
+    const existingContent = await this.app.vault.read(indexFile);
+    const taskLines = selectedTasks.map((t) => `- [ ] ${t}`).join("\n");
+    const strategyCallout = [
+      "> [!strategy] AI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u306E\u4F5C\u6226\u30E1\u30E2",
+      `> - **\u6700\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF**: ${strategy.bottleneck}`,
+      `> - **\u4F9D\u5B58\u95A2\u4FC2**: ${strategy.dependency}`,
+      `> - **\u57FA\u672C\u65B9\u91DD**: ${strategy.policy}`
+    ].join("\n");
+    let updatedContent = existingContent;
+    if (updatedContent.includes("## \u{1F4CB} \u30B5\u30D6\u30BF\u30B9\u30AF")) {
+      const subtaskSectionReplacement = [
+        "## \u{1F4CB} \u30B5\u30D6\u30BF\u30B9\u30AF",
+        strategyCallout,
+        "",
+        "### \u{1F4CD} Phase 1: \u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u30FB\u4E0D\u78BA\u5B9F\u6027\u306E\u89E3\u6D88",
+        taskLines,
+        ""
+      ].join("\n");
+      updatedContent = updatedContent.replace("## \u{1F4CB} \u30B5\u30D6\u30BF\u30B9\u30AF", subtaskSectionReplacement);
+    } else {
+      updatedContent += "\n\n" + strategyCallout + "\n\n### \u{1F4CD} Phase 1: \u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u30FB\u4E0D\u78BA\u5B9F\u6027\u306E\u89E3\u6D88\n" + taskLines + "\n";
+    }
+    await this.app.vault.modify(indexFile, updatedContent);
+  }
+};
+
 // src/main.ts
-var TaskManagerPlugin = class extends import_obsidian8.Plugin {
+var TaskManagerPlugin = class extends import_obsidian9.Plugin {
   async onload() {
     await this.loadSettings();
     this.patternService = new PatternService(this);
+    this.workFolderService = new WorkFolderService(this.app, this);
     this.registerView(
       VIEW_TYPE_TASK_MANAGER,
       (leaf) => new TaskManagerView(leaf, this)

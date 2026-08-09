@@ -317,20 +317,36 @@ export class AICopilotModal extends Modal {
 			return;
 		}
 
-		// 開き元のタスクノートがある場合 → そのファイルに直接書き込み
-		const success = await this.taskService.saveStrategyToNote(
-			this.topic,
-			this.strategyResult,
-			selectedTasks,
-			this.task?.file
-		);
-
-		if (success) {
-			this.currentState = "STATE_COMMITTED";
-			this.renderModal();
-			if (this.onApplied) {
-				this.onApplied();
+		try {
+			// カセットのマッチングを試行（loadAllPatterns + findMatchingPatterns を正しく使用）
+			const patternService = (this.taskService as any)?.plugin?.patternService;
+			let pattern: import("../types").TaskPattern | undefined = undefined;
+			if (patternService) {
+				const allPatterns = await patternService.loadAllPatterns();
+				const topicTags = patternService.extractTagsFromText(this.topic);
+				const matched = patternService.findMatchingPatterns(topicTags, allPatterns);
+				pattern = matched.length > 0 ? matched[0] : undefined;
 			}
+
+			// 開き元のタスクノートがある場合 → そのファイルに直接書き込み
+			const success = await this.taskService.saveStrategyToNote(
+				this.topic,
+				this.strategyResult,
+				selectedTasks,
+				this.task?.file,
+				pattern
+			);
+
+			if (success) {
+				this.currentState = "STATE_COMMITTED";
+				this.renderModal();
+				if (this.onApplied) {
+					this.onApplied();
+				}
+			}
+		} catch (e) {
+			console.error("[TaskManager] commitStrategy error:", e);
+			new Notice("❌ 書き込みに失敗しました。コンソールでエラーを確認してください。");
 		}
 	}
 }

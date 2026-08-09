@@ -29,6 +29,19 @@ export class TaskManagerSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
+			.setName("Work Folder Path")
+			.setDesc("Directory where task work folders (_task_works/<task-id>/) are stored.")
+			.addText((text) =>
+				text
+					.setPlaceholder("_task_works")
+					.setValue(this.plugin.settings.workFolderPath || "_task_works")
+					.onChange(async (value) => {
+						this.plugin.settings.workFolderPath = value.trim() || "_task_works";
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
 			.setName("ID Prefix")
 			.setDesc("Prefix used when generating new ticket IDs (e.g. 'TASK-').")
 			.addText((text) =>
