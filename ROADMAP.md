@@ -81,7 +81,7 @@
     - [x] Action 分解レスポンスに `sequenceOrder`, `estimatedMinutes`, `dependsOn`, `rationale` が正しく含まれ、Markdown ノードへ保存されること。
     - [x] `npm run build` が正常に通ること。
 
-- [ ] **Phase 8: UI・バッジ表示 ＆ Focus View の sequenceOrder 絞り込み**
+- [x] **Phase 8: UI・バッジ表示 ＆ Focus View の sequenceOrder 絞り込み**
   - **概要**: Context Tree View での時間/時期/順序バッジ表示と、Focus View での `sequenceOrder: 1` （着手可能アクション）への絞り込み表示。
   - **主な実装範囲**:
     - `src/views/TaskManagerView.ts`:
@@ -89,9 +89,9 @@
       - Focus View: Active な Strategy の中で `sequenceOrder === 1` （かつ未完了依存のないノード）のみを厳選表示するフィルタリングロジック。
     - `styles.css`: バッジやブロック状態のスクラムUIスタイル。
   - **完了条件 (DoD)**:
-    - [ ] Context Tree View で Strategy/Action ノードに各種バッジが表示されること。
-    - [ ] Focus View に全アクションではなく「今すぐ着手すべき Sequence 1 のアクション」のみが絞り込まれて表示されること。
-    - [ ] `npm run build` が正常に通ること。
+    - [x] Context Tree View で Strategy/Action ノードに各種バッジが表示されること。
+    - [x] Focus View に全アクションではなく「今すぐ着手すべき Sequence 1 のアクション」のみが絞り込まれて表示されること。
+    - [x] `npm run build` が正常に通ること。
 
 - [ ] **Phase 9: AI Copilot Modal での壁打ち（Appetite調整 / クリティカルパス / Re-sequencing）**
   - **概要**: 対話ダイアログ (`AICopilotModal`) 内へのクイックボタン追加と、状況の変化（予算超過・ブロック発生等）に応じた再編成・壁打ちフロー。

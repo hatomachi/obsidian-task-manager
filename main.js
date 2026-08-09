@@ -2102,6 +2102,12 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     titleEl.addEventListener("click", async () => {
       await this.taskService.openTaskNote(node.file);
     });
+    if (node.due) {
+      titleArea.createEl("span", {
+        cls: "jira-meta-badge jira-badge-due",
+        text: `\u{1F4C5} Due: ${node.due}`
+      });
+    }
     const actionsArea = headerRow.createDiv({ cls: "jira-tree-actions-area" });
     const aiBtn = actionsArea.createEl("button", {
       text: "\u2728 AI",
@@ -2173,6 +2179,27 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     titleEl.addEventListener("click", async () => {
       await this.taskService.openTaskNote(node.file);
     });
+    if (node.appetiteHours !== void 0) {
+      titleArea.createEl("span", {
+        cls: "jira-meta-badge jira-badge-appetite",
+        text: `\u23F1\uFE0F ${node.appetiteHours}h`,
+        title: `\u6642\u9593\u4E88\u7B97: ${node.appetiteHours}\u6642\u9593`
+      });
+    }
+    if (node.timeframe) {
+      titleArea.createEl("span", {
+        cls: "jira-meta-badge jira-badge-timeframe",
+        text: `\u{1F4C5} ${node.timeframe}`,
+        title: `\u5B9F\u65BD\u6642\u671F: ${node.timeframe}`
+      });
+    }
+    if (node.status === "blocked" || node.blockedReason) {
+      titleArea.createEl("span", {
+        cls: "jira-meta-badge jira-badge-blocked",
+        text: `\u26D4 ${node.blockedReason || "Blocked"}`,
+        title: `\u30D6\u30ED\u30C3\u30AF\u7406\u7531: ${node.blockedReason || "\u5916\u90E8\u5236\u7D04\u306B\u3088\u308A\u4E00\u6642\u505C\u6B62\u4E2D"}`
+      });
+    }
     const adrControls = stratRow.createDiv({ cls: "jira-adr-controls" });
     const activeBtn = adrControls.createEl("button", {
       text: "\u{1F7E2} Active",
@@ -2258,6 +2285,27 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     titleEl.addEventListener("click", async () => {
       await this.taskService.openTaskNote(node.file);
     });
+    if (node.sequenceOrder !== void 0) {
+      actionRow.createEl("span", {
+        cls: "jira-meta-badge jira-badge-seq",
+        text: `\u{1F522} Seq ${node.sequenceOrder}`,
+        title: `\u7740\u624B\u9806\u5E8F: ${node.sequenceOrder}`
+      });
+    }
+    if (node.estimatedMinutes !== void 0) {
+      actionRow.createEl("span", {
+        cls: "jira-meta-badge jira-badge-est",
+        text: `\u23F1\uFE0F ${node.estimatedMinutes}m`,
+        title: `\u4E88\u60F3\u6240\u8981\u6642\u9593: ${node.estimatedMinutes}\u5206`
+      });
+    }
+    if (node.dependsOn && node.dependsOn.length > 0) {
+      actionRow.createEl("span", {
+        cls: "jira-meta-badge jira-badge-dep",
+        text: `\u{1F517} Dep: ${node.dependsOn.join(", ")}`,
+        title: `\u5148\u884C\u4F9D\u5B58\u30CE\u30FC\u30C9: ${node.dependsOn.join(", ")}`
+      });
+    }
   }
   renderFocusBoard(boardEl) {
     boardEl.empty();
@@ -2269,6 +2317,26 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
         return false;
       if (n.status === "done" || n.status === "deprecated")
         return false;
+      if (n.parentId) {
+        const parentStrat = allNodes.find((p) => p.id === n.parentId);
+        if (parentStrat) {
+          if (parentStrat.status === "deprecated" || parentStrat.status === "blocked" || parentStrat.status === "done") {
+            return false;
+          }
+        }
+      }
+      if (n.sequenceOrder !== void 0 && n.sequenceOrder !== 1) {
+        return false;
+      }
+      if (n.dependsOn && n.dependsOn.length > 0) {
+        const hasUnfinishedDependency = n.dependsOn.some((depId) => {
+          const depNode = allNodes.find((node) => node.id === depId);
+          return depNode && depNode.status !== "done";
+        });
+        if (hasUnfinishedDependency) {
+          return false;
+        }
+      }
       if (!query)
         return true;
       return n.title.toLowerCase().includes(query) || n.id.toLowerCase().includes(query);
@@ -2278,15 +2346,15 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     const container = boardEl.createDiv({ cls: "jira-focus-container" });
     const headerBar = container.createDiv({ cls: "jira-focus-header-bar" });
     const titleArea = headerBar.createDiv({ cls: "jira-focus-header-title" });
-    titleArea.createEl("h3", { text: "\u26A1 Next Physical Actions (Focus View)" });
+    titleArea.createEl("h3", { text: "\u26A1 Next Physical Actions (Focus View - Seq 1)" });
     titleArea.createEl("span", {
       cls: "jira-focus-counter-badge",
-      text: `${focusActions.length} Active / ${totalActions} Total (${completedActions} Done)`
+      text: `${focusActions.length} Ready / ${totalActions} Total (${completedActions} Done)`
     });
     if (focusActions.length === 0) {
       const emptyBox = container.createDiv({ cls: "jira-focus-empty-state" });
       emptyBox.createEl("div", { cls: "jira-focus-empty-icon", text: "\u{1F389}" });
-      emptyBox.createEl("h3", { text: "Focus \u30BF\u30B9\u30AF\u306F\u3059\u3079\u3066\u5B8C\u4E86\u3057\u3066\u3044\u307E\u3059\uFF01" });
+      emptyBox.createEl("h3", { text: "\u7740\u624B\u53EF\u80FD\u306A Focus \u30BF\u30B9\u30AF\u306F\u3059\u3079\u3066\u5B8C\u4E86\u3057\u3066\u3044\u307E\u3059\uFF01" });
       emptyBox.createEl("p", { text: "\u300C\u{1F333} Context Tree\u300D\u3067\u4F5C\u6226\uFF08Strategy\uFF09\u304B\u3089\u7269\u7406\u884C\u52D5\uFF08Action\uFF09\u3092\u5C55\u958B\u3059\u308B\u304B\u3001\u65B0\u3057\u3044 Goal \u3092\u8FFD\u52A0\u3057\u3066\u304F\u3060\u3055\u3044\u3002" });
       return;
     }
@@ -2348,6 +2416,18 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     titleEl.addEventListener("click", async () => {
       await this.taskService.openTaskNote(node.file);
     });
+    if (node.sequenceOrder !== void 0) {
+      mainRow.createEl("span", {
+        cls: "jira-meta-badge jira-badge-seq",
+        text: `\u{1F522} Seq ${node.sequenceOrder}`
+      });
+    }
+    if (node.estimatedMinutes !== void 0) {
+      mainRow.createEl("span", {
+        cls: "jira-meta-badge jira-badge-est",
+        text: `\u23F1\uFE0F ${node.estimatedMinutes}m`
+      });
+    }
   }
 };
 

@@ -769,6 +769,68 @@
 	border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
+/* Meta Badges (Time, Sequence, Dependency, Blocked) */
+.jira-meta-badge {
+	font-size: 0.7rem;
+	font-weight: 600;
+	padding: 2px 7px;
+	border-radius: 12px;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	white-space: nowrap;
+}
+
+.jira-badge-due {
+	background: rgba(236, 72, 153, 0.12);
+	color: #ec4899;
+	border: 1px solid rgba(236, 72, 153, 0.3);
+}
+
+.jira-badge-appetite {
+	background: rgba(14, 165, 233, 0.12);
+	color: #0ea5e9;
+	border: 1px solid rgba(14, 165, 233, 0.3);
+}
+
+.jira-badge-timeframe {
+	background: rgba(139, 92, 246, 0.12);
+	color: #8b5cf6;
+	border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.jira-badge-blocked {
+	background: rgba(239, 68, 68, 0.15);
+	color: #ef4444;
+	border: 1px solid rgba(239, 68, 68, 0.4);
+	font-weight: 700;
+}
+
+.jira-badge-seq {
+	background: rgba(245, 158, 11, 0.15);
+	color: #f59e0b;
+	border: 1px solid rgba(245, 158, 11, 0.3);
+	font-weight: 700;
+}
+
+.jira-badge-est {
+	background: rgba(16, 185, 129, 0.12);
+	color: #10b981;
+	border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.jira-badge-dep {
+	background: rgba(107, 114, 128, 0.15);
+	color: #6b7280;
+	border: 1px solid rgba(107, 114, 128, 0.3);
+	font-size: 0.65rem;
+}
+
+.jira-tree-node-row.strategy-node.status-blocked {
+	border-left-color: #ef4444;
+	background: rgba(239, 68, 68, 0.03);
+}
+
 /* ADR Status Buttons */
 .jira-adr-controls {
 	display: flex;

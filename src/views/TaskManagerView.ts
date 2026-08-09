@@ -241,6 +241,14 @@ export class TaskManagerView extends ItemView {
 			await this.taskService.openTaskNote(node.file);
 		});
 
+		// Goal Meta Badges (e.g. Due Date)
+		if (node.due) {
+			titleArea.createEl("span", {
+				cls: "jira-meta-badge jira-badge-due",
+				text: `📅 Due: ${node.due}`,
+			});
+		}
+
 		// Actions & Status
 		const actionsArea = headerRow.createDiv({ cls: "jira-tree-actions-area" });
 
@@ -328,6 +336,29 @@ export class TaskManagerView extends ItemView {
 		titleEl.addEventListener("click", async () => {
 			await this.taskService.openTaskNote(node.file);
 		});
+
+		// Strategy Meta Badges (Appetite, Timeframe, Blocked Reason)
+		if (node.appetiteHours !== undefined) {
+			titleArea.createEl("span", {
+				cls: "jira-meta-badge jira-badge-appetite",
+				text: `⏱️ ${node.appetiteHours}h`,
+				title: `時間予算: ${node.appetiteHours}時間`,
+			});
+		}
+		if (node.timeframe) {
+			titleArea.createEl("span", {
+				cls: "jira-meta-badge jira-badge-timeframe",
+				text: `📅 ${node.timeframe}`,
+				title: `実施時期: ${node.timeframe}`,
+			});
+		}
+		if (node.status === "blocked" || node.blockedReason) {
+			titleArea.createEl("span", {
+				cls: "jira-meta-badge jira-badge-blocked",
+				text: `⛔ ${node.blockedReason || "Blocked"}`,
+				title: `ブロック理由: ${node.blockedReason || "外部制約により一時停止中"}`,
+			});
+		}
 
 		// ADR Status Controls
 		const adrControls = stratRow.createDiv({ cls: "jira-adr-controls" });
@@ -427,6 +458,29 @@ export class TaskManagerView extends ItemView {
 		titleEl.addEventListener("click", async () => {
 			await this.taskService.openTaskNote(node.file);
 		});
+
+		// Action Meta Badges (Sequence, Estimated Minutes, Depends On)
+		if (node.sequenceOrder !== undefined) {
+			actionRow.createEl("span", {
+				cls: "jira-meta-badge jira-badge-seq",
+				text: `🔢 Seq ${node.sequenceOrder}`,
+				title: `着手順序: ${node.sequenceOrder}`,
+			});
+		}
+		if (node.estimatedMinutes !== undefined) {
+			actionRow.createEl("span", {
+				cls: "jira-meta-badge jira-badge-est",
+				text: `⏱️ ${node.estimatedMinutes}m`,
+				title: `予想所要時間: ${node.estimatedMinutes}分`,
+			});
+		}
+		if (node.dependsOn && node.dependsOn.length > 0) {
+			actionRow.createEl("span", {
+				cls: "jira-meta-badge jira-badge-dep",
+				text: `🔗 Dep: ${node.dependsOn.join(", ")}`,
+				title: `先行依存ノード: ${node.dependsOn.join(", ")}`,
+			});
+		}
 	}
 
 	private renderFocusBoard(boardEl: HTMLElement): void {
@@ -436,10 +490,41 @@ export class TaskManagerView extends ItemView {
 		const allNodes = this.taskService.getAllTaskNodes();
 		const query = this.searchFilter.toLowerCase();
 
-		// Filter active physical action nodes (nodeType === 'action', status !== 'done' & 'deprecated')
+		// Filter active physical action nodes with rolling wave logic:
+		// 1. nodeType === 'action' and status !== 'done' & 'deprecated'
+		// 2. Parent strategy must be active (not done/deprecated/blocked)
+		// 3. sequenceOrder === 1 or sequenceOrder is undefined
+		// 4. All dependencies in dependsOn are completed (status === 'done')
 		const focusActions = allNodes.filter((n) => {
 			if (n.nodeType !== "action") return false;
 			if (n.status === "done" || n.status === "deprecated") return false;
+
+			// Check Parent Strategy status
+			if (n.parentId) {
+				const parentStrat = allNodes.find((p) => p.id === n.parentId);
+				if (parentStrat) {
+					if (parentStrat.status === "deprecated" || parentStrat.status === "blocked" || parentStrat.status === "done") {
+						return false;
+					}
+				}
+			}
+
+			// Sequence order check (Must be sequenceOrder === 1 or undefined)
+			if (n.sequenceOrder !== undefined && n.sequenceOrder !== 1) {
+				return false;
+			}
+
+			// Dependencies check (All dependsOn tasks must be completed)
+			if (n.dependsOn && n.dependsOn.length > 0) {
+				const hasUnfinishedDependency = n.dependsOn.some((depId) => {
+					const depNode = allNodes.find((node) => node.id === depId);
+					return depNode && depNode.status !== "done";
+				});
+				if (hasUnfinishedDependency) {
+					return false;
+				}
+			}
+
 			if (!query) return true;
 			return n.title.toLowerCase().includes(query) || n.id.toLowerCase().includes(query);
 		});
@@ -452,16 +537,16 @@ export class TaskManagerView extends ItemView {
 		// Header Summary Bar
 		const headerBar = container.createDiv({ cls: "jira-focus-header-bar" });
 		const titleArea = headerBar.createDiv({ cls: "jira-focus-header-title" });
-		titleArea.createEl("h3", { text: "⚡ Next Physical Actions (Focus View)" });
+		titleArea.createEl("h3", { text: "⚡ Next Physical Actions (Focus View - Seq 1)" });
 		titleArea.createEl("span", {
 			cls: "jira-focus-counter-badge",
-			text: `${focusActions.length} Active / ${totalActions} Total (${completedActions} Done)`,
+			text: `${focusActions.length} Ready / ${totalActions} Total (${completedActions} Done)`,
 		});
 
 		if (focusActions.length === 0) {
 			const emptyBox = container.createDiv({ cls: "jira-focus-empty-state" });
 			emptyBox.createEl("div", { cls: "jira-focus-empty-icon", text: "🎉" });
-			emptyBox.createEl("h3", { text: "Focus タスクはすべて完了しています！" });
+			emptyBox.createEl("h3", { text: "着手可能な Focus タスクはすべて完了しています！" });
 			emptyBox.createEl("p", { text: "「🌳 Context Tree」で作戦（Strategy）から物理行動（Action）を展開するか、新しい Goal を追加してください。" });
 			return;
 		}
@@ -535,6 +620,20 @@ export class TaskManagerView extends ItemView {
 		titleEl.addEventListener("click", async () => {
 			await this.taskService.openTaskNote(node.file);
 		});
+
+		// Meta Badges on Focus Card
+		if (node.sequenceOrder !== undefined) {
+			mainRow.createEl("span", {
+				cls: "jira-meta-badge jira-badge-seq",
+				text: `🔢 Seq ${node.sequenceOrder}`,
+			});
+		}
+		if (node.estimatedMinutes !== undefined) {
+			mainRow.createEl("span", {
+				cls: "jira-meta-badge jira-badge-est",
+				text: `⏱️ ${node.estimatedMinutes}m`,
+			});
+		}
 	}
 }
 
