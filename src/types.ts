@@ -1,6 +1,6 @@
 import { TFile } from "obsidian";
 
-export type TaskStatus = "todo" | "in_progress" | "done" | "deprecated";
+export type TaskStatus = "todo" | "in_progress" | "done" | "deprecated" | "blocked";
 export type TaskPriority = "low" | "medium" | "high" | "highest";
 
 export type NodeType = "goal" | "strategy" | "action";
@@ -21,6 +21,14 @@ export interface TaskNode {
 	filePath: string;         // Vault内の相対ファイルパス
 	file: TFile;              // Obsidian TFile オブジェクト
 	content?: string;         // 本文・補足メモ
+
+	// --- 時間・順序・依存関係拡張フィールド (Phase 6) ---
+	appetiteHours?: number;   // Strategy用: 時間予算 (例: 20時間枠)
+	timeframe?: string;       // Strategy用: 実施時期 (例: "今週", "2026-Q3")
+	blockedReason?: string;   // Strategy/Node用: ブロック理由 (例: "法務審査待ち")
+	sequenceOrder?: number;   // Action用: 着手順序 (例: 1, 2, 3...)
+	estimatedMinutes?: number;// Action用: 予想所要分 (例: 15, 30, 60)
+	dependsOn?: string[];     // Action用: 先行依存タスクのIDリスト
 }
 
 export interface AIContextPayload {
@@ -47,6 +55,8 @@ export type ModalState = "STATE_INPUT" | "STATE_GENERATING" | "STATE_PREVIEW" | 
 export interface ProposedStrategy {
 	title: string;
 	description?: string;
+	appetiteHours?: number;
+	timeframe?: string;
 }
 
 export interface StrategyResult {
@@ -62,6 +72,9 @@ export interface AIStrategyResponse extends StrategyResult {}
 export interface ActionItem {
 	title: string;
 	estimatedMinutes?: number;
+	sequenceOrder?: number;
+	dependsOn?: string[];
+	rationale?: string;
 }
 
 export interface AIActionResponse {

@@ -36,6 +36,29 @@ export class TaskService {
 			const status: NodeStatus = this.normalizeStatus(fm.status);
 			const priority: TaskPriority = this.normalizePriority(fm.priority);
 
+			// Phase 6 拡張フィールドのパース (キャメルケース/スネークケース両対応)
+			const appetiteHours = fm.appetiteHours !== undefined && fm.appetiteHours !== null
+				? Number(fm.appetiteHours)
+				: (fm.appetite_hours !== undefined && fm.appetite_hours !== null ? Number(fm.appetite_hours) : undefined);
+			const timeframe = fm.timeframe ? String(fm.timeframe) : undefined;
+			const blockedReason = fm.blockedReason || fm.blocked_reason ? String(fm.blockedReason || fm.blocked_reason) : undefined;
+			const sequenceOrder = fm.sequenceOrder !== undefined && fm.sequenceOrder !== null
+				? Number(fm.sequenceOrder)
+				: (fm.sequence_order !== undefined && fm.sequence_order !== null ? Number(fm.sequence_order) : undefined);
+			const estimatedMinutes = fm.estimatedMinutes !== undefined && fm.estimatedMinutes !== null
+				? Number(fm.estimatedMinutes)
+				: (fm.estimated_minutes !== undefined && fm.estimated_minutes !== null
+					? Number(fm.estimated_minutes)
+					: (fm.est_min !== undefined && fm.est_min !== null ? Number(fm.est_min) : undefined));
+
+			let dependsOn: string[] | undefined = undefined;
+			const rawDepends = fm.dependsOn || fm.depends_on;
+			if (Array.isArray(rawDepends)) {
+				dependsOn = rawDepends.map(String);
+			} else if (typeof rawDepends === "string" && rawDepends.trim().length > 0) {
+				dependsOn = rawDepends.split(",").map((s) => s.trim()).filter(Boolean);
+			}
+
 			nodes.push({
 				id,
 				title,
@@ -50,6 +73,12 @@ export class TaskService {
 				updated: fm.updated || "",
 				filePath: file.path,
 				file,
+				appetiteHours,
+				timeframe,
+				blockedReason,
+				sequenceOrder,
+				estimatedMinutes,
+				dependsOn,
 			});
 		}
 
@@ -79,7 +108,18 @@ export class TaskService {
 		title: string,
 		nodeType: NodeType = "action",
 		status: NodeStatus = "todo",
-		options?: { parentId?: string; priority?: TaskPriority; due?: string; scheduled?: string }
+		options?: {
+			parentId?: string;
+			priority?: TaskPriority;
+			due?: string;
+			scheduled?: string;
+			appetiteHours?: number;
+			timeframe?: string;
+			blockedReason?: string;
+			sequenceOrder?: number;
+			estimatedMinutes?: number;
+			dependsOn?: string[];
+		}
 	): Promise<TFile> {
 		const folderPath = normalizePath(this.plugin.settings.taskFolder);
 
@@ -113,6 +153,16 @@ export class TaskService {
 		}
 		if (options?.due) frontmatterLines.push(`due: "${options.due}"`);
 		if (options?.scheduled) frontmatterLines.push(`scheduled: "${options.scheduled}"`);
+
+		// Phase 6 拡張フィールド
+		if (options?.appetiteHours !== undefined) frontmatterLines.push(`appetiteHours: ${options.appetiteHours}`);
+		if (options?.timeframe) frontmatterLines.push(`timeframe: "${options.timeframe.replace(/"/g, '\\"')}"`);
+		if (options?.blockedReason) frontmatterLines.push(`blockedReason: "${options.blockedReason.replace(/"/g, '\\"')}"`);
+		if (options?.sequenceOrder !== undefined) frontmatterLines.push(`sequenceOrder: ${options.sequenceOrder}`);
+		if (options?.estimatedMinutes !== undefined) frontmatterLines.push(`estimatedMinutes: ${options.estimatedMinutes}`);
+		if (options?.dependsOn && options.dependsOn.length > 0) {
+			frontmatterLines.push(`dependsOn: [${options.dependsOn.map((id) => `"${id}"`).join(", ")}]`);
+		}
 
 		frontmatterLines.push(
 			`created: ${now}`,
@@ -168,6 +218,25 @@ export class TaskService {
 	}
 
 	/**
+	 * Update node Frontmatter metadata fields in batch
+	 */
+	async updateNodeMetadata(file: TFile, updates: Partial<TaskNode>): Promise<void> {
+		await this.app.fileManager.processFrontMatter(file, (fm) => {
+			if (updates.status !== undefined) fm.status = updates.status;
+			if (updates.priority !== undefined) fm.priority = updates.priority;
+			if (updates.appetiteHours !== undefined) fm.appetiteHours = updates.appetiteHours;
+			if (updates.timeframe !== undefined) fm.timeframe = updates.timeframe;
+			if (updates.blockedReason !== undefined) fm.blockedReason = updates.blockedReason;
+			if (updates.sequenceOrder !== undefined) fm.sequenceOrder = updates.sequenceOrder;
+			if (updates.estimatedMinutes !== undefined) fm.estimatedMinutes = updates.estimatedMinutes;
+			if (updates.dependsOn !== undefined) fm.dependsOn = updates.dependsOn;
+			if (updates.due !== undefined) fm.due = updates.due;
+			if (updates.scheduled !== undefined) fm.scheduled = updates.scheduled;
+			fm.updated = new Date().toISOString();
+		});
+	}
+
+	/**
 	 * Update scheduled date and due date
 	 */
 	async updateTaskSchedule(file: TFile, scheduled?: string, due?: string): Promise<void> {
@@ -203,6 +272,7 @@ export class TaskService {
 			if (s === "in_progress" || s === "in progress" || s === "doing") return "in_progress";
 			if (s === "done" || s === "completed") return "done";
 			if (s === "deprecated" || s === "ボツ" || s === "cancelled") return "deprecated";
+			if (s === "blocked" || s === "ブロック" || s === "wait") return "blocked";
 		}
 		return "todo";
 	}

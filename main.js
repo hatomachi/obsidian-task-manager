@@ -71,6 +71,18 @@ var init_TaskService = __esm({
           const nodeType = this.normalizeNodeType(fm.nodeType || fm.type, parentId);
           const status = this.normalizeStatus(fm.status);
           const priority = this.normalizePriority(fm.priority);
+          const appetiteHours = fm.appetiteHours !== void 0 && fm.appetiteHours !== null ? Number(fm.appetiteHours) : fm.appetite_hours !== void 0 && fm.appetite_hours !== null ? Number(fm.appetite_hours) : void 0;
+          const timeframe = fm.timeframe ? String(fm.timeframe) : void 0;
+          const blockedReason = fm.blockedReason || fm.blocked_reason ? String(fm.blockedReason || fm.blocked_reason) : void 0;
+          const sequenceOrder = fm.sequenceOrder !== void 0 && fm.sequenceOrder !== null ? Number(fm.sequenceOrder) : fm.sequence_order !== void 0 && fm.sequence_order !== null ? Number(fm.sequence_order) : void 0;
+          const estimatedMinutes = fm.estimatedMinutes !== void 0 && fm.estimatedMinutes !== null ? Number(fm.estimatedMinutes) : fm.estimated_minutes !== void 0 && fm.estimated_minutes !== null ? Number(fm.estimated_minutes) : fm.est_min !== void 0 && fm.est_min !== null ? Number(fm.est_min) : void 0;
+          let dependsOn = void 0;
+          const rawDepends = fm.dependsOn || fm.depends_on;
+          if (Array.isArray(rawDepends)) {
+            dependsOn = rawDepends.map(String);
+          } else if (typeof rawDepends === "string" && rawDepends.trim().length > 0) {
+            dependsOn = rawDepends.split(",").map((s) => s.trim()).filter(Boolean);
+          }
           nodes.push({
             id,
             title,
@@ -84,7 +96,13 @@ var init_TaskService = __esm({
             created: fm.created || "",
             updated: fm.updated || "",
             filePath: file.path,
-            file
+            file,
+            appetiteHours,
+            timeframe,
+            blockedReason,
+            sequenceOrder,
+            estimatedMinutes,
+            dependsOn
           });
         }
         return nodes;
@@ -131,6 +149,19 @@ var init_TaskService = __esm({
           frontmatterLines.push(`due: "${options.due}"`);
         if (options == null ? void 0 : options.scheduled)
           frontmatterLines.push(`scheduled: "${options.scheduled}"`);
+        if ((options == null ? void 0 : options.appetiteHours) !== void 0)
+          frontmatterLines.push(`appetiteHours: ${options.appetiteHours}`);
+        if (options == null ? void 0 : options.timeframe)
+          frontmatterLines.push(`timeframe: "${options.timeframe.replace(/"/g, '\\"')}"`);
+        if (options == null ? void 0 : options.blockedReason)
+          frontmatterLines.push(`blockedReason: "${options.blockedReason.replace(/"/g, '\\"')}"`);
+        if ((options == null ? void 0 : options.sequenceOrder) !== void 0)
+          frontmatterLines.push(`sequenceOrder: ${options.sequenceOrder}`);
+        if ((options == null ? void 0 : options.estimatedMinutes) !== void 0)
+          frontmatterLines.push(`estimatedMinutes: ${options.estimatedMinutes}`);
+        if ((options == null ? void 0 : options.dependsOn) && options.dependsOn.length > 0) {
+          frontmatterLines.push(`dependsOn: [${options.dependsOn.map((id) => `"${id}"`).join(", ")}]`);
+        }
         frontmatterLines.push(
           `created: ${now}`,
           `updated: ${now}`,
@@ -180,6 +211,34 @@ var init_TaskService = __esm({
         });
       }
       /**
+       * Update node Frontmatter metadata fields in batch
+       */
+      async updateNodeMetadata(file, updates) {
+        await this.app.fileManager.processFrontMatter(file, (fm) => {
+          if (updates.status !== void 0)
+            fm.status = updates.status;
+          if (updates.priority !== void 0)
+            fm.priority = updates.priority;
+          if (updates.appetiteHours !== void 0)
+            fm.appetiteHours = updates.appetiteHours;
+          if (updates.timeframe !== void 0)
+            fm.timeframe = updates.timeframe;
+          if (updates.blockedReason !== void 0)
+            fm.blockedReason = updates.blockedReason;
+          if (updates.sequenceOrder !== void 0)
+            fm.sequenceOrder = updates.sequenceOrder;
+          if (updates.estimatedMinutes !== void 0)
+            fm.estimatedMinutes = updates.estimatedMinutes;
+          if (updates.dependsOn !== void 0)
+            fm.dependsOn = updates.dependsOn;
+          if (updates.due !== void 0)
+            fm.due = updates.due;
+          if (updates.scheduled !== void 0)
+            fm.scheduled = updates.scheduled;
+          fm.updated = (/* @__PURE__ */ new Date()).toISOString();
+        });
+      }
+      /**
        * Update scheduled date and due date
        */
       async updateTaskSchedule(file, scheduled, due) {
@@ -221,6 +280,8 @@ var init_TaskService = __esm({
             return "done";
           if (s === "deprecated" || s === "\u30DC\u30C4" || s === "cancelled")
             return "deprecated";
+          if (s === "blocked" || s === "\u30D6\u30ED\u30C3\u30AF" || s === "wait")
+            return "blocked";
         }
         return "todo";
       }

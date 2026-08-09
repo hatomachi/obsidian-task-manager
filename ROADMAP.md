@@ -55,3 +55,51 @@
     - [x] Mythos シナリオを通して、作戦の立案・追加・Action展開・ボツ化の連動がスムーズに実動確認できること。
     - [x] `npm run build` およびテストVault同期コピーが正常終了すること。
 
+---
+
+## 🚀 時間軸・Appetite・ローリングウェーブ拡張ロードマップ
+
+- [x] **Phase 6: 時間・順序・依存関係データモデルの拡張**
+  - **概要**: `TaskNode`（`appetiteHours`, `timeframe`, `blockedReason`, status `'blocked'`, `estimatedMinutes`, `sequenceOrder`, `dependsOn`）の型定義拡張と Frontmatter/Inline メタデータのパース・シリアライズ処理。
+  - **主な実装範囲**:
+    - `src/types.ts`: `StrategyTask` / `ActionTask` / `TaskNode` の型拡張（`appetiteHours?`, `timeframe?`, `blockedReason?`, `status: ... | 'blocked'`, `sequenceOrder?`, `estimatedMinutes?`, `dependsOn?`）。
+    - `src/services/TaskService.ts`: YAML Frontmatter (`appetite_hours`, `timeframe`, `blocked_reason`, `sequence_order`, `estimated_minutes`, `depends_on`) の読み書き・保存ロジック。
+    - `src/services/TaskGraphService.ts`: 拡張プロパティを考慮したインメモリグラフ構築。
+  - **完了条件 (DoD)**:
+    - [x] `TaskNode` 型定義が更新され、時間・順序・依存プロパティが保持できること。
+    - [x] Markdown ノードの新規作成・更新時に Frontmatter に追加プロパティが正確に読み書きされること。
+    - [x] `npm run build` がエラーなく通り、テストVaultへの同期コピーが正常終了すること。
+
+- [ ] **Phase 7: AIプロンプト ＆ 構造化生成パイプラインの時系列・Appetite対応**
+  - **概要**: `strategyPrompt` と `taskBreakdownPrompt` のプロンプト刷新、および `AIService` の時間・順序構造化 JSON パースロジック。
+  - **主な実装範囲**:
+    - `src/prompts/strategyPrompt.ts`: Strategy 提案時に `appetiteHours` (時間予算) と `timeframe` (実施時期) を必須指定させる構造化 JSON プロンプト。
+    - `src/prompts/taskBreakdownPrompt.ts`: 直近の Strategy のみを対象としたローリングウェーブ分解。`sequenceOrder` (1,2,3...), `estimatedMinutes` (15~60m), `dependsOn` (依存関係ID), `rationale` を必須とする構造化 JSON プロンプト。
+    - `src/services/AIService.ts`: 時間・順序データ構造のパースと、`parentId` だけでなく `sequenceOrder` 等を保持した Markdown ノード生成処理。
+  - **完了条件 (DoD)**:
+    - [ ] AIの Strategy 提案レスポンスに `appetiteHours` と `timeframe` が正しく含まれること。
+    - [ ] Action 分解レスポンスに `sequenceOrder`, `estimatedMinutes`, `dependsOn`, `rationale` が正しく含まれ、Markdown ノードへ保存されること。
+    - [ ] `npm run build` が正常に通ること。
+
+- [ ] **Phase 8: UI・バッジ表示 ＆ Focus View の sequenceOrder 絞り込み**
+  - **概要**: Context Tree View での時間/時期/順序バッジ表示と、Focus View での `sequenceOrder: 1` （着手可能アクション）への絞り込み表示。
+  - **主な実装範囲**:
+    - `src/views/TaskManagerView.ts`:
+      - Context Tree View: Strategy行へ ⏱️ 時間予算 / 📅 時期バッジ表示。Action行へ 着手順 / ⏱️ 予想分バッジ表示。
+      - Focus View: Active な Strategy の中で `sequenceOrder === 1` （かつ未完了依存のないノード）のみを厳選表示するフィルタリングロジック。
+    - `styles.css`: バッジやブロック状態のスクラムUIスタイル。
+  - **完了条件 (DoD)**:
+    - [ ] Context Tree View で Strategy/Action ノードに各種バッジが表示されること。
+    - [ ] Focus View に全アクションではなく「今すぐ着手すべき Sequence 1 のアクション」のみが絞り込まれて表示されること。
+    - [ ] `npm run build` が正常に通ること。
+
+- [ ] **Phase 9: AI Copilot Modal での壁打ち（Appetite調整 / クリティカルパス / Re-sequencing）**
+  - **概要**: 対話ダイアログ (`AICopilotModal`) 内へのクイックボタン追加と、状況の変化（予算超過・ブロック発生等）に応じた再編成・壁打ちフロー。
+  - **主な実装範囲**:
+    - `src/views/AICopilotModal.ts`:
+      - クイックアクションボタンの配置 (🔘 時間予算再評価 / 🔘 クリティカルパス抽出 / 🔘 タスク再編成 Re-sequencing)。
+      - ブロック理由や Appetite オーバーを前提とした壁打ちプロンプト生成・処理フロー。
+  - **完了条件 (DoD)**:
+    - [ ] `AICopilotModal` 上に時間・順序調整のクイックアクションボタンが配置されること。
+    - [ ] ブロック発生時や予算オーバー時に AI へ適切なコンテキストが渡り、順序の変更や前倒しなどの再編成提案を受け取ってノード反映できること。
+    - [ ] `npm run build` およびテストVault同期コピーが正常終了すること。
