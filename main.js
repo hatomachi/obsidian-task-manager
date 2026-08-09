@@ -1331,7 +1331,7 @@ __export(main_exports, {
   default: () => TaskManagerPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian9 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 
 // src/types.ts
 var DEFAULT_SETTINGS = {
@@ -2086,7 +2086,29 @@ var WorkFolderService = class {
     const escapedTitle = taskTitle.replace(/"/g, '\\"');
     const cassetteName = pattern ? pattern.name : "\u6307\u5B9A\u306A\u3057";
     const cassetteId = pattern ? pattern.id : "none";
-    const parentTaskVal = parentLink ? `"${parentLink}"` : '""';
+    let parentFrontmatterVal = '""';
+    let parentBodySection = [];
+    if (parentLink && parentLink.trim()) {
+      const trimmedLink = parentLink.trim();
+      const wikiMatch = trimmedLink.match(/\[\[([^\|\]]+)(?:\|([^\]]+))?\]\]/);
+      if (wikiMatch) {
+        const parentPathOnly = wikiMatch[1];
+        parentFrontmatterVal = `"[[${parentPathOnly}]]"`;
+        parentBodySection = [
+          "## \u{1F4CC} \u89AA\u30BF\u30B9\u30AF / \u30C6\u30FC\u30DE",
+          `- ${trimmedLink}`,
+          ""
+        ];
+      } else {
+        const cleanPath = trimmedLink.replace(/^\[\[|\]\]$/g, "");
+        parentFrontmatterVal = `"[[${cleanPath}]]"`;
+        parentBodySection = [
+          "## \u{1F4CC} \u89AA\u30BF\u30B9\u30AF / \u30C6\u30FC\u30DE",
+          `- [[${cleanPath}]]`,
+          ""
+        ];
+      }
+    }
     const artifactSectionContent = artifactWikiLinks.length > 0 ? artifactWikiLinks.join("\n") : "(\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8\u6210\u679C\u7269\u306A\u3057)";
     const indexContentLines = [
       "---",
@@ -2095,11 +2117,12 @@ var WorkFolderService = class {
       "status: in_progress",
       `created_at: ${nowIso}`,
       `cassette: ${cassetteId}`,
-      `parent_task: ${parentTaskVal}`,
+      `parent_task: ${parentFrontmatterVal}`,
       "---",
       "",
       `# ${taskTitle}`,
       "",
+      ...parentBodySection,
       "## \u{1F916} \u9069\u7528\u4E2D\u306E\u696D\u52D9\u30EB\u30FC\u30EB\uFF08\u30AB\u30BB\u30C3\u30C8\uFF09",
       `> ${cassetteName}`,
       "",
@@ -2148,12 +2171,69 @@ var WorkFolderService = class {
   }
 };
 
+// src/services/PromoteService.ts
+var import_obsidian9 = require("obsidian");
+var PromoteService = class {
+  constructor(app, plugin) {
+    this.app = app;
+    this.plugin = plugin;
+  }
+  /**
+   * Promotes an inline task subtask (- [ ] ...) at the active editor cursor line
+   * into a new dedicated work folder _task_works/<child-id>/index.md
+   */
+  async promoteSubtask(editor, view) {
+    var _a, _b;
+    const cursor = editor.getCursor();
+    const lineText = editor.getLine(cursor.line);
+    const taskMatch = lineText.match(/^(\s*[-*]\s*\[[ xX]\]\s*)(.+)$/);
+    if (!taskMatch) {
+      new import_obsidian9.Notice("\u30AB\u30FC\u30BD\u30EB\u884C\u304C\u30A4\u30F3\u30E9\u30A4\u30F3\u30BF\u30B9\u30AF\uFF08- [ ] ...\uFF09\u3067\u306F\u3042\u308A\u307E\u305B\u3093\u3002");
+      return false;
+    }
+    const fullTaskText = taskMatch[2];
+    let cleanTitle = fullTaskText.replace(/#[\w\u3000-\u30FE\u4E00-\u9FA5\uFF00-\uFFEF_-]+/g, "").replace(/📅\s*\d{4}-\d{2}-\d{2}/g, "").replace(/(?:due|scheduled):\s*\d{4}-\d{2}-\d{2}/gi, "").trim();
+    if (!cleanTitle) {
+      cleanTitle = fullTaskText.trim();
+    }
+    const patterns = await this.plugin.patternService.loadAllPatterns();
+    const taskTags = this.plugin.patternService.extractTagsFromText(fullTaskText);
+    const matchedPatterns = this.plugin.patternService.findMatchingPatterns(taskTags, patterns);
+    const matchedPattern = matchedPatterns.length > 0 ? matchedPatterns[0] : void 0;
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      new import_obsidian9.Notice("\u30A2\u30AF\u30C6\u30A3\u30D6\u306A\u30CE\u30FC\u30C8\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093\u3002");
+      return false;
+    }
+    const parentPathNoExt = activeFile.path.replace(/\.md$/, "");
+    const cache = this.app.metadataCache.getFileCache(activeFile);
+    let parentTitle = (_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.title;
+    if (!parentTitle) {
+      const h1 = (_b = cache == null ? void 0 : cache.headings) == null ? void 0 : _b.find((h) => h.level === 1);
+      parentTitle = h1 ? h1.heading : activeFile.basename;
+    }
+    const parentLink = `[[${parentPathNoExt}|${parentTitle}]]`;
+    const workFolderResult = await this.plugin.workFolderService.createWorkFolder(
+      cleanTitle,
+      matchedPattern,
+      parentLink
+    );
+    const childWikiLink = `[[${workFolderResult.folderPath}/index|${cleanTitle}]]`;
+    const newLineText = lineText.replace(cleanTitle, childWikiLink);
+    editor.setLine(cursor.line, newLineText);
+    new import_obsidian9.Notice(`\u30B5\u30D6\u30BF\u30B9\u30AF\u300C${cleanTitle}\u300D\u3092\u30EF\u30FC\u30AF\u30D5\u30A9\u30EB\u30C0\u3078\u6607\u683C\u3057\u307E\u3057\u305F\u3002`);
+    await this.app.workspace.getLeaf().openFile(workFolderResult.indexFile);
+    return true;
+  }
+};
+
 // src/main.ts
-var TaskManagerPlugin = class extends import_obsidian9.Plugin {
+var TaskManagerPlugin = class extends import_obsidian10.Plugin {
   async onload() {
     await this.loadSettings();
     this.patternService = new PatternService(this);
     this.workFolderService = new WorkFolderService(this.app, this);
+    this.promoteService = new PromoteService(this.app, this);
     this.registerView(
       VIEW_TYPE_TASK_MANAGER,
       (leaf) => new TaskManagerView(leaf, this)
@@ -2166,6 +2246,15 @@ var TaskManagerPlugin = class extends import_obsidian9.Plugin {
       name: "Open JIRA Task Manager",
       callback: () => {
         this.activateView();
+      }
+    });
+    this.addCommand({
+      id: "promote-subtask-to-work-folder",
+      name: "Obsidian JIRA: Promote Subtask to Work Folder",
+      editorCallback: async (editor, view) => {
+        if ("file" in view) {
+          await this.promoteService.promoteSubtask(editor, view);
+        }
       }
     });
     this.addCommand({

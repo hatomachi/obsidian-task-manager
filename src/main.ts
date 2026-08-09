@@ -4,16 +4,19 @@ import { TaskManagerSettingTab } from "./settings";
 import { TaskManagerView, VIEW_TYPE_TASK_MANAGER } from "./views/TaskManagerView";
 import { PatternService } from "./services/PatternService";
 import { WorkFolderService } from "./services/WorkFolderService";
+import { PromoteService } from "./services/PromoteService";
 
 export default class TaskManagerPlugin extends Plugin {
 	settings: TaskManagerSettings;
 	patternService: PatternService;
 	workFolderService: WorkFolderService;
+	promoteService: PromoteService;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
 		this.patternService = new PatternService(this);
 		this.workFolderService = new WorkFolderService(this.app, this);
+		this.promoteService = new PromoteService(this.app, this);
 
 		// Register Main Panel ItemView
 		this.registerView(
@@ -32,6 +35,17 @@ export default class TaskManagerPlugin extends Plugin {
 			name: "Open JIRA Task Manager",
 			callback: () => {
 				this.activateView();
+			},
+		});
+
+		// Add Command: Promote Subtask to Work Folder
+		this.addCommand({
+			id: "promote-subtask-to-work-folder",
+			name: "Obsidian JIRA: Promote Subtask to Work Folder",
+			editorCallback: async (editor, view) => {
+				if ("file" in view) {
+					await this.promoteService.promoteSubtask(editor, view);
+				}
 			},
 		});
 

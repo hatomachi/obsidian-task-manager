@@ -98,9 +98,13 @@ AIにタスク群を一括修正させたり、スケジュールを自動調整
 「Mythosセキュリティ対策」のような巨大なテーマから末端の実行手順までを、Wikiリンクで疎結合に接続します。
 
 1. **`parent_task` によるバックリンク**:
-   - 子ワークフォルダの `index.md` Frontmatter に `parent_task: "[[親ワークフォルダ/index]]"` を保持し、上位の文脈（Why）をAIが常時参照可能にする。
-2. **サブタスクの昇格 (`Promote to Work Folder`)**:
-   - `index.md` 内の `- [ ] サブタスク` が膨らみ、独自の成果物や作戦が必要になった場合、ワンタップで新しいワークフォルダ（子）へ昇格切り出しを行い、元ノートにはリンクを残す。
+   - 子ワークフォルダの `index.md` Frontmatter に `parent_task: "[[_task_works/<parent-id>/index]]"` を自動保持。
+   - 本文冒頭にも `## 📌 親タスク / テーマ` セクションとして親ノートへの Wiki リンク (`- [[_task_works/<parent-id>/index|親タスクタイトル]]`) を動的挿入し、上位の文脈（Why）を人間および AI が常時参照可能にする。
+2. **サブタスクの昇格 (`Promote Subtask to Work Folder`)**:
+   - エディタコマンド `Obsidian JIRA: Promote Subtask to Work Folder` を実行することで、カーソル行のインラインタスク（`- [ ] サブタスク`）を解析。
+   - タグ（例: `#リリース`）から `PatternService` で該当するカセットを自動判定し、`_task_works/<child-folder-id>/` 内へカセットテンプレートを展開。
+   - 親ノート上の元行を、子ワークフォルダへの Wiki リンクに自動置換（例: `- [ ] #リリース [[_task_works/<child-id>/index|決済APIの仕様書を確認する]] 📅 2026-08-15`）。
+   - 昇格完了後に Notice 通知を出し、生成された子 `index.md` をエディタで自動展開。
 
 ---
 

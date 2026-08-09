@@ -75,7 +75,32 @@ export class WorkFolderService {
 		const escapedTitle = taskTitle.replace(/"/g, '\\"');
 		const cassetteName = pattern ? pattern.name : "指定なし";
 		const cassetteId = pattern ? pattern.id : "none";
-		const parentTaskVal = parentLink ? `"${parentLink}"` : '""';
+		// Format parent task links for frontmatter and body section
+		let parentFrontmatterVal = '""';
+		let parentBodySection: string[] = [];
+
+		if (parentLink && parentLink.trim()) {
+			const trimmedLink = parentLink.trim();
+			const wikiMatch = trimmedLink.match(/\[\[([^\|\]]+)(?:\|([^\]]+))?\]\]/);
+			if (wikiMatch) {
+				const parentPathOnly = wikiMatch[1];
+				parentFrontmatterVal = `"[[${parentPathOnly}]]"`;
+				parentBodySection = [
+					"## 📌 親タスク / テーマ",
+					`- ${trimmedLink}`,
+					"",
+				];
+			} else {
+				// Fallback if plain string or path without brackets
+				const cleanPath = trimmedLink.replace(/^\[\[|\]\]$/g, "");
+				parentFrontmatterVal = `"[[${cleanPath}]]"`;
+				parentBodySection = [
+					"## 📌 親タスク / テーマ",
+					`- [[${cleanPath}]]`,
+					"",
+				];
+			}
+		}
 
 		const artifactSectionContent = artifactWikiLinks.length > 0
 			? artifactWikiLinks.join("\n")
@@ -88,11 +113,12 @@ export class WorkFolderService {
 			"status: in_progress",
 			`created_at: ${nowIso}`,
 			`cassette: ${cassetteId}`,
-			`parent_task: ${parentTaskVal}`,
+			`parent_task: ${parentFrontmatterVal}`,
 			"---",
 			"",
 			`# ${taskTitle}`,
 			"",
+			...parentBodySection,
 			"## 🤖 適用中の業務ルール（カセット）",
 			`> ${cassetteName}`,
 			"",
