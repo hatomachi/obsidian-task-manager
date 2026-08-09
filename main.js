@@ -1719,7 +1719,7 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     super(leaf);
     this.plugin = plugin;
     this.searchFilter = "";
-    this.activeViewMode = "tree";
+    this.activeViewMode = "focus";
     this.eventListeners = [];
     this.isProcessingAI = false;
     this.taskService = new TaskService(this.app, this.plugin);
@@ -1758,6 +1758,14 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     const titleGroup = headerEl.createDiv({ cls: "jira-tm-title-group" });
     titleGroup.createEl("h2", { text: "JIRA Task Manager" });
     const switcherEl = titleGroup.createDiv({ cls: "jira-view-switcher" });
+    const focusTab = switcherEl.createEl("button", {
+      text: "\u26A1 Focus",
+      cls: `jira-tab-btn ${this.activeViewMode === "focus" ? "active" : ""}`
+    });
+    focusTab.addEventListener("click", () => {
+      this.activeViewMode = "focus";
+      this.render();
+    });
     const treeTab = switcherEl.createEl("button", {
       text: "\u{1F333} Context Tree",
       cls: `jira-tab-btn ${this.activeViewMode === "tree" ? "active" : ""}`
@@ -1897,7 +1905,9 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
       const query = this.searchFilter.toLowerCase();
       return t.title.toLowerCase().includes(query) || t.id.toLowerCase().includes(query);
     });
-    if (this.activeViewMode === "tree") {
+    if (this.activeViewMode === "focus") {
+      this.renderFocusBoard(boardEl);
+    } else if (this.activeViewMode === "tree") {
       this.renderContextTreeBoard(boardEl);
     } else if (this.activeViewMode === "status") {
       this.renderStatusBoard(boardEl, filteredTasks, allTasks);
@@ -2320,6 +2330,96 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     });
     const titleEl = actionRow.createEl("span", {
       cls: `jira-tree-node-title ${node.status === "done" ? "is-done" : ""}`,
+      text: node.title
+    });
+    titleEl.addEventListener("click", async () => {
+      await this.taskService.openTaskNote(node.file);
+    });
+  }
+  renderFocusBoard(boardEl) {
+    boardEl.empty();
+    boardEl.addClass("jira-focus-board-wrapper");
+    const allNodes = this.taskService.getAllTaskNodes();
+    const query = this.searchFilter.toLowerCase();
+    const focusActions = allNodes.filter((n) => {
+      if (n.nodeType !== "action")
+        return false;
+      if (n.status === "done" || n.status === "deprecated")
+        return false;
+      if (!query)
+        return true;
+      return n.title.toLowerCase().includes(query) || n.id.toLowerCase().includes(query);
+    });
+    const totalActions = allNodes.filter((n) => n.nodeType === "action").length;
+    const completedActions = allNodes.filter((n) => n.nodeType === "action" && n.status === "done").length;
+    const container = boardEl.createDiv({ cls: "jira-focus-container" });
+    const headerBar = container.createDiv({ cls: "jira-focus-header-bar" });
+    const titleArea = headerBar.createDiv({ cls: "jira-focus-header-title" });
+    titleArea.createEl("h3", { text: "\u26A1 Next Physical Actions (Focus View)" });
+    titleArea.createEl("span", {
+      cls: "jira-focus-counter-badge",
+      text: `${focusActions.length} Active / ${totalActions} Total (${completedActions} Done)`
+    });
+    if (focusActions.length === 0) {
+      const emptyBox = container.createDiv({ cls: "jira-focus-empty-state" });
+      emptyBox.createEl("div", { cls: "jira-focus-empty-icon", text: "\u{1F389}" });
+      emptyBox.createEl("h3", { text: "Focus \u30BF\u30B9\u30AF\u306F\u3059\u3079\u3066\u5B8C\u4E86\u3057\u3066\u3044\u307E\u3059\uFF01" });
+      emptyBox.createEl("p", { text: "\u300C\u{1F333} Context Tree\u300D\u3067\u4F5C\u6226\uFF08Strategy\uFF09\u304B\u3089\u7269\u7406\u884C\u52D5\uFF08Action\uFF09\u3092\u5C55\u958B\u3059\u308B\u304B\u3001\u65B0\u3057\u3044 Goal \u3092\u8FFD\u52A0\u3057\u3066\u304F\u3060\u3055\u3044\u3002" });
+      return;
+    }
+    const cardList = container.createDiv({ cls: "jira-focus-card-list" });
+    for (const actionNode of focusActions) {
+      this.renderFocusActionCard(cardList, actionNode, allNodes);
+    }
+  }
+  renderFocusActionCard(container, node, allNodes) {
+    const cardEl = container.createDiv({ cls: "jira-focus-action-card" });
+    let strategyTitle = "";
+    let goalTitle = "";
+    if (node.parentId) {
+      const parentStrategy = allNodes.find((n) => n.id === node.parentId);
+      if (parentStrategy) {
+        strategyTitle = parentStrategy.title;
+        if (parentStrategy.parentId) {
+          const rootGoal = allNodes.find((n) => n.id === parentStrategy.parentId);
+          if (rootGoal) {
+            goalTitle = rootGoal.title;
+          }
+        }
+      }
+    }
+    if (goalTitle || strategyTitle) {
+      const breadcrumbEl = cardEl.createDiv({ cls: "jira-focus-breadcrumb" });
+      const crumbs = [];
+      if (goalTitle)
+        crumbs.push(`\u{1F3AF} ${goalTitle}`);
+      if (strategyTitle)
+        crumbs.push(`\u{1F5FA}\uFE0F ${strategyTitle}`);
+      breadcrumbEl.setText(crumbs.join(" \u2794 "));
+    }
+    const mainRow = cardEl.createDiv({ cls: "jira-focus-card-main" });
+    const chk = mainRow.createEl("input", {
+      type: "checkbox",
+      cls: "jira-subtask-chk jira-focus-chk"
+    });
+    chk.checked = node.status === "done";
+    chk.addEventListener("change", async (e) => {
+      e.stopPropagation();
+      const newStatus = chk.checked ? "done" : "todo";
+      await this.taskService.updateTaskStatus(node.file, newStatus);
+      this.render();
+    });
+    const badge = mainRow.createEl("span", {
+      cls: "jira-node-badge badge-action",
+      text: "ACTION"
+    });
+    const idBadge = mainRow.createEl("span", { cls: "jira-card-id", text: node.id });
+    idBadge.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await this.taskService.openTaskNote(node.file);
+    });
+    const titleEl = mainRow.createEl("span", {
+      cls: "jira-focus-action-title",
       text: node.title
     });
     titleEl.addEventListener("click", async () => {

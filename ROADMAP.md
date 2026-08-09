@@ -45,12 +45,13 @@
     - [x] 作戦ノードのステータス切り替え（Accept / Deprecate / Complete）が直感的に行えること。
     - [x] `npm run build` が正常に通り、テストVaultへの同期コピーが完了すること。
 
-- [ ] **Phase 5: 実行モード (Focus / Today View) ＆ シナリオ実証検証**
+- [x] **Phase 5: 実行モード (Focus / Today View) ＆ シナリオ実証検証**
   - **概要**: 「今日やるべき物理行動 (Action)」に集中する Focus タブの実装と、壁打ち「Mythos」シナリオによる実証検証。
   - **主な実装範囲**:
     - `Focus View` (TaskManagerView内): `status !== 'done'` かつ `nodeType === 'action'` のノードをフラット表示する「今日のTODO」タブ。
     - シナリオ実証テスト: 「Mythos (Goal)」➔「SWアプデ / 24Hクローリング (Strategy)」➔「塩漬けABC WAF緊急ガード (Strategy C)」の展開・OODAループ検証。
   - **完了条件 (DoD)**:
-    - [ ] Focus タブで文脈ツリーを削ぎ落とした物理行動リストのみが表示され、完了操作が連動すること。
-    - [ ] Mythos シナリオを通して、作戦の立案・追加・Action展開・ボツ化の連動がスムーズに実動確認できること。
-    - [ ] `npm run build` およびテストVault同期コピーが正常終了すること。
+    - [x] Focus タブで文脈ツリーを削ぎ落とした物理行動リストのみが表示され、完了操作が連動すること。
+    - [x] Mythos シナリオを通して、作戦の立案・追加・Action展開・ボツ化の連動がスムーズに実動確認できること。
+    - [x] `npm run build` およびテストVault同期コピーが正常終了すること。
+

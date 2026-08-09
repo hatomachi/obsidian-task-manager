@@ -97,8 +97,8 @@ Vault内の .md ノード群 (分散ストレージ)
    - ノード選択から AI ブレイクダウン（Strategy提案 / Action展開）を実行。
    - 作戦の「合意 (Accept)」「ボツ (Deprecate)」「追加」を直感的に操作。
 2. **実行モード (Focus / Today View)**:
-   - ツリーの深さを削ぎ落とし、`status !== 'done'` かつ `nodeType === 'action'` の「今今日やるべき物理行動」だけをフラットに一覧化。
-   - チェックボックスを打って物理行動を消化することに集中する。
+   - ツリーの深さを削ぎ落とし、`status !== 'done'` かつ `nodeType === 'action'` の「今今日やるべき物理行動 (Next Physical Action)」だけをフラットに一覧化。
+   - 各カードには `🎯 Goal ➔ 🗺️ Strategy` の文脈パンくず（Breadcrumb）を提示し、思考文脈を保ちつつチェックボックスによる作業消化に集中可能。
 
 ---
 

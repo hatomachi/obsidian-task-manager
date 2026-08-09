@@ -8,14 +8,14 @@ import { AICopilotModal } from "./AICopilotModal";
 
 export const VIEW_TYPE_TASK_MANAGER = "jira-task-manager-view";
 
-export type ViewMode = "tree" | "status" | "schedule";
+export type ViewMode = "focus" | "tree" | "status" | "schedule";
 
 export class TaskManagerView extends ItemView {
 	private taskService: TaskService;
 	private aiService: AIService;
 	private undoService: UndoService;
 	private searchFilter = "";
-	private activeViewMode: ViewMode = "tree";
+	private activeViewMode: ViewMode = "focus";
 	private eventListeners: EventRef[] = [];
 	private isProcessingAI = false;
 
@@ -70,6 +70,15 @@ export class TaskManagerView extends ItemView {
 
 		// View Mode Switcher
 		const switcherEl = titleGroup.createDiv({ cls: "jira-view-switcher" });
+
+		const focusTab = switcherEl.createEl("button", {
+			text: "⚡ Focus",
+			cls: `jira-tab-btn ${this.activeViewMode === "focus" ? "active" : ""}`,
+		});
+		focusTab.addEventListener("click", () => {
+			this.activeViewMode = "focus";
+			this.render();
+		});
 
 		const treeTab = switcherEl.createEl("button", {
 			text: "🌳 Context Tree",
@@ -235,7 +244,9 @@ export class TaskManagerView extends ItemView {
 			);
 		});
 
-		if (this.activeViewMode === "tree") {
+		if (this.activeViewMode === "focus") {
+			this.renderFocusBoard(boardEl);
+		} else if (this.activeViewMode === "tree") {
 			this.renderContextTreeBoard(boardEl);
 		} else if (this.activeViewMode === "status") {
 			this.renderStatusBoard(boardEl, filteredTasks, allTasks);
@@ -751,5 +762,114 @@ export class TaskManagerView extends ItemView {
 			await this.taskService.openTaskNote(node.file);
 		});
 	}
+
+	private renderFocusBoard(boardEl: HTMLElement): void {
+		boardEl.empty();
+		boardEl.addClass("jira-focus-board-wrapper");
+
+		const allNodes = this.taskService.getAllTaskNodes();
+		const query = this.searchFilter.toLowerCase();
+
+		// Filter active physical action nodes (nodeType === 'action', status !== 'done' & 'deprecated')
+		const focusActions = allNodes.filter((n) => {
+			if (n.nodeType !== "action") return false;
+			if (n.status === "done" || n.status === "deprecated") return false;
+			if (!query) return true;
+			return n.title.toLowerCase().includes(query) || n.id.toLowerCase().includes(query);
+		});
+
+		const totalActions = allNodes.filter((n) => n.nodeType === "action").length;
+		const completedActions = allNodes.filter((n) => n.nodeType === "action" && n.status === "done").length;
+
+		const container = boardEl.createDiv({ cls: "jira-focus-container" });
+
+		// Header Summary Bar
+		const headerBar = container.createDiv({ cls: "jira-focus-header-bar" });
+		const titleArea = headerBar.createDiv({ cls: "jira-focus-header-title" });
+		titleArea.createEl("h3", { text: "⚡ Next Physical Actions (Focus View)" });
+		titleArea.createEl("span", {
+			cls: "jira-focus-counter-badge",
+			text: `${focusActions.length} Active / ${totalActions} Total (${completedActions} Done)`,
+		});
+
+		if (focusActions.length === 0) {
+			const emptyBox = container.createDiv({ cls: "jira-focus-empty-state" });
+			emptyBox.createEl("div", { cls: "jira-focus-empty-icon", text: "🎉" });
+			emptyBox.createEl("h3", { text: "Focus タスクはすべて完了しています！" });
+			emptyBox.createEl("p", { text: "「🌳 Context Tree」で作戦（Strategy）から物理行動（Action）を展開するか、新しい Goal を追加してください。" });
+			return;
+		}
+
+		const cardList = container.createDiv({ cls: "jira-focus-card-list" });
+
+		for (const actionNode of focusActions) {
+			this.renderFocusActionCard(cardList, actionNode, allNodes);
+		}
+	}
+
+	private renderFocusActionCard(container: HTMLElement, node: import("../types").TaskNode, allNodes: import("../types").TaskNode[]): void {
+		const cardEl = container.createDiv({ cls: "jira-focus-action-card" });
+
+		// Trace ancestor hierarchy: Goal -> Strategy
+		let strategyTitle = "";
+		let goalTitle = "";
+
+		if (node.parentId) {
+			const parentStrategy = allNodes.find((n) => n.id === node.parentId);
+			if (parentStrategy) {
+				strategyTitle = parentStrategy.title;
+				if (parentStrategy.parentId) {
+					const rootGoal = allNodes.find((n) => n.id === parentStrategy.parentId);
+					if (rootGoal) {
+						goalTitle = rootGoal.title;
+					}
+				}
+			}
+		}
+
+		// Breadcrumb Bar
+		if (goalTitle || strategyTitle) {
+			const breadcrumbEl = cardEl.createDiv({ cls: "jira-focus-breadcrumb" });
+			const crumbs: string[] = [];
+			if (goalTitle) crumbs.push(`🎯 ${goalTitle}`);
+			if (strategyTitle) crumbs.push(`🗺️ ${strategyTitle}`);
+			breadcrumbEl.setText(crumbs.join(" ➔ "));
+		}
+
+		// Main Card Row
+		const mainRow = cardEl.createDiv({ cls: "jira-focus-card-main" });
+
+		const chk = mainRow.createEl("input", {
+			type: "checkbox",
+			cls: "jira-subtask-chk jira-focus-chk",
+		});
+		chk.checked = node.status === "done";
+		chk.addEventListener("change", async (e) => {
+			e.stopPropagation();
+			const newStatus = chk.checked ? "done" : "todo";
+			await this.taskService.updateTaskStatus(node.file, newStatus);
+			this.render();
+		});
+
+		const badge = mainRow.createEl("span", {
+			cls: "jira-node-badge badge-action",
+			text: "ACTION",
+		});
+
+		const idBadge = mainRow.createEl("span", { cls: "jira-card-id", text: node.id });
+		idBadge.addEventListener("click", async (e) => {
+			e.stopPropagation();
+			await this.taskService.openTaskNote(node.file);
+		});
+
+		const titleEl = mainRow.createEl("span", {
+			cls: "jira-focus-action-title",
+			text: node.title,
+		});
+		titleEl.addEventListener("click", async () => {
+			await this.taskService.openTaskNote(node.file);
+		});
+	}
 }
+
 
