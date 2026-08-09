@@ -118,7 +118,7 @@
     - [x] Frontmatter の `subtasks` が壊れずに正しく読み書き・保存され、Subtask の完了トグルが動作すること。
     - [x] `npm run build` が正常に通ること。
 
-- [ ] **Phase 11: AIプロンプト改修（戦略アプローチ化 ＋ Action Deliverable化 & Subtask同時生成）**
+- [x] **Phase 11: AIプロンプト改修（戦略アプローチ化 ＋ Action Deliverable化 & Subtask同時生成）**
   - **概要**: Strategy提案プロンプト・Action分解プロンプトの改修による操作マニュアル化防止と、Actionへの `subtasks` 同時出力対応。
   - **主な実装範囲**:
     - `src/prompts/strategyPrompt.ts`: Strategy を「工程」ではなく「達成のための具体方針・戦い方・アプローチ」として出力させるルール調整。
@@ -128,9 +128,9 @@
       - 15〜30分単位の実行手順・章立てを `subtasks` 配列オブジェクトとして同時生成させる出力フォーマット拡張。
     - `src/services/AIService.ts`: JSON パースロジックの修正と `subtasks` 付き Action ノード生成処理。
   - **完了条件 (DoD)**:
-    - [ ] AIが提案する Strategy が具体アプローチ・方針表現になること。
-    - [ ] AIが生成する Action からチープな操作手順が排除され、成果物単位の Action とその内部 `subtasks` 配列が自動出力・生成保存されること。
-    - [ ] `npm run build` が正常に通ること。
+    - [x] AIが提案する Strategy が具体アプローチ・方針表現になること。
+    - [x] AIが生成する Action からチープな操作手順が排除され、成果物単位の Action とその内部 `subtasks` 配列が自動出力・生成保存されること。
+    - [x] `npm run build` が正常に通ること。
 
 - [ ] **Phase 12: UI表示 & Subtask インタラクション**
   - **概要**: `TaskManagerView` での Action カード内 Subtask アコーディオン描画および1クリックトグル操作。

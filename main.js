@@ -430,17 +430,23 @@ var init_TaskService = __esm({
 function getBaseSystemRules() {
   return `\u3010AI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC \u7D76\u5BFE\u9075\u5B88\u30EB\u30FC\u30EB\u3011
 1. \u3010\u65E5\u672C\u8A9E\u51FA\u529B\u306E\u7D76\u5BFE\u5F37\u5236\u3011:
-   - \u751F\u6210\u30FB\u51FA\u529B\u3059\u308B\u3059\u3079\u3066\u306E\u30BF\u30B9\u30AF\u30BF\u30A4\u30C8\u30EB\u3001\u30B5\u30D6\u30BF\u30B9\u30AF\u540D\u3001\u304A\u3088\u3073\u89E3\u8AAC\u6587\u306F\u3001\u5FC5\u305A\u81EA\u7136\u306A\u65E5\u672C\u8A9E\u3067\u8A18\u8FF0\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u82F1\u8A9E\u3067\u306E\u51FA\u529B\u306F\u7981\u6B62\u3067\u3059\u3002
+   - \u751F\u6210\u30FB\u51FA\u529B\u3059\u308B\u3059\u3079\u3066\u306E\u30BF\u30B9\u30AF\u30BF\u30A4\u30C8\u30EB\u3001\u4F5C\u6226\u540D\u3001\u30B5\u30D6\u30BF\u30B9\u30AF\u540D\u3001\u304A\u3088\u3073\u89E3\u8AAC\u6587\u306F\u3001\u5FC5\u305A\u81EA\u7136\u306A\u65E5\u672C\u8A9E\u3067\u8A18\u8FF0\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u82F1\u8A9E\u3067\u306E\u51FA\u529B\u306F\u7981\u6B62\u3067\u3059\u3002
 
-2. \u301015\u301C30\u5206 Next Physical Action (\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5) \u3078\u306E\u5F37\u5236\u5206\u89E3\u3011:
-   - \u3059\u3079\u3066\u306E\u30BF\u30B9\u30AF/\u30B5\u30D6\u30BF\u30B9\u30AF\u306F\u300115\u301C30\u5206\u4EE5\u5185\u3067\u7D42\u308F\u308B\u6700\u5C0F\u9650\u306E\u884C\u52D5\u5358\u4F4D\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-   - \u30BF\u30A4\u30C8\u30EB\u306E\u52D5\u8A5E\u306F\u3001\u4EBA\u9593\u304C\u5373\u5EA7\u306B\u4F53\u3092\u52D5\u304B\u305B\u308B\u300C\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u300D\u3067\u59CB\u3081\u3066\u304F\u3060\u3055\u3044\u3002
-     (\u4F8B: \u300C\u301C\u306E\u753B\u9762\u3092\u958B\u304F\u300D\u300C\u301C\u306E\u30D5\u30A1\u30A4\u30EB\u30921\u884C\u4F5C\u6210\u3059\u308B\u300D\u300C\u301C\u306EURL\u3092\u30D6\u30E9\u30A6\u30B6\u3067\u691C\u7D22\u3059\u308B\u300D\u300C\u301C\u3092\u5165\u529B\u3059\u308B\u300D)
+2. \u3010Strategy (\u4F5C\u6226) \u306E\u6226\u7565\u30A2\u30D7\u30ED\u30FC\u30C1\u30FB\u65B9\u91DD\u5316\u3011:
+   - Strategy \u306F\u5358\u306A\u308B\u300C\u5DE5\u7A0B\u300D\u3084\u300C\u30D5\u30A7\u30FC\u30BA\u306E\u5206\u985E\u300D\u3067\u306F\u306A\u304F\u3001\u300C\u76EE\u6A19\u3092\u9054\u6210\u3059\u308B\u305F\u3081\u306E\u5177\u4F53\u65B9\u91DD\u30FB\u6226\u3044\u65B9\u30FB\u30C8\u30EC\u30FC\u30C9\u30AA\u30D5\u3092\u6291\u3048\u305F\u30A2\u30D7\u30ED\u30FC\u30C1\u300D\u3068\u3057\u3066\u63D0\u6848\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+     (\u4F8B: \u25CB\u300CNDP\u30B7\u30B9\u30C6\u30E0\u306ESW\u30D0\u30FC\u30B8\u30E7\u30F3\u30A2\u30C3\u30D7\u306B\u3088\u308B\u975E\u4E92\u63DB\u56DE\u907F\u300D, \xD7\u300C\u30D0\u30FC\u30B8\u30E7\u30F3\u30A2\u30C3\u30D7\u5DE5\u7A0B\u300D)
 
-3. \u3010\u62BD\u8C61\u7684\u30FB\u66D6\u6627\u306A\u8868\u73FE\u306E\u7D76\u5BFE\u7981\u6B62\u3011:
-   - \u4EE5\u4E0B\u306E\u62BD\u8C61\u7684\u30FB\u66D6\u6627\u306A\u8A00\u8449\u3092\u30BF\u30B9\u30AF\u540D\u306B\u4F7F\u7528\u3059\u308B\u3053\u3068\u3092\u56FA\u304F\u7981\u6B62\u3057\u307E\u3059\u3002
-     \xD7 \u7981\u6B62\u8A9E: \u300C\u691C\u8A0E\u3059\u308B\u300D\u300C\u8ABF\u6574\u3059\u308B\u300D\u300C\u8ABF\u67FB\u3059\u308B\u300D\u300C\u78BA\u8A8D\u3059\u308B\u300D\u300C\u5BFE\u5FDC\u3059\u308B\u300D\u300C\u5B9F\u65BD\u3059\u308B\u300D\u300C\u8003\u3048\u308B\u300D\u300C\u628A\u63E1\u3059\u308B\u300D\u300C\u9032\u3081\u308B\u300D
-   - \u4E0A\u8A18\u306E\u3088\u3046\u306A\u66D6\u6627\u306A\u4F5C\u696D\u306F\u3001\u5FC5\u305A\u300C\u3069\u3053\u3092\u958B\u304D\u3001\u4F55\u3092\u5165\u529B/\u66F8\u304F\u304B\u300D\u3068\u3044\u3046\u5177\u4F53\u884C\u52D5\u306B\u843D\u3068\u3057\u8FBC\u3093\u3067\u304F\u3060\u3055\u3044\u3002
+3. \u3010Action (\u5B9F\u884CTODO) \u306E\u6210\u679C\u7269 (Deliverable) \u5358\u4F4D\u5316\u3011:
+   - Action \u306F 1\u301C3\u6642\u9593\u3067\u660E\u78BA\u306A\u6210\u679C\u7269\uFF08\u4ED5\u69D8\u66F8\u3001\u6BD4\u8F03\u8868\u3001\u5B9F\u88C5\u30B3\u30FC\u30C9\u3001\u691C\u8A3C\u30ED\u30B0\u7B49\uFF09\u304C\u5F97\u3089\u308C\u308B\u5358\u4F4D\u3068\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - \u30BF\u30A4\u30C8\u30EB\u306F\u5177\u4F53\u7684\u306A\u6210\u679C\u7269\u306E\u4F5C\u6210\u30FB\u62BD\u51FA\u3092\u8868\u3059\u8868\u73FE\u3068\u3057\u3066\u304F\u3060\u3055\u3044\u3002 (\u4F8B: \u300CAPIGWv11\u30EA\u30EA\u30FC\u30B9\u30CE\u30FC\u30C8\u304B\u3089\u975E\u4E92\u63DB\u4ED5\u69D8\u3092\u62BD\u51FA\u3059\u308B\u300D)
+
+4. \u3010Subtasks (15\u301C30\u5206\u30B9\u30C6\u30C3\u30D7) \u306E\u540C\u6642\u751F\u6210\u3011:
+   - Action \u5185\u3067\u5B9F\u884C\u3059\u308B 15\u301C30\u5206\u5358\u4F4D\u306E\u5177\u4F53\u7684\u306A\u5B9F\u884C\u624B\u9806\u3084\u7AE0\u7ACB\u3066\u306F\u3001Action \u306E\u5185\u90E8 \`subtasks\` \u914D\u5217\u3068\u3057\u3066\u540C\u6642\u306B\u751F\u6210\u30FB\u4FDD\u6301\u3055\u305B\u3066\u304F\u3060\u3055\u3044\u3002
+
+5. \u3010\u30C1\u30FC\u30D7\u306APC\u64CD\u4F5C\u30DE\u30CB\u30E5\u30A2\u30EB\u5316\u306E\u7D76\u5BFE\u7981\u6B62 (\u30CD\u30AC\u30C6\u30A3\u30D6\u30D7\u30ED\u30F3\u30D7\u30C8)\u3011:
+   - \u300C\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304F\u300D\u300C\u30A8\u30C7\u30A3\u30BF\u3092\u958B\u304F\u300D\u300C\u30AD\u30FC\u30DC\u30FC\u30C9\u3067\u5165\u529B\u3059\u308B\u300D\u300C\u30E1\u30E2\u5E33\u306B\u66F8\u304F\u300D\u300C\u30AF\u30EA\u30C3\u30AF\u3059\u308B\u300D\u3068\u3044\u3063\u305F\u5358\u4F53PC\u64CD\u4F5C\u30DE\u30CB\u30E5\u30A2\u30EB\u5316\uFF08\u30C1\u30FC\u30D7\u5316\uFF09\u3092\u53B3\u7981\u3068\u3057\u307E\u3059\u3002
+   - \xD7 \u7981\u6B62\u30D1\u30BF\u30FC\u30F3: \u300C\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u3007\u3007\u306E\u30B5\u30A4\u30C8\u306B\u884C\u304F\u300D\u300C\u30CE\u30FC\u30C8\u3092\u958B\u3044\u30661\u884C\u66F8\u304F\u300D\u7B49
+   - \u62BD\u8C61\u7684\u30FB\u66D6\u6627\u306A\u7981\u6B62\u8A9E: \u300C\u691C\u8A0E\u3059\u308B\u300D\u300C\u8ABF\u6574\u3059\u308B\u300D\u300C\u8ABF\u67FB\u3059\u308B\u300D\u300C\u78BA\u8A8D\u3059\u308B\u300D\u300C\u5BFE\u5FDC\u3059\u308B\u300D\u300C\u5B9F\u65BD\u3059\u308B\u300D\u300C\u8003\u3048\u308B\u300D\u300C\u628A\u63E1\u3059\u308B\u300D\u300C\u9032\u3081\u308B\u300D
 `;
 }
 function buildFullSystemRules(customSettingsPrompt, vaultRuleContent) {
@@ -530,19 +536,21 @@ ${siblingLines.length > 0 ? siblingLines.join("\n") : "  (\u306A\u3057)"}
   }
   const targetTitle = ((_a = aiContextPayload == null ? void 0 : aiContextPayload.selectedNode) == null ? void 0 : _a.title) || task.title;
   return `\u3042\u306A\u305F\u306FAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
-\u76F4\u8FD1\u306E\u4F5C\u6226\u300C${targetTitle}\u300D\u304A\u3088\u3073\u4E0A\u4F4D\u306E\u601D\u8003\u7CFB\u8B5C\u306B\u57FA\u3065\u304D\u3001\u30ED\u30FC\u30EA\u30F3\u30B0\u30A6\u30A7\u30FC\u30D6\u5206\u89E3\uFF08\u76F4\u8FD1\u5B9F\u884C\u3059\u308B\u4F5C\u696D\u306E\u307F\u7CBE\u7DFB\u5316\uFF09\u3092\u884C\u3044\u300115\u301C30\u5206\u3067\u5B9F\u884C\u53EF\u80FD\u306A3\u301C5\u500B\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF08Next Physical Action / Action\u30CE\u30FC\u30C9\uFF09\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u76F4\u8FD1\u306E\u4F5C\u6226\u300C${targetTitle}\u300D\u304A\u3088\u3073\u4E0A\u4F4D\u306E\u601D\u8003\u7CFB\u8B5C\u306B\u57FA\u3065\u304D\u3001\u30ED\u30FC\u30EA\u30F3\u30B0\u30A6\u30A7\u30FC\u30D6\u5206\u89E3\uFF08\u76F4\u8FD1\u5B9F\u884C\u3059\u308B\u4F5C\u696D\u306E\u307F\u7CBE\u7DFB\u5316\uFF09\u3092\u884C\u3044\u30011\u301C3\u6642\u9593\u3067\u660E\u78BA\u306A\u6210\u679C\u7269\u304C\u5F97\u3089\u308C\u308B3\u301C5\u500B\u306E Action (Deliverable TODO) \u30CE\u30FC\u30C9\u3068\u3001\u5404 Action \u5185\u90E8\u306E 15\u301C30\u5206\u5B9F\u884C\u624B\u9806 (\`subtasks\`) \u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
 
 ${systemRules}${patternPromptSection}${contextPayloadSection}
 
 \u3010\u4F5C\u6210\u4E0A\u306E\u7D76\u5BFE\u30EB\u30FC\u30EB\u3011:
-1. **\u30ED\u30FC\u30EA\u30F3\u30B0\u30A6\u30A7\u30FC\u30D6\u5206\u89E3\u306E\u5FB9\u5E95**:
-   - \u5965\u306E\u672A\u6765\u307E\u3067\u4E00\u62EC\u3067\u30A6\u30A9\u30FC\u30BF\u30FC\u30D5\u30A9\u30FC\u30EB\u4F5C\u6210\u305B\u305A\u3001\u624B\u524D\u306E\u76F4\u8FD1 Strategy \u306E\u307F\u30923\u301C5\u500B\u306E\u7269\u7406\u884C\u52D5\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-2. **\u5404\u30A2\u30AF\u30B7\u30E7\u30F3\u306E\u6642\u7CFB\u5217\u30FB\u6642\u9593\u898B\u7A4D\u3082\u308A\u5C5E\u6027**:
+1. **\u30ED\u30FC\u30EA\u30F3\u30B0\u30A6\u30A7\u30FC\u30D6\u5206\u89E3 \uFF06 Action (Deliverable) \u306E\u5B9A\u7FA9**:
+   - \u5965\u306E\u672A\u6765\u307E\u3067\u4E00\u62EC\u3067\u4F5C\u6210\u305B\u305A\u3001\u76F4\u8FD1 Strategy \u306E\u307F\u30923\u301C5\u500B\u306E Action \u30CE\u30FC\u30C9\u3078\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - Action \u306E\u5358\u4F4D\u306F 1\u301C3\u6642\u9593\u3067\u660E\u78BA\u306A\u6210\u679C\u7269\uFF08\u4ED5\u69D8\u66F8\u3001\u975E\u4E92\u63DB\u30EA\u30B9\u30C8\u3001\u5B9F\u88C5\u3001\u691C\u8A3C\u30ED\u30B0\u7B49\uFF09\u304C\u5F97\u3089\u308C\u308B\u7C92\u5EA6\u3068\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - \u300C\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304F\u300D\u300C\u30CE\u30FC\u30C8\u306B1\u884C\u66F8\u304F\u300D\u3068\u3044\u3063\u305F\u5358\u4E00PC\u64CD\u4F5C\u30DE\u30CB\u30E5\u30A2\u30EB\u5316\u306F**\u7D76\u5BFE\u7981\u6B62**\u3067\u3059\u3002
+2. **Action \u5C5E\u6027\u304A\u3088\u3073 Subtasks (15\u301C30\u5206\u30B9\u30C6\u30C3\u30D7) \u540C\u6642\u51FA\u529B**:
    - \`sequenceOrder\`: \u7740\u624B\u9806\u5E8F\uFF081, 2, 3... \u306E1\u304B\u3089\u59CB\u307E\u308B\u6607\u9806\uFF09\u3002
-   - \`estimatedMinutes\`: \u4E88\u60F3\u6240\u8981\u5206\uFF0815, 30, 45, 60 \u306A\u3069\u306E\u5206\u5358\u4F4D\u306E\u6570\u5024\uFF09\u3002
+   - \`estimatedMinutes\`: \u4E88\u60F3\u6240\u8981\u5206\uFF0860, 90, 120 \u306A\u3069\u306E\u5206\u5358\u4F4D\u306E\u6570\u5024\uFF09\u3002
    - \`dependsOn\`: \u5148\u884C\u4F9D\u5B58\u306E\u3042\u308B\u30BF\u30B9\u30AF\u306EID\u30EA\u30B9\u30C8\uFF08\u7121\u3051\u308C\u3070 \`[]\`\uFF09\u3002
-   - \`rationale\`: \u306A\u305C\u3053\u306E\u9806\u5E8F\u30FB\u6642\u9593\u3067\u5B9F\u884C\u3059\u308B\u304B\u306E\u524D\u88C1\u304D\u7406\u7531\u30E1\u30E2\u3002
-   - \`title\`: \u300C\u301C\u3092\u958B\u304F\u300D\u300C\u301C\u3092\u5165\u529B\u3059\u308B\u300D\u300C\u301C\u3092\u691C\u7D22\u3059\u308B\u300D\u7B49\u306E\u5177\u4F53\u7684\u52D5\u8A5E\u3067\u59CB\u307E\u308B15\u301C30\u5206\u7269\u7406\u884C\u52D5\u3002
+   - \`rationale\`: \u306A\u305C\u3053\u306E\u9806\u5E8F\u30FB\u6642\u9593\u3067\u5B9F\u884C\u3059\u308B\u304B\u306E\u7406\u7531\u30E1\u30E2\u3002
+   - \`subtasks\`: Action \u5185\u90E8\u3067\u5B9F\u884C\u3059\u308B 15\u301C30\u5206\u5358\u4F4D\u306E\u5177\u4F53\u624B\u9806\u30FB\u7AE0\u7ACB\u3066\u914D\u5217 (\`[{ "title": "15-30\u5206\u3067\u5B8C\u4E86\u3059\u308B\u5B9F\u884C\u624B\u9806", "completed": false }]\`)\u3002
 
 \u3010\u51FA\u529B\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
 \u4EE5\u4E0B\u306E\u69CB\u9020\u306B\u4E00\u81F4\u3059\u308B\u6709\u52B9\u306AJSON\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
@@ -551,18 +559,26 @@ ${systemRules}${patternPromptSection}${contextPayloadSection}
 {
   "actions": [
     {
-      "title": "Chrome\u3092\u958B\u3044\u3066\u516C\u5F0F\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8URL\u306B\u30A2\u30AF\u30BB\u30B9\u3059\u308B",
+      "title": "APIGWv11\u30EA\u30EA\u30FC\u30B9\u30CE\u30FC\u30C8\u304B\u3089\u975E\u4E92\u63DB\u4ED5\u69D8\u3092\u62BD\u51FA\u3059\u308B",
       "sequenceOrder": 1,
-      "estimatedMinutes": 30,
+      "estimatedMinutes": 60,
       "dependsOn": [],
-      "rationale": "\u4ED5\u69D8\u306E\u4E0D\u78BA\u5B9F\u6027\u3092\u6700\u521D\u306B\u78BA\u8A8D\u3059\u308B\u305F\u3081"
+      "rationale": "\u975E\u4E92\u63DB\u4ED5\u69D8\u306E\u5168\u4F53\u50CF\u3092\u65E9\u671F\u306B\u628A\u63E1\u3059\u308B\u305F\u3081",
+      "subtasks": [
+        { "title": "\u516C\u5F0F\u30B5\u30A4\u30C8\u306E\u30EA\u30EA\u30FC\u30B9\u30CE\u30FC\u30C8\u30DA\u30FC\u30B8\u306B\u30A2\u30AF\u30BB\u30B9\u3059\u308B", "completed": false },
+        { "title": "\u975E\u63A8\u5968API\u304A\u3088\u3073\u7834\u58CA\u7684\u5909\u66F4\u30BB\u30AF\u30B7\u30E7\u30F3\u3092\u30E1\u30E2\u306B\u62BD\u51FA\u3059\u308B", "completed": false }
+      ]
     },
     {
-      "title": "\u30A8\u30C7\u30A3\u30BF\u3092\u958B\u304Dsrc/main.ts\u306E1\u884C\u76EE\u306B\u30B3\u30E1\u30F3\u30C8\u3092\u66F8\u304F",
+      "title": "NDP\u69CB\u6210\u56F3\u3068\u975E\u4E92\u63DB\u30EA\u30B9\u30C8\u3092\u7A81\u304D\u5408\u308F\u305B\u5F71\u97FF\u7B87\u6240\u3092\u7279\u5B9A\u3059\u308B",
       "sequenceOrder": 2,
-      "estimatedMinutes": 30,
+      "estimatedMinutes": 120,
       "dependsOn": [],
-      "rationale": "\u524D\u30B9\u30C6\u30C3\u30D7\u306E\u4ED5\u69D8\u3092\u30B3\u30FC\u30C9\u30B3\u30E1\u30F3\u30C8\u306B\u8D77\u3053\u3059\u305F\u3081"
+      "rationale": "\u81EA\u793E\u74B0\u5883\u306B\u304A\u3051\u308B\u5177\u4F53\u7684\u306A\u6539\u4FEE\u5F71\u97FF\u7BC4\u56F2\u3092\u78BA\u5B9A\u3059\u308B\u305F\u3081",
+      "subtasks": [
+        { "title": "\u73FE\u884CNDP\u69CB\u6210\u56F3\u306E\u30B3\u30F3\u30DD\u30FC\u30CD\u30F3\u30C8\u4E00\u89A7\u3092\u6574\u7406\u3059\u308B", "completed": false },
+        { "title": "\u975E\u4E92\u63DB\u30EA\u30B9\u30C8\u306E\u5BFE\u8C61API\u3068\u30B3\u30F3\u30DD\u30FC\u30CD\u30F3\u30C8\u306E\u547C\u3073\u51FA\u3057\u7B87\u6240\u3092\u7D10\u4ED8\u3051\u308B", "completed": false }
+      ]
     }
   ]
 }
@@ -788,7 +804,7 @@ ${existingStrategy.phase1Tasks.map((t, i) => `  ${i + 1}. ${t}`).join("\n")}
 `;
   }
   return `\u3042\u306A\u305F\u306F\u4F34\u8D70\u578B\u306EAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
-\u30E6\u30FC\u30B6\u30FC\u304B\u3089\u4E0E\u3048\u3089\u308C\u305F\u304A\u984C\u304A\u3088\u3073\u524D\u88C1\u304D\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8\u306B\u5BFE\u3057\u3066\u300C\u4F5C\u6226\uFF08\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u5206\u6790\u304A\u3088\u3073\u5177\u4F53\u4F5C\u6226\u6848\uFF09\u300D\u3068\u300CPhase 1 \u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u30BF\u30B9\u30AF\u6848\u300D\u3092\u7B56\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u30E6\u30FC\u30B6\u30FC\u304B\u3089\u4E0E\u3048\u3089\u308C\u305F\u304A\u984C\u304A\u3088\u3073\u524D\u88C1\u304D\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8\u306B\u5BFE\u3057\u3066\u300C\u4F5C\u6226\uFF08\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u5206\u6790\u304A\u3088\u3073\u6226\u7565\u7684\u30A2\u30D7\u30ED\u30FC\u30C1\u6848\uFF09\u300D\u3068\u300CPhase 1 \u306E\u6210\u679C\u7269 (Deliverable) \u30BF\u30B9\u30AF\u304A\u3088\u3073\u5185\u90E8\u30B5\u30D6\u30BF\u30B9\u30AF\u6848\u300D\u3092\u7B56\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
 
 ${systemRules}${patternPromptSection}${contextPayloadSection}
 
@@ -800,15 +816,16 @@ ${currentContext}${feedbackContext}
 1. **\u4F5C\u6226\u306E\u7B56\u5B9A (proposedStrategies)**:
    - \u6700\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF: \u4F55\u304C\u6700\u5927\u306E\u4E0D\u78BA\u5B9F\u6027/\u969C\u58C1\u3067\u3042\u308B\u304B\u3092\u660E\u78BA\u5316
    - \u4F9D\u5B58\u95A2\u4FC2: \u4F55\u304C\u6C7A\u307E\u308C\u3070\u6B21\u306B\u4F55\u304C\u6C7A\u307E\u308B\u304B\u306E\u6D41\u308C
-   - \u57FA\u672C\u65B9\u91DD: \u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u3092\u89E3\u6D88\u3059\u308B\u305F\u3081\u306E\u6226\u7565
-   - \u63D0\u6848\u4F5C\u6226 (proposedStrategies): \u76EE\u6A19\u9054\u6210\u306E\u305F\u3081\u306E\u5177\u4F53\u7684\u4F5C\u6226 (Strategy) \u306E\u30BF\u30A4\u30C8\u30EB\u30FB\u6982\u8981\u30FB\u6642\u9593\u4E88\u7B97 (\`appetiteHours\` / \u6295\u8CC7\u53EF\u80FD\u6642\u9593\u67A0)\u30FB\u5B9F\u65BD\u6642\u671F (\`timeframe\`)\uFF081\u301C3\u4EF6\uFF09
-   - \`appetiteHours\` (\u6642\u9593\u4E88\u7B97): \u30DC\u30C8\u30E0\u30A2\u30C3\u30D7\u306E\u7A4D\u7B97\u3067\u306F\u306A\u304F\u3001\u300C\u3053\u306E\u4F5C\u6226\u306B\u4F55\u6642\u9593\u3092\u6295\u8CC7\u3059\u308B\u304B\u300D\u306E\u4E0A\u9650\u6295\u8CC7\u6642\u9593\u6570\uFF08\u6570\u5024\u3002\u4F8B: 20, 40, 80\uFF09\u3002
+   - \u57FA\u672C\u65B9\u91DD: \u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u3092\u89E3\u6D88\u3059\u308B\u305F\u3081\u306E\u6226\u7565\u65B9\u91DD
+   - \u63D0\u6848\u4F5C\u6226 (proposedStrategies): \u76EE\u6A19\u9054\u6210\u306E\u305F\u3081\u306E\u5177\u4F53\u7684\u6226\u7565\u30FB\u6226\u3044\u65B9 (Strategy) \u306E\u30BF\u30A4\u30C8\u30EB\u30FB\u6982\u8981\u30FB\u6642\u9593\u4E88\u7B97 (\`appetiteHours\` / \u6295\u8CC7\u53EF\u80FD\u6642\u9593\u67A0)\u30FB\u5B9F\u65BD\u6642\u671F (\`timeframe\`)\uFF081\u301C3\u4EF6\uFF09
+   - \u5358\u306A\u308B\u300C\u3007\u3007\u306E\u5DE5\u7A0B\u300D\u300C\u958B\u767A\u30D5\u30A7\u30FC\u30BA\u300D\u7B49\u306E\u9759\u7684\u5206\u985E\u540D\u306F\u4E0D\u53EF\u3002\u30A2\u30D7\u30ED\u30FC\u30C1\u3084\u89E3\u6C7A\u65B9\u91DD\u3092\u8868\u3059\u8868\u73FE\u306B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - \`appetiteHours\` (\u6642\u9593\u4E88\u7B97): \u300C\u3053\u306E\u4F5C\u6226\u306B\u4F55\u6642\u9593\u3092\u6295\u8CC7\u3059\u308B\u304B\u300D\u306E\u4E0A\u9650\u6295\u8CC7\u6642\u9593\u6570\uFF08\u6570\u5024\u3002\u4F8B: 20, 40, 80\uFF09\u3002
    - \`timeframe\` (\u5B9F\u65BD\u6642\u671F): \u76F8\u5BFE\u7684\u306A\u30D5\u30A7\u30FC\u30BA\u3084\u6642\u671F\uFF08\u6587\u5B57\u5217\u3002\u4F8B: "\u4ECA\u6708", "2026-Q3", "Day 1"\uFF09\u3002
-2. **Phase 1 \u30BF\u30B9\u30AF\u6848\u306E\u5236\u7D04**:
-   - \u4E00\u767A\u3067\u5927\u91CF\u306E\u5168\u30BF\u30B9\u30AF\u3092\u4F5C\u3089\u305A\u3001**\u300C\u4E0D\u78BA\u5B9F\u6027\u3092\u6F70\u3059\u305F\u3081\u306E\u6700\u521D\u306E1\u301C3\u500B\u306EPhase 1\u30BF\u30B9\u30AF\u300D\u306E\u307F**\u3092\u63D0\u6848\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-   - \u5404\u30BF\u30B9\u30AF\u306B\u306F \`sequenceOrder\` (1, 2...), \`estimatedMinutes\` (15\u301C60\u5206), \`dependsOn\` (\u4F9D\u5B58ID\u914D\u5217), \`rationale\` (\u7406\u7531), \`title\` \u3092\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-   - \u30BF\u30B9\u30AF\u306E\u30BF\u30A4\u30C8\u30EB\u306F**\u5FC5\u305A\u300C\u301C\u3092\u958B\u304F\u300D\u300C\u301C\u3092\u5165\u529B\u3059\u308B\u300D\u300C\u301C\u3092\u691C\u7D22\u3059\u308B\u300D\u306A\u3069\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF08Next Physical Action / 15\u301C30\u5206\u3067\u5B8C\u4E86\u3059\u308B\u4F5C\u696D\uFF09**\u3067\u59CB\u3081\u3066\u304F\u3060\u3055\u3044\u3002
-   - \u300C\u301C\u306E\u691C\u8A0E\u300D\u300C\u301C\u306E\u8ABF\u6574\u300D\u300C\u301C\u306E\u8ABF\u67FB\u300D\u300C\u301C\u306E\u78BA\u8A8D\u300D\u306A\u3069\u306E\u66D6\u6627\u30FB\u62BD\u8C61\u7684\u306A\u8868\u73FE\u306F**\u5B8C\u5168\u7981\u6B62**\u3067\u3059\u3002
+2. **Phase 1 Action \u6848\u306E\u5236\u7D04**:
+   - \u4E00\u767A\u3067\u5927\u91CF\u306E\u5168\u30BF\u30B9\u30AF\u3092\u4F5C\u3089\u305A\u3001**\u300C\u4E0D\u78BA\u5B9F\u6027\u3092\u6F70\u3059\u305F\u3081\u306E\u6700\u521D\u306E1\u301C3\u500B\u306E Phase 1 \u6210\u679C\u7269 (Deliverable) \u30BF\u30B9\u30AF\u300D\u306E\u307F**\u3092\u63D0\u6848\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - Action \u306F 1\u301C3\u6642\u9593\u3067\u6210\u679C\u7269\u304C\u5F97\u3089\u308C\u308B\u5358\u4F4D\u3068\u3057\u3001\u5404 Action \u306B \`sequenceOrder\` (1, 2...), \`estimatedMinutes\` (60\u301C180\u5206), \`dependsOn\` (\u4F9D\u5B58ID\u914D\u5217), \`rationale\` (\u7406\u7531), \`subtasks\` (15\u301C30\u5206\u30B9\u30C6\u30C3\u30D7\u914D\u5217) \u3092\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - \u300C\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304F\u300D\u300C\u30CE\u30FC\u30C8\u306B\u66F8\u304F\u300D\u7B49\u306E\u30C1\u30FC\u30D7\u306A\u5358\u4E00PC\u64CD\u4F5C\u30DE\u30CB\u30E5\u30A2\u30EB\u5316\u306F**\u5B8C\u5168\u7981\u6B62**\u3067\u3059\u3002
+   - \u5404 Action \u5185\u90E8\u306E \`subtasks\` \u306B\u300115\u301C30\u5206\u5358\u4F4D\u3067\u5B9F\u884C\u53EF\u80FD\u306A\u5177\u4F53\u7684\u306A\u624B\u9806\u30FB\u7AE0\u7ACB\u3066\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8 (\`[{ "title": "...", "completed": false }]\`) \u3092\u540C\u6642\u306B\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
 
 \u3010\u30EC\u30B9\u30DD\u30F3\u30B9\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
 \u4EE5\u4E0B\u306E\u69CB\u9020\u306B\u4E00\u81F4\u3059\u308B\u6709\u52B9\u306AJSON\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
@@ -1147,9 +1164,28 @@ var init_AIService = __esm({
           console.warn("[TaskManager AI] breakdownTaskWithContext CLI failed, using fallback:", err);
         }
         return [
-          { title: `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${context.selectedNode.title}\u300D\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u30921\u884C\u66F8\u304F`, sequenceOrder: 1, estimatedMinutes: 15, dependsOn: [], rationale: "\u4F5C\u696D\u7740\u624B\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u4F5C\u6210" },
-          { title: `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${context.selectedNode.title}\u300D\u306E\u95A2\u9023\u8CC7\u6599\u3092\u691C\u7D22\u3059\u308B`, sequenceOrder: 2, estimatedMinutes: 30, dependsOn: [], rationale: "\u524D\u63D0\u60C5\u5831\u306E\u53CE\u96C6" },
-          { title: `\u30BF\u30FC\u30DF\u30CA\u30EB\u3092\u958B\u304D\u5B9F\u884C\u30ED\u30B0\u3092\u78BA\u8A8D\u3059\u308B`, sequenceOrder: 3, estimatedMinutes: 15, dependsOn: [], rationale: "\u52D5\u4F5C\u72B6\u6CC1\u306E\u6700\u7D42\u78BA\u8A8D" }
+          {
+            title: `\u300C${context.selectedNode.title}\u300D\u306E\u95A2\u9023\u4ED5\u69D8\u304A\u3088\u3073\u524D\u63D0\u6761\u4EF6\u3092\u6574\u7406\u3057\u305F\u30EC\u30DD\u30FC\u30C8\u3092\u4F5C\u6210\u3059\u308B`,
+            sequenceOrder: 1,
+            estimatedMinutes: 60,
+            dependsOn: [],
+            rationale: "\u524D\u63D0\u6761\u4EF6\u306E\u6574\u7406\u3068\u8981\u6C42\u4ED5\u69D8\u306E\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8\u5316",
+            subtasks: [
+              { id: "sub-1", title: "\u516C\u5F0F\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8\u3088\u308A\u5FC5\u8981\u4ED5\u69D8\u3092\u691C\u7D22\u30FB\u62BD\u51FA\u3059\u308B", completed: false },
+              { id: "sub-2", title: "\u8981\u4EF6\u30E1\u30E2\u306B\u8AB2\u984C\u3068\u61F8\u5FF5\u4E8B\u9805\u3092\u6574\u7406\u3059\u308B", completed: false }
+            ]
+          },
+          {
+            title: `\u300C${context.selectedNode.title}\u300D\u306E\u69CB\u6210\u5F71\u97FF\u7BC4\u56F2\u306E\u691C\u8A3C\u30ED\u30B0\u3092\u62BD\u51FA\u3059\u308B`,
+            sequenceOrder: 2,
+            estimatedMinutes: 60,
+            dependsOn: [],
+            rationale: "\u73FE\u72B6\u52D5\u4F5C\u72B6\u6CC1\u304A\u3088\u3073\u5F71\u97FF\u7BC4\u56F2\u306E\u78BA\u8A8D",
+            subtasks: [
+              { id: "sub-1", title: "\u5B9F\u884C\u74B0\u5883\u306E\u5404\u7A2E\u30ED\u30B0\u30D5\u30A1\u30A4\u30EB\u306E\u8ABF\u67FB", completed: false },
+              { id: "sub-2", title: "\u30A8\u30E9\u30FC\u767A\u751F\u7B87\u6240\u3068\u5F71\u97FF\u30B3\u30F3\u30DD\u30FC\u30CD\u30F3\u30C8\u306E\u7279\u5B9A", completed: false }
+            ]
+          }
         ];
       }
       /**
@@ -1183,9 +1219,28 @@ var init_AIService = __esm({
           console.warn("[TaskManager AI] CLI execution failed, using fallback:", err);
         }
         return [
-          { title: `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${task.title}\u300D\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u30921\u884C\u66F8\u304F`, sequenceOrder: 1, estimatedMinutes: 15, dependsOn: [], rationale: "\u4F5C\u696D\u7740\u624B\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u4F5C\u6210" },
-          { title: `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${task.title}\u300D\u306E\u95A2\u9023\u8CC7\u6599\u3092\u691C\u7D22\u3059\u308B`, sequenceOrder: 2, estimatedMinutes: 30, dependsOn: [], rationale: "\u524D\u63D0\u60C5\u5831\u306E\u53CE\u96C6" },
-          { title: `\u30BF\u30FC\u30DF\u30CA\u30EB\u3092\u958B\u304D\u5B9F\u884C\u30ED\u30B0\u3092\u78BA\u8A8D\u3059\u308B`, sequenceOrder: 3, estimatedMinutes: 15, dependsOn: [], rationale: "\u52D5\u4F5C\u72B6\u6CC1\u306E\u6700\u7D42\u78BA\u8A8D" }
+          {
+            title: `\u300C${task.title}\u300D\u306E\u95A2\u9023\u4ED5\u69D8\u304A\u3088\u3073\u524D\u63D0\u6761\u4EF6\u3092\u6574\u7406\u3057\u305F\u30EC\u30DD\u30FC\u30C8\u3092\u4F5C\u6210\u3059\u308B`,
+            sequenceOrder: 1,
+            estimatedMinutes: 60,
+            dependsOn: [],
+            rationale: "\u4F5C\u696D\u7740\u624B\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u4F5C\u6210",
+            subtasks: [
+              { id: "sub-1", title: "\u516C\u5F0F\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8\u3088\u308A\u5FC5\u8981\u4ED5\u69D8\u3092\u691C\u7D22\u30FB\u62BD\u51FA\u3059\u308B", completed: false },
+              { id: "sub-2", title: "\u8981\u4EF6\u30E1\u30E2\u306B\u8AB2\u984C\u3068\u61F8\u5FF5\u4E8B\u9805\u3092\u6574\u7406\u3059\u308B", completed: false }
+            ]
+          },
+          {
+            title: `\u300C${task.title}\u300D\u306E\u69CB\u6210\u5F71\u97FF\u7BC4\u56F2\u306E\u691C\u8A3C\u30ED\u30B0\u3092\u62BD\u51FA\u3059\u308B`,
+            sequenceOrder: 2,
+            estimatedMinutes: 60,
+            dependsOn: [],
+            rationale: "\u73FE\u72B6\u52D5\u4F5C\u72B6\u6CC1\u306E\u78BA\u8A8D",
+            subtasks: [
+              { id: "sub-1", title: "\u5B9F\u884C\u74B0\u5883\u306E\u5404\u7A2E\u30ED\u30B0\u30D5\u30A1\u30A4\u30EB\u306E\u8ABF\u67FB", completed: false },
+              { id: "sub-2", title: "\u30A8\u30E9\u30FC\u767A\u751F\u7B87\u6240\u3068\u5F71\u97FF\u30B3\u30F3\u30DD\u30FC\u30CD\u30F3\u30C8\u306E\u7279\u5B9A", completed: false }
+            ]
+          }
         ];
       }
       /**
@@ -1265,15 +1320,20 @@ var init_AIService = __esm({
               phase1Actions = parsed.phase1Actions.map((item, idx) => ({
                 title: String(item.title || "Phase 1 \u30BF\u30B9\u30AF"),
                 sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : idx + 1,
-                estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 30,
+                estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 60,
                 dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : [],
-                rationale: item.rationale ? String(item.rationale) : void 0
+                rationale: item.rationale ? String(item.rationale) : void 0,
+                subtasks: Array.isArray(item.subtasks) ? item.subtasks.map((st, sidx) => {
+                  if (typeof st === "string")
+                    return { id: `sub-${sidx + 1}`, title: st, completed: false };
+                  return { id: st.id || `sub-${sidx + 1}`, title: String(st.title || ""), completed: Boolean(st.completed) };
+                }) : void 0
               }));
             } else {
               phase1Actions = rawTasks.map((t, idx) => ({
                 title: t,
                 sequenceOrder: idx + 1,
-                estimatedMinutes: 30,
+                estimatedMinutes: 60,
                 dependsOn: []
               }));
             }
@@ -1290,17 +1350,24 @@ var init_AIService = __esm({
           console.warn("[TaskManager AI] Strategy CLI execution failed, using fallback:", err);
         }
         return {
-          bottleneck: `\u300C${topic}\u300D\u306B\u304A\u3051\u308B\u521D\u671F\u8ABF\u67FB\u3068\u4E0D\u78BA\u5B9F\u6027\u306E\u6574\u7406`,
+          bottleneck: `\u300C${topic}\u300D\u306B\u304A\u3051\u308B\u521D\u671F\u30A2\u30D7\u30ED\u30FC\u30C1\u3068\u4E0D\u78BA\u5B9F\u6027\u306E\u6574\u7406`,
           dependency: "\u60C5\u5831\u53CE\u96C6 \u2794 \u5B9F\u884C\u30D7\u30E9\u30F3\u6C7A\u5B9A",
-          policy: "\u307E\u305A\u306F\u6700\u5C11\u624B\u6570\u306E\u7269\u7406\u884C\u52D5\u3067\u524D\u63D0\u60C5\u5831\u3092\u63C3\u3048\u308B",
+          policy: "\u307E\u305A\u306F\u6700\u5C11\u624B\u6570\u306E\u6210\u679C\u7269\u4F5C\u6210\u3067\u524D\u63D0\u60C5\u5831\u3092\u63C3\u3048\u308B",
           proposedStrategies: [{ title: `${topic}\u306E\u57FA\u672C\u5206\u6790\u3068\u5BFE\u5FDC\u65B9\u91DD`, appetiteHours: 20, timeframe: "\u4ECA\u6708" }],
           phase1Tasks: [
-            `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u57FA\u672C\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`,
-            `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u3067\u5FC5\u8981\u306A\u9805\u76EE\u30921\u884C\u5165\u529B\u3059\u308B`
+            `\u300C${topic}\u300D\u306E\u95A2\u9023\u4ED5\u69D8\u304A\u3088\u3073\u524D\u63D0\u6761\u4EF6\u3092\u6574\u7406\u3057\u305F\u30EC\u30DD\u30FC\u30C8\u3092\u4F5C\u6210\u3059\u308B`
           ],
           phase1Actions: [
-            { title: `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u57FA\u672C\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`, sequenceOrder: 1, estimatedMinutes: 30, dependsOn: [] },
-            { title: `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u3067\u5FC5\u8981\u306A\u9805\u76EE\u30921\u884C\u5165\u529B\u3059\u308B`, sequenceOrder: 2, estimatedMinutes: 15, dependsOn: [] }
+            {
+              title: `\u300C${topic}\u300D\u306E\u95A2\u9023\u4ED5\u69D8\u304A\u3088\u3073\u524D\u63D0\u6761\u4EF6\u3092\u6574\u7406\u3057\u305F\u30EC\u30DD\u30FC\u30C8\u3092\u4F5C\u6210\u3059\u308B`,
+              sequenceOrder: 1,
+              estimatedMinutes: 60,
+              dependsOn: [],
+              subtasks: [
+                { id: "sub-1", title: "\u516C\u5F0F\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8\u3088\u308A\u5FC5\u8981\u4ED5\u69D8\u3092\u691C\u7D22\u30FB\u62BD\u51FA\u3059\u308B", completed: false },
+                { id: "sub-2", title: "\u8981\u4EF6\u30E1\u30E2\u306B\u8AB2\u984C\u3068\u61F8\u5FF5\u4E8B\u9805\u3092\u6574\u7406\u3059\u308B", completed: false }
+              ]
+            }
           ]
         };
       }
@@ -1339,9 +1406,14 @@ var init_AIService = __esm({
               phase1Actions = parsed.phase1Actions.map((item, idx) => ({
                 title: String(item.title || "Phase 1 \u30BF\u30B9\u30AF"),
                 sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : idx + 1,
-                estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 30,
+                estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 60,
                 dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : [],
-                rationale: item.rationale ? String(item.rationale) : void 0
+                rationale: item.rationale ? String(item.rationale) : void 0,
+                subtasks: Array.isArray(item.subtasks) ? item.subtasks.map((st, sidx) => {
+                  if (typeof st === "string")
+                    return { id: `sub-${sidx + 1}`, title: st, completed: false };
+                  return { id: st.id || `sub-${sidx + 1}`, title: String(st.title || ""), completed: Boolean(st.completed) };
+                }) : void 0
               }));
             }
             return {
@@ -1361,8 +1433,19 @@ var init_AIService = __esm({
           dependency: "\u4F9D\u5B58\u95A2\u4FC2\u306E\u8ABF\u6574\u30FB\u7740\u624B\u9806\u5E8F\u306E\u518D\u69CB\u7BC9",
           policy: "\u7740\u624B\u53EF\u80FD\u306A\u30BF\u30B9\u30AF\u3092 sequenceOrder: 1 \u306B\u524D\u5012\u3057\u914D\u7F6E",
           proposedStrategies: [{ title: `${topic}\u306E\u518D\u7DE8\u6210\u65B9\u91DD`, appetiteHours: 20, timeframe: "\u4ECA\u6708" }],
-          phase1Tasks: [`\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u518D\u8A55\u4FA1\u8A08\u753B\u3092\u30E1\u30E2\u3059\u308B`],
-          phase1Actions: [{ title: `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u518D\u8A55\u4FA1\u8A08\u753B\u3092\u30E1\u30E2\u3059\u308B`, sequenceOrder: 1, estimatedMinutes: 15, dependsOn: [] }]
+          phase1Tasks: [`\u300C${topic}\u300D\u306E\u518D\u8A55\u4FA1\u8A08\u753B\u30EC\u30DD\u30FC\u30C8\u3092\u4F5C\u6210\u3059\u308B`],
+          phase1Actions: [
+            {
+              title: `\u300C${topic}\u300D\u306E\u518D\u8A55\u4FA1\u8A08\u753B\u30EC\u30DD\u30FC\u30C8\u3092\u4F5C\u6210\u3059\u308B`,
+              sequenceOrder: 1,
+              estimatedMinutes: 60,
+              dependsOn: [],
+              subtasks: [
+                { id: "sub-1", title: "\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u767A\u751F\u8981\u56E0\u306E\u30E1\u30E2\u6574\u7406", completed: false },
+                { id: "sub-2", title: "\u524D\u5012\u3057\u5B9F\u884C\u53EF\u80FD\u30BF\u30B9\u30AF\u306E\u6D17\u3044\u51FA\u3057", completed: false }
+              ]
+            }
+          ]
         };
       }
       /**
@@ -1400,15 +1483,20 @@ var init_AIService = __esm({
               phase1Actions = parsed.phase1Actions.map((item, idx) => ({
                 title: String(item.title || "Phase 1 \u30BF\u30B9\u30AF"),
                 sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : idx + 1,
-                estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 30,
+                estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 60,
                 dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : [],
-                rationale: item.rationale ? String(item.rationale) : void 0
+                rationale: item.rationale ? String(item.rationale) : void 0,
+                subtasks: Array.isArray(item.subtasks) ? item.subtasks.map((st, sidx) => {
+                  if (typeof st === "string")
+                    return { id: `sub-${sidx + 1}`, title: st, completed: false };
+                  return { id: st.id || `sub-${sidx + 1}`, title: String(st.title || ""), completed: Boolean(st.completed) };
+                }) : void 0
               }));
             } else {
               phase1Actions = rawTasks.map((t, idx) => ({
                 title: t,
                 sequenceOrder: idx + 1,
-                estimatedMinutes: 30,
+                estimatedMinutes: 60,
                 dependsOn: []
               }));
             }
@@ -1425,17 +1513,24 @@ var init_AIService = __esm({
           console.warn("[TaskManager AI] Strategy CLI execution failed, using fallback:", err);
         }
         return {
-          bottleneck: `\u300C${topic}\u300D\u306B\u304A\u3051\u308B\u521D\u671F\u8ABF\u67FB\u3068\u4E0D\u78BA\u5B9F\u6027\u306E\u6574\u7406`,
+          bottleneck: `\u300C${topic}\u300D\u306B\u304A\u3051\u308B\u521D\u671F\u30A2\u30D7\u30ED\u30FC\u30C1\u3068\u4E0D\u78BA\u5B9F\u6027\u306E\u6574\u7406`,
           dependency: "\u60C5\u5831\u53CE\u96C6 \u2794 \u5B9F\u884C\u30D7\u30E9\u30F3\u6C7A\u5B9A",
-          policy: "\u307E\u305A\u306F\u6700\u5C11\u624B\u6570\u306E\u7269\u7406\u884C\u52D5\u3067\u524D\u63D0\u60C5\u5831\u3092\u63C3\u3048\u308B",
+          policy: "\u307E\u305A\u306F\u6700\u5C11\u624B\u6570\u306E\u6210\u679C\u7269\u4F5C\u6210\u3067\u524D\u63D0\u60C5\u5831\u3092\u63C3\u3048\u308B",
           proposedStrategies: [{ title: `${topic}\u306E\u57FA\u672C\u5206\u6790\u3068\u5BFE\u5FDC\u65B9\u91DD`, appetiteHours: 20, timeframe: "\u4ECA\u6708" }],
           phase1Tasks: [
-            `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u57FA\u672C\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`,
-            `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u3067\u5FC5\u8981\u306A\u9805\u76EE\u30921\u884C\u5165\u529B\u3059\u308B`
+            `\u300C${topic}\u300D\u306E\u95A2\u9023\u4ED5\u69D8\u304A\u3088\u3073\u524D\u63D0\u6761\u4EF6\u3092\u6574\u7406\u3057\u305F\u30EC\u30DD\u30FC\u30C8\u3092\u4F5C\u6210\u3059\u308B`
           ],
           phase1Actions: [
-            { title: `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u57FA\u672C\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`, sequenceOrder: 1, estimatedMinutes: 30, dependsOn: [] },
-            { title: `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u3067\u5FC5\u8981\u306A\u9805\u76EE\u30921\u884C\u5165\u529B\u3059\u308B`, sequenceOrder: 2, estimatedMinutes: 15, dependsOn: [] }
+            {
+              title: `\u300C${topic}\u300D\u306E\u95A2\u9023\u4ED5\u69D8\u304A\u3088\u3073\u524D\u63D0\u6761\u4EF6\u3092\u6574\u7406\u3057\u305F\u30EC\u30DD\u30FC\u30C8\u3092\u4F5C\u6210\u3059\u308B`,
+              sequenceOrder: 1,
+              estimatedMinutes: 60,
+              dependsOn: [],
+              subtasks: [
+                { id: "sub-1", title: "\u516C\u5F0F\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8\u3088\u308A\u5FC5\u8981\u4ED5\u69D8\u3092\u691C\u7D22\u30FB\u62BD\u51FA\u3059\u308B", completed: false },
+                { id: "sub-2", title: "\u8981\u4EF6\u30E1\u30E2\u306B\u8AB2\u984C\u3068\u61F8\u5FF5\u4E8B\u9805\u3092\u6574\u7406\u3059\u308B", completed: false }
+              ]
+            }
           ]
         };
       }
@@ -1481,8 +1576,9 @@ var init_AIService = __esm({
           const item = actions[i];
           const title = typeof item === "string" ? item : item.title;
           const seqOrder = typeof item === "string" ? i + 1 : (_a = item.sequenceOrder) != null ? _a : i + 1;
-          const estMin = typeof item === "string" ? 30 : (_b = item.estimatedMinutes) != null ? _b : 30;
+          const estMin = typeof item === "string" ? 60 : (_b = item.estimatedMinutes) != null ? _b : 60;
           const dep = typeof item === "string" ? [] : (_c = item.dependsOn) != null ? _c : [];
+          const subtasks = typeof item === "string" ? void 0 : item.subtasks;
           const existingNode = allNodes.find(
             (n) => n.parentId === parentId && n.title.trim().toLowerCase() === title.trim().toLowerCase()
           );
@@ -1490,7 +1586,8 @@ var init_AIService = __esm({
             await taskService.updateNodeMetadata(existingNode.file, {
               sequenceOrder: seqOrder,
               estimatedMinutes: estMin,
-              dependsOn: dep
+              dependsOn: dep,
+              subtasks
             });
             actionFiles.push(existingNode.file);
           } else {
@@ -1502,7 +1599,8 @@ var init_AIService = __esm({
                 parentId,
                 sequenceOrder: seqOrder,
                 estimatedMinutes: estMin,
-                dependsOn: dep
+                dependsOn: dep,
+                subtasks
               }
             );
             actionFiles.push(actionFile);
@@ -1516,6 +1614,20 @@ var init_AIService = __esm({
       extractActionItems(text) {
         try {
           const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+          const parseSubtasks = (rawSubtasks) => {
+            if (!Array.isArray(rawSubtasks))
+              return void 0;
+            return rawSubtasks.map((st, sidx) => {
+              if (typeof st === "string") {
+                return { id: `sub-${sidx + 1}`, title: st, completed: false };
+              }
+              return {
+                id: st.id ? String(st.id) : `sub-${sidx + 1}`,
+                title: st.title ? String(st.title) : "",
+                completed: Boolean(st.completed)
+              };
+            });
+          };
           const objMatch = cleaned.match(/\{[\s\S]*\}/);
           if (objMatch) {
             const obj = JSON.parse(objMatch[0]);
@@ -1525,16 +1637,17 @@ var init_AIService = __esm({
                   return {
                     title: item,
                     sequenceOrder: idx + 1,
-                    estimatedMinutes: 30,
+                    estimatedMinutes: 60,
                     dependsOn: []
                   };
                 }
                 return {
-                  title: String(item.title || item.name || "\u7269\u7406\u884C\u52D5"),
+                  title: String(item.title || item.name || "\u6210\u679C\u7269\u30BF\u30B9\u30AF"),
                   sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : typeof item.sequence_order === "number" ? item.sequence_order : idx + 1,
-                  estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : typeof item.estimated_minutes === "number" ? item.estimated_minutes : typeof item.est_min === "number" ? item.est_min : 30,
+                  estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : typeof item.estimated_minutes === "number" ? item.estimated_minutes : typeof item.est_min === "number" ? item.est_min : 60,
                   dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : Array.isArray(item.depends_on) ? item.depends_on.map(String) : [],
-                  rationale: item.rationale ? String(item.rationale) : void 0
+                  rationale: item.rationale ? String(item.rationale) : void 0,
+                  subtasks: parseSubtasks(item.subtasks)
                 };
               });
             }
@@ -1548,16 +1661,17 @@ var init_AIService = __esm({
                   return {
                     title: item,
                     sequenceOrder: idx + 1,
-                    estimatedMinutes: 30,
+                    estimatedMinutes: 60,
                     dependsOn: []
                   };
                 }
                 return {
-                  title: String(item.title || item.name || "\u7269\u7406\u884C\u52D5"),
+                  title: String(item.title || item.name || "\u6210\u679C\u7269\u30BF\u30B9\u30AF"),
                   sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : typeof item.sequence_order === "number" ? item.sequence_order : idx + 1,
-                  estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : typeof item.estimated_minutes === "number" ? item.estimated_minutes : typeof item.est_min === "number" ? item.est_min : 30,
+                  estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : typeof item.estimated_minutes === "number" ? item.estimated_minutes : typeof item.est_min === "number" ? item.est_min : 60,
                   dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : Array.isArray(item.depends_on) ? item.depends_on.map(String) : [],
-                  rationale: item.rationale ? String(item.rationale) : void 0
+                  rationale: item.rationale ? String(item.rationale) : void 0,
+                  subtasks: parseSubtasks(item.subtasks)
                 };
               });
             }

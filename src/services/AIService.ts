@@ -206,9 +206,28 @@ export class AIService {
 		}
 
 		return [
-			{ title: `ノートを開き「${context.selectedNode.title}」のアウトラインを1行書く`, sequenceOrder: 1, estimatedMinutes: 15, dependsOn: [], rationale: "作業着手のアウトライン作成" },
-			{ title: `ブラウザを開き「${context.selectedNode.title}」の関連資料を検索する`, sequenceOrder: 2, estimatedMinutes: 30, dependsOn: [], rationale: "前提情報の収集" },
-			{ title: `ターミナルを開き実行ログを確認する`, sequenceOrder: 3, estimatedMinutes: 15, dependsOn: [], rationale: "動作状況の最終確認" },
+			{
+				title: `「${context.selectedNode.title}」の関連仕様および前提条件を整理したレポートを作成する`,
+				sequenceOrder: 1,
+				estimatedMinutes: 60,
+				dependsOn: [],
+				rationale: "前提条件の整理と要求仕様のドキュメント化",
+				subtasks: [
+					{ id: "sub-1", title: "公式ドキュメントより必要仕様を検索・抽出する", completed: false },
+					{ id: "sub-2", title: "要件メモに課題と懸念事項を整理する", completed: false },
+				],
+			},
+			{
+				title: `「${context.selectedNode.title}」の構成影響範囲の検証ログを抽出する`,
+				sequenceOrder: 2,
+				estimatedMinutes: 60,
+				dependsOn: [],
+				rationale: "現状動作状況および影響範囲の確認",
+				subtasks: [
+					{ id: "sub-1", title: "実行環境の各種ログファイルの調査", completed: false },
+					{ id: "sub-2", title: "エラー発生箇所と影響コンポーネントの特定", completed: false },
+				],
+			},
 		];
 	}
 
@@ -251,9 +270,28 @@ export class AIService {
 		}
 
 		return [
-			{ title: `ノートを開き「${task.title}」のアウトラインを1行書く`, sequenceOrder: 1, estimatedMinutes: 15, dependsOn: [], rationale: "作業着手のアウトライン作成" },
-			{ title: `ブラウザを開き「${task.title}」の関連資料を検索する`, sequenceOrder: 2, estimatedMinutes: 30, dependsOn: [], rationale: "前提情報の収集" },
-			{ title: `ターミナルを開き実行ログを確認する`, sequenceOrder: 3, estimatedMinutes: 15, dependsOn: [], rationale: "動作状況の最終確認" },
+			{
+				title: `「${task.title}」の関連仕様および前提条件を整理したレポートを作成する`,
+				sequenceOrder: 1,
+				estimatedMinutes: 60,
+				dependsOn: [],
+				rationale: "作業着手のアウトライン作成",
+				subtasks: [
+					{ id: "sub-1", title: "公式ドキュメントより必要仕様を検索・抽出する", completed: false },
+					{ id: "sub-2", title: "要件メモに課題と懸念事項を整理する", completed: false },
+				],
+			},
+			{
+				title: `「${task.title}」の構成影響範囲の検証ログを抽出する`,
+				sequenceOrder: 2,
+				estimatedMinutes: 60,
+				dependsOn: [],
+				rationale: "現状動作状況の確認",
+				subtasks: [
+					{ id: "sub-1", title: "実行環境の各種ログファイルの調査", completed: false },
+					{ id: "sub-2", title: "エラー発生箇所と影響コンポーネントの特定", completed: false },
+				],
+			},
 		];
 	}
 
@@ -357,15 +395,21 @@ export class AIService {
 					phase1Actions = parsed.phase1Actions.map((item: any, idx: number) => ({
 						title: String(item.title || "Phase 1 タスク"),
 						sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : idx + 1,
-						estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 30,
+						estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 60,
 						dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : [],
 						rationale: item.rationale ? String(item.rationale) : undefined,
+						subtasks: Array.isArray(item.subtasks)
+							? item.subtasks.map((st: any, sidx: number) => {
+									if (typeof st === "string") return { id: `sub-${sidx + 1}`, title: st, completed: false };
+									return { id: st.id || `sub-${sidx + 1}`, title: String(st.title || ""), completed: Boolean(st.completed) };
+							  })
+							: undefined,
 					}));
 				} else {
 					phase1Actions = rawTasks.map((t, idx) => ({
 						title: t,
 						sequenceOrder: idx + 1,
-						estimatedMinutes: 30,
+						estimatedMinutes: 60,
 						dependsOn: [],
 					}));
 				}
@@ -384,17 +428,24 @@ export class AIService {
 		}
 
 		return {
-			bottleneck: `「${topic}」における初期調査と不確実性の整理`,
+			bottleneck: `「${topic}」における初期アプローチと不確実性の整理`,
 			dependency: "情報収集 ➔ 実行プラン決定",
-			policy: "まずは最少手数の物理行動で前提情報を揃える",
+			policy: "まずは最少手数の成果物作成で前提情報を揃える",
 			proposedStrategies: [{ title: `${topic}の基本分析と対応方針`, appetiteHours: 20, timeframe: "今月" }],
 			phase1Tasks: [
-				`ブラウザを開き「${topic}」の基本情報を検索する`,
-				`ノートを開き「${topic}」で必要な項目を1行入力する`,
+				`「${topic}」の関連仕様および前提条件を整理したレポートを作成する`,
 			],
 			phase1Actions: [
-				{ title: `ブラウザを開き「${topic}」の基本情報を検索する`, sequenceOrder: 1, estimatedMinutes: 30, dependsOn: [] },
-				{ title: `ノートを開き「${topic}」で必要な項目を1行入力する`, sequenceOrder: 2, estimatedMinutes: 15, dependsOn: [] },
+				{
+					title: `「${topic}」の関連仕様および前提条件を整理したレポートを作成する`,
+					sequenceOrder: 1,
+					estimatedMinutes: 60,
+					dependsOn: [],
+					subtasks: [
+						{ id: "sub-1", title: "公式ドキュメントより必要仕様を検索・抽出する", completed: false },
+						{ id: "sub-2", title: "要件メモに課題と懸念事項を整理する", completed: false },
+					],
+				},
 			],
 		};
 	}
@@ -445,9 +496,15 @@ export class AIService {
 					phase1Actions = parsed.phase1Actions.map((item: any, idx: number) => ({
 						title: String(item.title || "Phase 1 タスク"),
 						sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : idx + 1,
-						estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 30,
+						estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 60,
 						dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : [],
 						rationale: item.rationale ? String(item.rationale) : undefined,
+						subtasks: Array.isArray(item.subtasks)
+							? item.subtasks.map((st: any, sidx: number) => {
+									if (typeof st === "string") return { id: `sub-${sidx + 1}`, title: st, completed: false };
+									return { id: st.id || `sub-${sidx + 1}`, title: String(st.title || ""), completed: Boolean(st.completed) };
+							  })
+							: undefined,
 					}));
 				}
 
@@ -469,8 +526,19 @@ export class AIService {
 			dependency: "依存関係の調整・着手順序の再構築",
 			policy: "着手可能なタスクを sequenceOrder: 1 に前倒し配置",
 			proposedStrategies: [{ title: `${topic}の再編成方針`, appetiteHours: 20, timeframe: "今月" }],
-			phase1Tasks: [`ノートを開き「${topic}」の再評価計画をメモする`],
-			phase1Actions: [{ title: `ノートを開き「${topic}」の再評価計画をメモする`, sequenceOrder: 1, estimatedMinutes: 15, dependsOn: [] }],
+			phase1Tasks: [`「${topic}」の再評価計画レポートを作成する`],
+			phase1Actions: [
+				{
+					title: `「${topic}」の再評価計画レポートを作成する`,
+					sequenceOrder: 1,
+					estimatedMinutes: 60,
+					dependsOn: [],
+					subtasks: [
+						{ id: "sub-1", title: "ボトルネック発生要因のメモ整理", completed: false },
+						{ id: "sub-2", title: "前倒し実行可能タスクの洗い出し", completed: false },
+					],
+				},
+			],
 		};
 	}
 
@@ -520,15 +588,21 @@ export class AIService {
 					phase1Actions = parsed.phase1Actions.map((item: any, idx: number) => ({
 						title: String(item.title || "Phase 1 タスク"),
 						sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : idx + 1,
-						estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 30,
+						estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : 60,
 						dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : [],
 						rationale: item.rationale ? String(item.rationale) : undefined,
+						subtasks: Array.isArray(item.subtasks)
+							? item.subtasks.map((st: any, sidx: number) => {
+									if (typeof st === "string") return { id: `sub-${sidx + 1}`, title: st, completed: false };
+									return { id: st.id || `sub-${sidx + 1}`, title: String(st.title || ""), completed: Boolean(st.completed) };
+							  })
+							: undefined,
 					}));
 				} else {
 					phase1Actions = rawTasks.map((t, idx) => ({
 						title: t,
 						sequenceOrder: idx + 1,
-						estimatedMinutes: 30,
+						estimatedMinutes: 60,
 						dependsOn: [],
 					}));
 				}
@@ -547,17 +621,24 @@ export class AIService {
 		}
 
 		return {
-			bottleneck: `「${topic}」における初期調査と不確実性の整理`,
+			bottleneck: `「${topic}」における初期アプローチと不確実性の整理`,
 			dependency: "情報収集 ➔ 実行プラン決定",
-			policy: "まずは最少手数の物理行動で前提情報を揃える",
+			policy: "まずは最少手数の成果物作成で前提情報を揃える",
 			proposedStrategies: [{ title: `${topic}の基本分析と対応方針`, appetiteHours: 20, timeframe: "今月" }],
 			phase1Tasks: [
-				`ブラウザを開き「${topic}」の基本情報を検索する`,
-				`ノートを開き「${topic}」で必要な項目を1行入力する`,
+				`「${topic}」の関連仕様および前提条件を整理したレポートを作成する`,
 			],
 			phase1Actions: [
-				{ title: `ブラウザを開き「${topic}」の基本情報を検索する`, sequenceOrder: 1, estimatedMinutes: 30, dependsOn: [] },
-				{ title: `ノートを開き「${topic}」で必要な項目を1行入力する`, sequenceOrder: 2, estimatedMinutes: 15, dependsOn: [] },
+				{
+					title: `「${topic}」の関連仕様および前提条件を整理したレポートを作成する`,
+					sequenceOrder: 1,
+					estimatedMinutes: 60,
+					dependsOn: [],
+					subtasks: [
+						{ id: "sub-1", title: "公式ドキュメントより必要仕様を検索・抽出する", completed: false },
+						{ id: "sub-2", title: "要件メモに課題と懸念事項を整理する", completed: false },
+					],
+				},
 			],
 		};
 	}
@@ -620,8 +701,9 @@ export class AIService {
 			const item = actions[i];
 			const title = typeof item === "string" ? item : item.title;
 			const seqOrder = typeof item === "string" ? (i + 1) : (item.sequenceOrder ?? (i + 1));
-			const estMin = typeof item === "string" ? 30 : (item.estimatedMinutes ?? 30);
+			const estMin = typeof item === "string" ? 60 : (item.estimatedMinutes ?? 60);
 			const dep = typeof item === "string" ? [] : (item.dependsOn ?? []);
+			const subtasks = typeof item === "string" ? undefined : (item.subtasks as any);
 
 			const existingNode = allNodes.find(
 				(n) => n.parentId === parentId && n.title.trim().toLowerCase() === title.trim().toLowerCase()
@@ -632,6 +714,7 @@ export class AIService {
 					sequenceOrder: seqOrder,
 					estimatedMinutes: estMin,
 					dependsOn: dep,
+					subtasks: subtasks,
 				});
 				actionFiles.push(existingNode.file);
 			} else {
@@ -644,6 +727,7 @@ export class AIService {
 						sequenceOrder: seqOrder,
 						estimatedMinutes: estMin,
 						dependsOn: dep,
+						subtasks: subtasks,
 					}
 				);
 				actionFiles.push(actionFile);
@@ -662,6 +746,20 @@ export class AIService {
 		try {
 			const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
 
+			const parseSubtasks = (rawSubtasks: any) => {
+				if (!Array.isArray(rawSubtasks)) return undefined;
+				return rawSubtasks.map((st: any, sidx: number) => {
+					if (typeof st === "string") {
+						return { id: `sub-${sidx + 1}`, title: st, completed: false };
+					}
+					return {
+						id: st.id ? String(st.id) : `sub-${sidx + 1}`,
+						title: st.title ? String(st.title) : "",
+						completed: Boolean(st.completed),
+					};
+				});
+			};
+
 			// First try matching JSON object { "actions": [...] }
 			const objMatch = cleaned.match(/\{[\s\S]*\}/);
 			if (objMatch) {
@@ -672,16 +770,17 @@ export class AIService {
 							return {
 								title: item,
 								sequenceOrder: idx + 1,
-								estimatedMinutes: 30,
+								estimatedMinutes: 60,
 								dependsOn: [],
 							};
 						}
 						return {
-							title: String(item.title || item.name || "物理行動"),
+							title: String(item.title || item.name || "成果物タスク"),
 							sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : (typeof item.sequence_order === "number" ? item.sequence_order : idx + 1),
-							estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : (typeof item.estimated_minutes === "number" ? item.estimated_minutes : (typeof item.est_min === "number" ? item.est_min : 30)),
+							estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : (typeof item.estimated_minutes === "number" ? item.estimated_minutes : (typeof item.est_min === "number" ? item.est_min : 60)),
 							dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : (Array.isArray(item.depends_on) ? item.depends_on.map(String) : []),
 							rationale: item.rationale ? String(item.rationale) : undefined,
+							subtasks: parseSubtasks(item.subtasks),
 						};
 					});
 				}
@@ -697,16 +796,17 @@ export class AIService {
 							return {
 								title: item,
 								sequenceOrder: idx + 1,
-								estimatedMinutes: 30,
+								estimatedMinutes: 60,
 								dependsOn: [],
 							};
 						}
 						return {
-							title: String(item.title || item.name || "物理行動"),
+							title: String(item.title || item.name || "成果物タスク"),
 							sequenceOrder: typeof item.sequenceOrder === "number" ? item.sequenceOrder : (typeof item.sequence_order === "number" ? item.sequence_order : idx + 1),
-							estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : (typeof item.estimated_minutes === "number" ? item.estimated_minutes : (typeof item.est_min === "number" ? item.est_min : 30)),
+							estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : (typeof item.estimated_minutes === "number" ? item.estimated_minutes : (typeof item.est_min === "number" ? item.est_min : 60)),
 							dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String) : (Array.isArray(item.depends_on) ? item.depends_on.map(String) : []),
 							rationale: item.rationale ? String(item.rationale) : undefined,
+							subtasks: parseSubtasks(item.subtasks),
 						};
 					});
 				}

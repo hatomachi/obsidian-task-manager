@@ -83,19 +83,21 @@ ${siblingLines.length > 0 ? siblingLines.join("\n") : "  (なし)"}
 	const targetTitle = aiContextPayload?.selectedNode?.title || task.title;
 
 	return `あなたはAIスクラムマスターです。
-直近の作戦「${targetTitle}」および上位の思考系譜に基づき、ローリングウェーブ分解（直近実行する作業のみ精緻化）を行い、15〜30分で実行可能な3〜5個の具体的物理行動（Next Physical Action / Actionノード）に分解してください。
+直近の作戦「${targetTitle}」および上位の思考系譜に基づき、ローリングウェーブ分解（直近実行する作業のみ精緻化）を行い、1〜3時間で明確な成果物が得られる3〜5個の Action (Deliverable TODO) ノードと、各 Action 内部の 15〜30分実行手順 (\`subtasks\`) に分解してください。
 
 ${systemRules}${patternPromptSection}${contextPayloadSection}
 
 【作成上の絶対ルール】:
-1. **ローリングウェーブ分解の徹底**:
-   - 奥の未来まで一括でウォーターフォール作成せず、手前の直近 Strategy のみを3〜5個の物理行動に分解してください。
-2. **各アクションの時系列・時間見積もり属性**:
+1. **ローリングウェーブ分解 ＆ Action (Deliverable) の定義**:
+   - 奥の未来まで一括で作成せず、直近 Strategy のみを3〜5個の Action ノードへ分解してください。
+   - Action の単位は 1〜3時間で明確な成果物（仕様書、非互換リスト、実装、検証ログ等）が得られる粒度としてください。
+   - 「ブラウザを開く」「ノートに1行書く」といった単一PC操作マニュアル化は**絶対禁止**です。
+2. **Action 属性および Subtasks (15〜30分ステップ) 同時出力**:
    - \`sequenceOrder\`: 着手順序（1, 2, 3... の1から始まる昇順）。
-   - \`estimatedMinutes\`: 予想所要分（15, 30, 45, 60 などの分単位の数値）。
+   - \`estimatedMinutes\`: 予想所要分（60, 90, 120 などの分単位の数値）。
    - \`dependsOn\`: 先行依存のあるタスクのIDリスト（無ければ \`[]\`）。
-   - \`rationale\`: なぜこの順序・時間で実行するかの前裁き理由メモ。
-   - \`title\`: 「〜を開く」「〜を入力する」「〜を検索する」等の具体的動詞で始まる15〜30分物理行動。
+   - \`rationale\`: なぜこの順序・時間で実行するかの理由メモ。
+   - \`subtasks\`: Action 内部で実行する 15〜30分単位の具体手順・章立て配列 (\`[{ "title": "15-30分で完了する実行手順", "completed": false }]\`)。
 
 【出力フォーマットの強制】:
 以下の構造に一致する有効なJSONオブジェクトのみを出力してください。
@@ -104,18 +106,26 @@ ${systemRules}${patternPromptSection}${contextPayloadSection}
 {
   "actions": [
     {
-      "title": "Chromeを開いて公式ドキュメントURLにアクセスする",
+      "title": "APIGWv11リリースノートから非互換仕様を抽出する",
       "sequenceOrder": 1,
-      "estimatedMinutes": 30,
+      "estimatedMinutes": 60,
       "dependsOn": [],
-      "rationale": "仕様の不確実性を最初に確認するため"
+      "rationale": "非互換仕様の全体像を早期に把握するため",
+      "subtasks": [
+        { "title": "公式サイトのリリースノートページにアクセスする", "completed": false },
+        { "title": "非推奨APIおよび破壊的変更セクションをメモに抽出する", "completed": false }
+      ]
     },
     {
-      "title": "エディタを開きsrc/main.tsの1行目にコメントを書く",
+      "title": "NDP構成図と非互換リストを突き合わせ影響箇所を特定する",
       "sequenceOrder": 2,
-      "estimatedMinutes": 30,
+      "estimatedMinutes": 120,
       "dependsOn": [],
-      "rationale": "前ステップの仕様をコードコメントに起こすため"
+      "rationale": "自社環境における具体的な改修影響範囲を確定するため",
+      "subtasks": [
+        { "title": "現行NDP構成図のコンポーネント一覧を整理する", "completed": false },
+        { "title": "非互換リストの対象APIとコンポーネントの呼び出し箇所を紐付ける", "completed": false }
+      ]
     }
   ]
 }
