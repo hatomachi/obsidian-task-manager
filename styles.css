@@ -798,9 +798,198 @@
 	padding: 4px 10px;
 	border-radius: 4px;
 	background: transparent;
+	border: 1px dashed var(--interactive-accent);
+	color: var(--interactive-accent);
+	cursor: pointer;
+}
+
+.jira-add-task-btn:hover {
+	background: rgba(var(--interactive-accent-rgb), 0.1);
+}
+
+/* Context Tree View & ADR Controls Styling (Phase 4) */
+.jira-tree-board-wrapper {
+	flex: 1;
+	overflow-y: auto;
+	padding-right: 6px;
+}
+
+.jira-tree-board-container {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.jira-tree-empty-state {
+	text-align: center;
+	padding: 40px 20px;
+	background: var(--background-secondary);
+	border-radius: 8px;
 	border: 1px dashed var(--background-modifier-border);
+}
+
+.jira-tree-group {
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	padding: 14px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.jira-tree-group.node-type-goal {
+	border-left: 4px solid #a855f7;
+}
+
+.jira-tree-node-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 8px 12px;
+	background: var(--background-primary);
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.jira-tree-node-row.root-node {
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.jira-tree-node-row.strategy-node {
+	margin-left: 20px;
+	border-left: 3px solid #3b82f6;
+}
+
+.jira-tree-node-row.strategy-node.status-deprecated {
+	border-left-color: #f59e0b;
+	opacity: 0.75;
+}
+
+.jira-tree-node-row.strategy-node.status-done {
+	border-left-color: #10b981;
+}
+
+.jira-tree-node-row.action-node {
+	margin-left: 40px;
+	padding: 6px 10px;
+	font-size: 0.85rem;
+}
+
+.jira-tree-title-area {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 1;
+}
+
+.jira-tree-node-title {
+	font-weight: 600;
+	color: var(--text-normal);
+	cursor: pointer;
+}
+
+.jira-tree-node-title:hover {
+	color: var(--interactive-accent);
+	text-decoration: underline;
+}
+
+.jira-tree-node-title.is-done {
+	text-decoration: line-through;
+	color: var(--text-muted);
+}
+
+/* Node Badges */
+.jira-node-badge {
+	font-size: 0.65rem;
+	font-weight: 800;
+	padding: 2px 6px;
+	border-radius: 4px;
+	letter-spacing: 0.04em;
+}
+
+.jira-node-badge.badge-goal {
+	background: rgba(168, 85, 247, 0.15);
+	color: #a855f7;
+	border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.jira-node-badge.badge-strategy {
+	background: rgba(59, 130, 246, 0.15);
+	color: #3b82f6;
+	border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.jira-node-badge.badge-action {
+	background: rgba(16, 185, 129, 0.15);
+	color: #10b981;
+	border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* ADR Status Buttons */
+.jira-adr-controls {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.jira-adr-btn {
+	padding: 3px 8px;
+	font-size: 0.7rem;
+	font-weight: 600;
+	border-radius: 4px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary-alt);
 	color: var(--text-muted);
 	cursor: pointer;
+	transition: all 0.15s ease;
+}
+
+.jira-adr-btn.is-selected {
+	box-shadow: 0 0 0 1px currentColor;
+}
+
+.jira-adr-btn.btn-active.is-selected {
+	background: rgba(59, 130, 246, 0.2);
+	color: #3b82f6;
+	border-color: #3b82f6;
+}
+
+.jira-adr-btn.btn-deprecated.is-selected {
+	background: rgba(245, 158, 11, 0.2);
+	color: #f59e0b;
+	border-color: #f59e0b;
+}
+
+.jira-adr-btn.btn-complete.is-selected {
+	background: rgba(16, 185, 129, 0.2);
+	color: #10b981;
+	border-color: #10b981;
+}
+
+.jira-tree-children-container,
+.jira-tree-actions-container {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.jira-tree-quick-add-row {
+	margin-left: 20px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.jira-modal-breadcrumb {
+	background: rgba(var(--interactive-accent-rgb), 0.08);
+	border-radius: 6px;
+	padding: 6px 12px;
+	margin-bottom: 12px;
+	font-size: 0.8rem;
+	font-family: var(--font-monospace);
+	color: var(--interactive-accent);
 }
 
 .jira-add-task-btn:hover {

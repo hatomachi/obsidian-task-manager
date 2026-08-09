@@ -8,14 +8,14 @@ import { AICopilotModal } from "./AICopilotModal";
 
 export const VIEW_TYPE_TASK_MANAGER = "jira-task-manager-view";
 
-export type ViewMode = "status" | "schedule";
+export type ViewMode = "tree" | "status" | "schedule";
 
 export class TaskManagerView extends ItemView {
 	private taskService: TaskService;
 	private aiService: AIService;
 	private undoService: UndoService;
 	private searchFilter = "";
-	private activeViewMode: ViewMode = "status";
+	private activeViewMode: ViewMode = "tree";
 	private eventListeners: EventRef[] = [];
 	private isProcessingAI = false;
 
@@ -66,10 +66,20 @@ export class TaskManagerView extends ItemView {
 		const headerEl = container.createDiv({ cls: "jira-tm-header" });
 		
 		const titleGroup = headerEl.createDiv({ cls: "jira-tm-title-group" });
-		titleGroup.createEl("h2", { text: "JIRA Task Board" });
+		titleGroup.createEl("h2", { text: "JIRA Task Manager" });
 
 		// View Mode Switcher
 		const switcherEl = titleGroup.createDiv({ cls: "jira-view-switcher" });
+
+		const treeTab = switcherEl.createEl("button", {
+			text: "🌳 Context Tree",
+			cls: `jira-tab-btn ${this.activeViewMode === "tree" ? "active" : ""}`,
+		});
+		treeTab.addEventListener("click", () => {
+			this.activeViewMode = "tree";
+			this.render();
+		});
+
 		const statusTab = switcherEl.createEl("button", {
 			text: "Status Board",
 			cls: `jira-tab-btn ${this.activeViewMode === "status" ? "active" : ""}`,
@@ -92,12 +102,12 @@ export class TaskManagerView extends ItemView {
 		const createForm = headerEl.createDiv({ cls: "jira-tm-create-form" });
 		const titleInput = createForm.createEl("input", {
 			type: "text",
-			placeholder: "What needs to be done?...",
+			placeholder: "What needs to be done? (Goal or Strategy)...",
 			cls: "jira-tm-input",
 		});
 		
 		const createBtn = createForm.createEl("button", {
-			text: "+ Create Task",
+			text: "+ Create Goal",
 			cls: "mod-cta jira-tm-btn",
 		});
 
@@ -106,7 +116,7 @@ export class TaskManagerView extends ItemView {
 			if (!text) return;
 			titleInput.value = "";
 			const todayStr = new Date().toISOString().split("T")[0];
-			await this.taskService.createTask(text, "todo", "medium", { scheduled: todayStr });
+			await this.taskService.createTaskNode(text, "goal", "todo", { scheduled: todayStr });
 			this.render();
 		};
 
@@ -225,7 +235,9 @@ export class TaskManagerView extends ItemView {
 			);
 		});
 
-		if (this.activeViewMode === "status") {
+		if (this.activeViewMode === "tree") {
+			this.renderContextTreeBoard(boardEl);
+		} else if (this.activeViewMode === "status") {
 			this.renderStatusBoard(boardEl, filteredTasks, allTasks);
 		} else {
 			this.renderScheduleBoard(boardEl, filteredTasks);
@@ -496,4 +508,248 @@ export class TaskManagerView extends ItemView {
 			await this.taskService.openTaskNote(task.file);
 		});
 	}
+
+	private renderContextTreeBoard(boardEl: HTMLElement): void {
+		boardEl.empty();
+		boardEl.addClass("jira-tree-board-wrapper");
+
+		const allNodes = this.taskService.getAllTaskNodes();
+		const query = this.searchFilter.toLowerCase();
+		const filteredNodes = allNodes.filter((n) => {
+			if (!query) return true;
+			return n.title.toLowerCase().includes(query) || n.id.toLowerCase().includes(query);
+		});
+
+		const rootNodes = filteredNodes.filter((n) => {
+			if (n.nodeType === "goal") return true;
+			if (!n.parentId) return true;
+			return !allNodes.some((parent) => parent.id === n.parentId);
+		});
+
+		const treeContainer = boardEl.createDiv({ cls: "jira-tree-board-container" });
+
+		if (rootNodes.length === 0) {
+			const emptyBox = treeContainer.createDiv({ cls: "jira-tree-empty-state" });
+			emptyBox.createEl("h3", { text: "🌱 ノードが存在しません" });
+			emptyBox.createEl("p", { text: "上の「+ Create Goal」でお題（Goal）を作成するか、「✨ AI 作戦策定」を実行してください。" });
+			return;
+		}
+
+		for (const rootNode of rootNodes) {
+			this.renderTreeNodeGroup(treeContainer, rootNode, allNodes);
+		}
+	}
+
+	private renderTreeNodeGroup(container: HTMLElement, node: import("../types").TaskNode, allNodes: import("../types").TaskNode[]): void {
+		const groupEl = container.createDiv({ cls: `jira-tree-group node-type-${node.nodeType}` });
+
+		// Root Node Card / Header
+		const headerRow = groupEl.createDiv({ cls: "jira-tree-node-row root-node" });
+		
+		const titleArea = headerRow.createDiv({ cls: "jira-tree-title-area" });
+		
+		const badge = titleArea.createEl("span", {
+			cls: `jira-node-badge badge-${node.nodeType}`,
+			text: node.nodeType.toUpperCase(),
+		});
+
+		const idBadge = titleArea.createEl("span", { cls: "jira-card-id", text: node.id });
+		idBadge.addEventListener("click", async (e) => {
+			e.stopPropagation();
+			await this.taskService.openTaskNote(node.file);
+		});
+
+		const titleEl = titleArea.createEl("span", { cls: "jira-tree-node-title", text: node.title });
+		titleEl.addEventListener("click", async () => {
+			await this.taskService.openTaskNote(node.file);
+		});
+
+		// Actions & Status
+		const actionsArea = headerRow.createDiv({ cls: "jira-tree-actions-area" });
+
+		// AI Copilot Button
+		const aiBtn = actionsArea.createEl("button", {
+			text: "✨ AI",
+			cls: "jira-action-btn jira-ai-btn",
+		});
+		aiBtn.title = "AI Copilot でブレイクダウン／作戦策定";
+		aiBtn.addEventListener("click", (e) => {
+			e.stopPropagation();
+			const modal = new AICopilotModal(
+				this.app,
+				node,
+				this.aiService,
+				this.taskService,
+				this.undoService,
+				() => this.render()
+			);
+			modal.open();
+		});
+
+		// Render Children (Strategies under Goal, or Actions under Strategy)
+		const children = allNodes.filter((child) => child.parentId === node.id);
+		if (children.length > 0) {
+			const childrenContainer = groupEl.createDiv({ cls: "jira-tree-children-container" });
+
+			for (const child of children) {
+				if (child.nodeType === "strategy") {
+					this.renderStrategyNodeRow(childrenContainer, child, allNodes);
+				} else {
+					this.renderActionNodeRow(childrenContainer, child);
+				}
+			}
+		}
+
+		// Quick Add Child Input
+		const quickAddRow = groupEl.createDiv({ cls: "jira-tree-quick-add-row" });
+		const addBtnText = node.nodeType === "goal" ? "+ Add Strategy" : "+ Add Action";
+		const addBtn = quickAddRow.createEl("button", { text: addBtnText, cls: "jira-action-btn" });
+		
+		const inputEl = quickAddRow.createEl("input", {
+			type: "text",
+			placeholder: node.nodeType === "goal" ? "New strategy..." : "New action...",
+			cls: "jira-subtask-input hidden",
+		});
+
+		addBtn.addEventListener("click", () => {
+			inputEl.removeClass("hidden");
+			inputEl.focus();
+		});
+
+		inputEl.addEventListener("keydown", async (e) => {
+			if (e.key === "Enter") {
+				const val = inputEl.value.trim();
+				if (val) {
+					const childNodeType = node.nodeType === "goal" ? "strategy" : "action";
+					await this.taskService.createTaskNode(val, childNodeType, "todo", { parentId: node.id });
+					this.render();
+				}
+			}
+		});
+	}
+
+	private renderStrategyNodeRow(container: HTMLElement, node: import("../types").TaskNode, allNodes: import("../types").TaskNode[]): void {
+		const stratRow = container.createDiv({ cls: `jira-tree-node-row strategy-node status-${node.status}` });
+
+		const titleArea = stratRow.createDiv({ cls: "jira-tree-title-area" });
+
+		const badge = titleArea.createEl("span", {
+			cls: `jira-node-badge badge-strategy`,
+			text: "STRATEGY",
+		});
+
+		const idBadge = titleArea.createEl("span", { cls: "jira-card-id", text: node.id });
+		idBadge.addEventListener("click", async (e) => {
+			e.stopPropagation();
+			await this.taskService.openTaskNote(node.file);
+		});
+
+		const titleEl = titleArea.createEl("span", {
+			cls: `jira-tree-node-title ${node.status === "done" ? "is-done" : ""}`,
+			text: node.title,
+		});
+		titleEl.addEventListener("click", async () => {
+			await this.taskService.openTaskNote(node.file);
+		});
+
+		// ADR Status Controls
+		const adrControls = stratRow.createDiv({ cls: "jira-adr-controls" });
+
+		const activeBtn = adrControls.createEl("button", {
+			text: "🟢 Active",
+			cls: `jira-adr-btn btn-active ${node.status === "in_progress" || node.status === "todo" ? "is-selected" : ""}`,
+		});
+		activeBtn.title = "現在採用・実行中の作戦";
+		activeBtn.addEventListener("click", async (e) => {
+			e.stopPropagation();
+			await this.taskService.updateTaskStatus(node.file, "in_progress");
+			this.render();
+		});
+
+		const deprecateBtn = adrControls.createEl("button", {
+			text: "⚠️ Deprecated",
+			cls: `jira-adr-btn btn-deprecated ${node.status === "deprecated" ? "is-selected" : ""}`,
+		});
+		deprecateBtn.title = "状況変化によりボツ・差し替えとなった作戦";
+		deprecateBtn.addEventListener("click", async (e) => {
+			e.stopPropagation();
+			await this.taskService.updateTaskStatus(node.file, "deprecated");
+			this.render();
+		});
+
+		const completeBtn = adrControls.createEl("button", {
+			text: "✅ Complete",
+			cls: `jira-adr-btn btn-complete ${node.status === "done" ? "is-selected" : ""}`,
+		});
+		completeBtn.title = "無事達成された作戦";
+		completeBtn.addEventListener("click", async (e) => {
+			e.stopPropagation();
+			await this.taskService.updateTaskStatus(node.file, "done");
+			this.render();
+		});
+
+		// AI Button for Strategy -> Breakdown to Actions
+		const aiBtn = stratRow.createEl("button", {
+			text: "✨ AI",
+			cls: "jira-action-btn jira-ai-btn",
+		});
+		aiBtn.title = "AI Copilot で 15〜30分物理行動(Action)展開";
+		aiBtn.addEventListener("click", (e) => {
+			e.stopPropagation();
+			const modal = new AICopilotModal(
+				this.app,
+				node,
+				this.aiService,
+				this.taskService,
+				this.undoService,
+				() => this.render()
+			);
+			modal.open();
+		});
+
+		// Render child Actions under Strategy
+		const childActions = allNodes.filter((child) => child.parentId === node.id);
+		if (childActions.length > 0) {
+			const actionContainer = container.createDiv({ cls: "jira-tree-actions-container" });
+			for (const action of childActions) {
+				this.renderActionNodeRow(actionContainer, action);
+			}
+		}
+	}
+
+	private renderActionNodeRow(container: HTMLElement, node: import("../types").TaskNode): void {
+		const actionRow = container.createDiv({ cls: `jira-tree-node-row action-node ${node.status === "done" ? "is-done" : ""}` });
+
+		const chk = actionRow.createEl("input", {
+			type: "checkbox",
+			cls: "jira-subtask-chk",
+		});
+		chk.checked = node.status === "done";
+		chk.addEventListener("change", async (e) => {
+			e.stopPropagation();
+			const newStatus = chk.checked ? "done" : "todo";
+			await this.taskService.updateTaskStatus(node.file, newStatus);
+			this.render();
+		});
+
+		const badge = actionRow.createEl("span", {
+			cls: `jira-node-badge badge-action`,
+			text: "ACTION",
+		});
+
+		const idBadge = actionRow.createEl("span", { cls: "jira-card-id", text: node.id });
+		idBadge.addEventListener("click", async (e) => {
+			e.stopPropagation();
+			await this.taskService.openTaskNote(node.file);
+		});
+
+		const titleEl = actionRow.createEl("span", {
+			cls: `jira-tree-node-title ${node.status === "done" ? "is-done" : ""}`,
+			text: node.title,
+		});
+		titleEl.addEventListener("click", async () => {
+			await this.taskService.openTaskNote(node.file);
+		});
+	}
 }
+

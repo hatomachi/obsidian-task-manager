@@ -1303,9 +1303,10 @@ var init_AICopilotModal = __esm({
     "use strict";
     import_obsidian5 = require("obsidian");
     AICopilotModal = class extends import_obsidian5.Modal {
-      constructor(app, task, aiService, taskService, undoService, onApplied) {
+      constructor(app, rawTask, aiService, taskService, undoService, onApplied) {
+        var _a, _b;
         super(app);
-        this.task = task;
+        this.rawTask = rawTask;
         this.aiService = aiService;
         this.taskService = taskService;
         this.undoService = undoService;
@@ -1315,8 +1316,15 @@ var init_AICopilotModal = __esm({
         this.feedback = "";
         this.strategyResult = null;
         this.editableTasks = [];
-        if (task) {
-          this.topic = task.title;
+        this.contextPayload = null;
+        this.targetNode = null;
+        if (rawTask) {
+          this.topic = rawTask.title;
+          const allNodes = this.taskService.getAllTaskNodes();
+          this.targetNode = allNodes.find((n) => n.id === rawTask.id) || null;
+        }
+        if (this.targetNode && ((_b = (_a = this.taskService) == null ? void 0 : _a.plugin) == null ? void 0 : _b.taskGraphService)) {
+          this.contextPayload = this.taskService.plugin.taskGraphService.buildAIContext(this.targetNode.id);
         }
       }
       onOpen() {
@@ -1330,8 +1338,17 @@ var init_AICopilotModal = __esm({
         contentEl.empty();
       }
       renderModal() {
+        var _a;
         const { contentEl } = this;
         contentEl.empty();
+        if (this.contextPayload && this.contextPayload.ancestors.length > 0) {
+          const breadcrumbDiv = contentEl.createDiv({ cls: "jira-modal-breadcrumb" });
+          const chainStr = this.contextPayload.ancestors.map((a) => `[${a.nodeType.toUpperCase()}] ${a.title}`).join(" \u2794 ");
+          breadcrumbDiv.createEl("span", {
+            cls: "jira-breadcrumb-text",
+            text: `\u{1F517} \u6587\u8108\u30C1\u30A7\u30FC\u30F3: ${chainStr} \u2794 [${((_a = this.targetNode) == null ? void 0 : _a.nodeType.toUpperCase()) || "NODE"}] ${this.topic}`
+          });
+        }
         switch (this.currentState) {
           case "STATE_INPUT":
             this.renderInputState(contentEl);
@@ -1351,12 +1368,15 @@ var init_AICopilotModal = __esm({
        * 1. STATE_INPUT: お題入力フォーム
        */
       renderInputState(container) {
+        var _a;
         container.createEl("h2", {
-          text: "\u2728 AI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC: \u4F5C\u6226\u7B56\u5B9A",
+          text: "\u2728 AI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC: \u524D\u88C1\u304D\u601D\u8003Copilot",
           cls: "jira-modal-title"
         });
+        const isStrategyNode = ((_a = this.targetNode) == null ? void 0 : _a.nodeType) === "strategy";
+        const guideText = isStrategyNode ? "\u9078\u629E\u3055\u308C\u305F\u4F5C\u6226(Strategy)\u304B\u3089\u300115\u301C30\u5206\u5358\u4F4D\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5(Action\u30EA\u30B9\u30C8)\u3092\u5C55\u958B\u751F\u6210\u3057\u307E\u3059\u3002" : "\u304A\u984C\uFF08Goal\uFF09\u304B\u3089AI\u304C\u524D\u88C1\u304D\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8\u3092\u89E3\u6790\u3057\u3001\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u89E3\u6D88\u3068Phase 1\u7269\u7406\u884C\u52D5\u3092\u63D0\u6848\u3057\u307E\u3059\u3002";
         container.createEl("p", {
-          text: "\u304A\u984C\uFF08\u3084\u308A\u305F\u3044\u3053\u3068\uFF09\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002AI\u304C\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u3092\u5206\u6790\u3057\u3001Phase 1\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF0815\u301C30\u5206\u5358\u4F4D\uFF09\u3092\u63D0\u6848\u3057\u307E\u3059\u3002",
+          text: guideText,
           cls: "jira-modal-subtext"
         });
         const formGroup = container.createDiv({ cls: "jira-modal-form-group" });
@@ -1371,8 +1391,9 @@ var init_AICopilotModal = __esm({
           this.topic = e.target.value;
         });
         const actionBtnBar = container.createDiv({ cls: "jira-modal-action-bar" });
+        const submitBtnText = isStrategyNode ? "\u7269\u7406\u884C\u52D5\u3092\u5C55\u958B \u{1F680}" : "\u4F5C\u6226\u3092\u7ACB\u3066\u308B \u{1F680}";
         const submitBtn = actionBtnBar.createEl("button", {
-          text: "\u4F5C\u6226\u3092\u7ACB\u3066\u308B \u{1F680}",
+          text: submitBtnText,
           cls: "mod-cta jira-modal-btn-primary"
         });
         const cancelBtn = actionBtnBar.createEl("button", {
@@ -1408,7 +1429,7 @@ var init_AICopilotModal = __esm({
         const loadingBox = container.createDiv({ cls: "jira-modal-loading-box" });
         loadingBox.createDiv({ cls: "jira-spinner" });
         loadingBox.createEl("p", {
-          text: "\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u3092\u5206\u6790\u3057\u3001\u4E0D\u78BA\u5B9F\u6027\u3092\u6F70\u3059 Phase 1 \u4F5C\u6226\u3092\u7B56\u5B9A\u3057\u3066\u3044\u307E\u3059...",
+          text: "\u524D\u88C1\u304D\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8\uFF08\u7956\u5148Goal / Strategy\uFF09\u3092\u62BD\u51FA\u3057\u3001\u6700\u9069\u30D7\u30E9\u30F3\u3092\u69CB\u7BC9\u3057\u3066\u3044\u307E\u3059...",
           cls: "jira-loading-text"
         });
       }
@@ -1417,29 +1438,29 @@ var init_AICopilotModal = __esm({
        */
       renderPreviewState(container) {
         container.createEl("h2", {
-          text: `\u{1F3AF} \u4F5C\u6226\u30D7\u30EC\u30D3\u30E5\u30FC: ${this.topic}`,
+          text: `\u{1F3AF} \u63D0\u6848\u30D7\u30EC\u30D3\u30E5\u30FC: ${this.topic}`,
           cls: "jira-modal-title"
         });
-        if (!this.strategyResult)
-          return;
-        const calloutBox = container.createDiv({ cls: "jira-modal-callout-box" });
-        calloutBox.createDiv({
-          cls: "jira-callout-title",
-          text: "\u{1F4A1} AI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u306E\u4F5C\u6226\u30E1\u30E2"
-        });
-        const calloutContent = calloutBox.createDiv({ cls: "jira-callout-body" });
-        const bnDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
-        bnDiv.createEl("strong", { text: "\u6700\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF: " });
-        bnDiv.createEl("span", { text: this.strategyResult.bottleneck });
-        const depDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
-        depDiv.createEl("strong", { text: "\u4F9D\u5B58\u95A2\u4FC2: " });
-        depDiv.createEl("span", { text: this.strategyResult.dependency });
-        const polDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
-        polDiv.createEl("strong", { text: "\u57FA\u672C\u65B9\u91DD: " });
-        polDiv.createEl("span", { text: this.strategyResult.policy });
+        if (this.strategyResult) {
+          const calloutBox = container.createDiv({ cls: "jira-modal-callout-box" });
+          calloutBox.createDiv({
+            cls: "jira-callout-title",
+            text: "\u{1F4A1} AI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u306E\u524D\u88C1\u304D\u5206\u6790\u30E1\u30E2"
+          });
+          const calloutContent = calloutBox.createDiv({ cls: "jira-callout-body" });
+          const bnDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
+          bnDiv.createEl("strong", { text: "\u6700\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF: " });
+          bnDiv.createEl("span", { text: this.strategyResult.bottleneck });
+          const depDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
+          depDiv.createEl("strong", { text: "\u4F9D\u5B58\u95A2\u4FC2: " });
+          depDiv.createEl("span", { text: this.strategyResult.dependency });
+          const polDiv = calloutContent.createDiv({ cls: "jira-callout-item" });
+          polDiv.createEl("strong", { text: "\u57FA\u672C\u65B9\u91DD: " });
+          polDiv.createEl("span", { text: this.strategyResult.policy });
+        }
         const tasksSection = container.createDiv({ cls: "jira-modal-tasks-section" });
         tasksSection.createEl("h3", {
-          text: "\u{1F4CD} Phase 1: \u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u30FB\u4E0D\u78BA\u5B9F\u6027\u306E\u89E3\u6D88 (15\u301C30\u5206\u7269\u7406\u884C\u52D5)",
+          text: "\u{1F4CD} 15\u301C30\u5206\u5358\u4F4D\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5 (Action)",
           cls: "jira-section-title"
         });
         const tasksContainer = tasksSection.createDiv({ cls: "jira-editable-task-list" });
@@ -1472,7 +1493,7 @@ var init_AICopilotModal = __esm({
           });
         });
         const addTaskBtn = tasksSection.createEl("button", {
-          text: "+ \u30BF\u30B9\u30AF\u3092\u8FFD\u52A0",
+          text: "+ \u30A2\u30AF\u30B7\u30E7\u30F3\u3092\u8FFD\u52A0",
           cls: "jira-add-task-btn"
         });
         addTaskBtn.addEventListener("click", () => {
@@ -1486,7 +1507,7 @@ var init_AICopilotModal = __esm({
         });
         const feedbackInput = feedbackBox.createEl("input", {
           type: "text",
-          placeholder: "\u4F8B: \u8ECA\u79FB\u52D5\u306B\u5909\u66F4\u3057\u3066\u3001\u30BF\u30B9\u30AF\u30922\u3064\u306B\u6E1B\u3089\u3057\u3066...",
+          placeholder: "\u4F8B: \u30BF\u30B9\u30AF\u30922\u3064\u306B\u6E1B\u3089\u3057\u3066\u3001\u30D6\u30E9\u30A6\u30B6\u691C\u7D22\u3092\u4E2D\u5FC3\u306B\u3057\u3066...",
           value: this.feedback,
           cls: "jira-modal-feedback-input"
         });
@@ -1504,7 +1525,7 @@ var init_AICopilotModal = __esm({
         });
         const actionBar = container.createDiv({ cls: "jira-modal-action-bar" });
         const commitBtn = actionBar.createEl("button", {
-          text: "\u3053\u306E\u4F5C\u6226\u3067\u78BA\u5B9A\uFF08\u30CE\u30FC\u30C8\u3078\u66F8\u304D\u8FBC\u3080\uFF09 \u{1F4DD}",
+          text: "\u3053\u306E\u5185\u5BB9\u3067\u78BA\u5B9A\uFF08\u30CE\u30FC\u30C9\u3092\u5168\u81EA\u52D5\u751F\u6210\uFF09 \u{1F4DD}",
           cls: "mod-cta jira-modal-btn-primary"
         });
         commitBtn.addEventListener("click", () => this.commitStrategy());
@@ -1519,26 +1540,39 @@ var init_AICopilotModal = __esm({
        */
       renderCommittedState(container) {
         container.createEl("h2", {
-          text: "\u2705 \u4F5C\u6226\u3068Phase 1\u30BF\u30B9\u30AF\u3092\u66F8\u304D\u8FBC\u307F\u307E\u3057\u305F\uFF01",
+          text: "\u2705 \u524D\u88C1\u304D\u30CE\u30FC\u30C9\u7FA4\u3092\u5168\u81EA\u52D5\u751F\u6210\u30FB\u66F8\u304D\u8FBC\u307F\u307E\u3057\u305F\uFF01",
           cls: "jira-modal-title"
         });
         setTimeout(() => this.close(), 1e3);
       }
       /**
-       * AIによる作戦策定の実行
+       * AIによる前裁き作戦策定 / アクション展開の実行
        */
       async executeGenerateStrategy(feedbackText) {
+        var _a;
         try {
-          const result = await this.aiService.generateStrategy(
-            this.topic,
-            feedbackText,
-            this.strategyResult || void 0
-          );
-          this.strategyResult = result;
-          this.editableTasks = result.phase1Tasks.map((t) => ({
-            text: t,
-            enabled: true
-          }));
+          if (((_a = this.targetNode) == null ? void 0 : _a.nodeType) === "strategy" && this.contextPayload) {
+            const actions = await this.aiService.breakdownTaskWithContext(this.contextPayload);
+            this.editableTasks = actions.map((a) => ({ text: a, enabled: true }));
+            this.strategyResult = null;
+          } else if (this.contextPayload) {
+            const result = await this.aiService.generateStrategyWithContext(
+              this.contextPayload,
+              this.topic,
+              feedbackText,
+              this.strategyResult || void 0
+            );
+            this.strategyResult = result;
+            this.editableTasks = result.phase1Tasks.map((t) => ({ text: t, enabled: true }));
+          } else {
+            const result = await this.aiService.generateStrategy(
+              this.topic,
+              feedbackText,
+              this.strategyResult || void 0
+            );
+            this.strategyResult = result;
+            this.editableTasks = result.phase1Tasks.map((t) => ({ text: t, enabled: true }));
+          }
           this.feedback = "";
           this.currentState = "STATE_PREVIEW";
         } catch (e) {
@@ -1550,39 +1584,40 @@ var init_AICopilotModal = __esm({
         }
       }
       /**
-       * 承認された最終編集結果をノートへ書き込み
+       * 承認された最終編集結果を TaskNode として生成・追加
        */
       async commitStrategy() {
         var _a, _b, _c;
-        if (!this.strategyResult)
-          return;
         const selectedTasks = this.editableTasks.filter((t) => t.enabled && t.text.trim().length > 0).map((t) => t.text.trim());
         if (selectedTasks.length === 0) {
-          new import_obsidian5.Notice("\u26A0\uFE0F \u9078\u629E\u3055\u308C\u305FPhase 1\u30BF\u30B9\u30AF\u304C\u3042\u308A\u307E\u305B\u3093\u30021\u3064\u4EE5\u4E0A\u30C1\u30A7\u30C3\u30AF\u3092\u5165\u308C\u3066\u304F\u3060\u3055\u3044\u3002");
+          new import_obsidian5.Notice("\u26A0\uFE0F \u9078\u629E\u3055\u308C\u305FAction\u30BF\u30B9\u30AF\u304C\u3042\u308A\u307E\u305B\u3093\u30021\u3064\u4EE5\u4E0A\u30C1\u30A7\u30C3\u30AF\u3092\u5165\u308C\u3066\u304F\u3060\u3055\u3044\u3002");
           return;
         }
         try {
-          const patternService = (_b = (_a = this.taskService) == null ? void 0 : _a.plugin) == null ? void 0 : _b.patternService;
-          let pattern = void 0;
-          if (patternService) {
-            const allPatterns = await patternService.loadAllPatterns();
-            const topicTags = patternService.extractTagsFromText(this.topic);
-            const matched = patternService.findMatchingPatterns(topicTags, allPatterns);
-            pattern = matched.length > 0 ? matched[0] : void 0;
+          if (((_a = this.targetNode) == null ? void 0 : _a.nodeType) === "strategy") {
+            await this.aiService.createActionNodesFromAI(this.targetNode.id, selectedTasks);
+            new import_obsidian5.Notice(`\u2728 Strategy\u300C${this.targetNode.title}\u300D\u914D\u4E0B\u306B ${selectedTasks.length} \u4EF6\u306EAction\u30CE\u30FC\u30C9\u3092\u4F5C\u6210\u3057\u307E\u3057\u305F\uFF01`);
+          } else if (this.strategyResult) {
+            await this.aiService.createStrategyAndActionsFromAI(
+              (_b = this.targetNode) == null ? void 0 : _b.id,
+              {
+                ...this.strategyResult,
+                phase1Tasks: selectedTasks
+              }
+            );
+            new import_obsidian5.Notice(`\u2728 ${selectedTasks.length} \u4EF6\u306E\u4F5C\u6226\u30FBAction\u30CE\u30FC\u30C9\u3092\u4F5C\u6210\u3057\u307E\u3057\u305F\uFF01`);
+          } else {
+            await this.taskService.saveStrategyToNote(
+              this.topic,
+              { bottleneck: "\u5206\u6790", dependency: "\u57FA\u672C\u8A2D\u8A08", policy: "\u9806\u6B21\u6D88\u5316", phase1Tasks: selectedTasks },
+              selectedTasks,
+              (_c = this.targetNode) == null ? void 0 : _c.file
+            );
           }
-          const success = await this.taskService.saveStrategyToNote(
-            this.topic,
-            this.strategyResult,
-            selectedTasks,
-            (_c = this.task) == null ? void 0 : _c.file,
-            pattern
-          );
-          if (success) {
-            this.currentState = "STATE_COMMITTED";
-            this.renderModal();
-            if (this.onApplied) {
-              this.onApplied();
-            }
+          this.currentState = "STATE_COMMITTED";
+          this.renderModal();
+          if (this.onApplied) {
+            this.onApplied();
           }
         } catch (e) {
           console.error("[TaskManager] commitStrategy error:", e);
@@ -1684,7 +1719,7 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     super(leaf);
     this.plugin = plugin;
     this.searchFilter = "";
-    this.activeViewMode = "status";
+    this.activeViewMode = "tree";
     this.eventListeners = [];
     this.isProcessingAI = false;
     this.taskService = new TaskService(this.app, this.plugin);
@@ -1721,8 +1756,16 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     container.addClass("jira-task-manager-container");
     const headerEl = container.createDiv({ cls: "jira-tm-header" });
     const titleGroup = headerEl.createDiv({ cls: "jira-tm-title-group" });
-    titleGroup.createEl("h2", { text: "JIRA Task Board" });
+    titleGroup.createEl("h2", { text: "JIRA Task Manager" });
     const switcherEl = titleGroup.createDiv({ cls: "jira-view-switcher" });
+    const treeTab = switcherEl.createEl("button", {
+      text: "\u{1F333} Context Tree",
+      cls: `jira-tab-btn ${this.activeViewMode === "tree" ? "active" : ""}`
+    });
+    treeTab.addEventListener("click", () => {
+      this.activeViewMode = "tree";
+      this.render();
+    });
     const statusTab = switcherEl.createEl("button", {
       text: "Status Board",
       cls: `jira-tab-btn ${this.activeViewMode === "status" ? "active" : ""}`
@@ -1742,11 +1785,11 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     const createForm = headerEl.createDiv({ cls: "jira-tm-create-form" });
     const titleInput = createForm.createEl("input", {
       type: "text",
-      placeholder: "What needs to be done?...",
+      placeholder: "What needs to be done? (Goal or Strategy)...",
       cls: "jira-tm-input"
     });
     const createBtn = createForm.createEl("button", {
-      text: "+ Create Task",
+      text: "+ Create Goal",
       cls: "mod-cta jira-tm-btn"
     });
     const submitTask = async () => {
@@ -1755,7 +1798,7 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
         return;
       titleInput.value = "";
       const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-      await this.taskService.createTask(text, "todo", "medium", { scheduled: todayStr });
+      await this.taskService.createTaskNode(text, "goal", "todo", { scheduled: todayStr });
       this.render();
     };
     createBtn.addEventListener("click", submitTask);
@@ -1854,7 +1897,9 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
       const query = this.searchFilter.toLowerCase();
       return t.title.toLowerCase().includes(query) || t.id.toLowerCase().includes(query);
     });
-    if (this.activeViewMode === "status") {
+    if (this.activeViewMode === "tree") {
+      this.renderContextTreeBoard(boardEl);
+    } else if (this.activeViewMode === "status") {
       this.renderStatusBoard(boardEl, filteredTasks, allTasks);
     } else {
       this.renderScheduleBoard(boardEl, filteredTasks);
@@ -2077,6 +2122,208 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     }
     cardEl.addEventListener("click", async () => {
       await this.taskService.openTaskNote(task.file);
+    });
+  }
+  renderContextTreeBoard(boardEl) {
+    boardEl.empty();
+    boardEl.addClass("jira-tree-board-wrapper");
+    const allNodes = this.taskService.getAllTaskNodes();
+    const query = this.searchFilter.toLowerCase();
+    const filteredNodes = allNodes.filter((n) => {
+      if (!query)
+        return true;
+      return n.title.toLowerCase().includes(query) || n.id.toLowerCase().includes(query);
+    });
+    const rootNodes = filteredNodes.filter((n) => {
+      if (n.nodeType === "goal")
+        return true;
+      if (!n.parentId)
+        return true;
+      return !allNodes.some((parent) => parent.id === n.parentId);
+    });
+    const treeContainer = boardEl.createDiv({ cls: "jira-tree-board-container" });
+    if (rootNodes.length === 0) {
+      const emptyBox = treeContainer.createDiv({ cls: "jira-tree-empty-state" });
+      emptyBox.createEl("h3", { text: "\u{1F331} \u30CE\u30FC\u30C9\u304C\u5B58\u5728\u3057\u307E\u305B\u3093" });
+      emptyBox.createEl("p", { text: "\u4E0A\u306E\u300C+ Create Goal\u300D\u3067\u304A\u984C\uFF08Goal\uFF09\u3092\u4F5C\u6210\u3059\u308B\u304B\u3001\u300C\u2728 AI \u4F5C\u6226\u7B56\u5B9A\u300D\u3092\u5B9F\u884C\u3057\u3066\u304F\u3060\u3055\u3044\u3002" });
+      return;
+    }
+    for (const rootNode of rootNodes) {
+      this.renderTreeNodeGroup(treeContainer, rootNode, allNodes);
+    }
+  }
+  renderTreeNodeGroup(container, node, allNodes) {
+    const groupEl = container.createDiv({ cls: `jira-tree-group node-type-${node.nodeType}` });
+    const headerRow = groupEl.createDiv({ cls: "jira-tree-node-row root-node" });
+    const titleArea = headerRow.createDiv({ cls: "jira-tree-title-area" });
+    const badge = titleArea.createEl("span", {
+      cls: `jira-node-badge badge-${node.nodeType}`,
+      text: node.nodeType.toUpperCase()
+    });
+    const idBadge = titleArea.createEl("span", { cls: "jira-card-id", text: node.id });
+    idBadge.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await this.taskService.openTaskNote(node.file);
+    });
+    const titleEl = titleArea.createEl("span", { cls: "jira-tree-node-title", text: node.title });
+    titleEl.addEventListener("click", async () => {
+      await this.taskService.openTaskNote(node.file);
+    });
+    const actionsArea = headerRow.createDiv({ cls: "jira-tree-actions-area" });
+    const aiBtn = actionsArea.createEl("button", {
+      text: "\u2728 AI",
+      cls: "jira-action-btn jira-ai-btn"
+    });
+    aiBtn.title = "AI Copilot \u3067\u30D6\u30EC\u30A4\u30AF\u30C0\u30A6\u30F3\uFF0F\u4F5C\u6226\u7B56\u5B9A";
+    aiBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const modal = new AICopilotModal(
+        this.app,
+        node,
+        this.aiService,
+        this.taskService,
+        this.undoService,
+        () => this.render()
+      );
+      modal.open();
+    });
+    const children = allNodes.filter((child) => child.parentId === node.id);
+    if (children.length > 0) {
+      const childrenContainer = groupEl.createDiv({ cls: "jira-tree-children-container" });
+      for (const child of children) {
+        if (child.nodeType === "strategy") {
+          this.renderStrategyNodeRow(childrenContainer, child, allNodes);
+        } else {
+          this.renderActionNodeRow(childrenContainer, child);
+        }
+      }
+    }
+    const quickAddRow = groupEl.createDiv({ cls: "jira-tree-quick-add-row" });
+    const addBtnText = node.nodeType === "goal" ? "+ Add Strategy" : "+ Add Action";
+    const addBtn = quickAddRow.createEl("button", { text: addBtnText, cls: "jira-action-btn" });
+    const inputEl = quickAddRow.createEl("input", {
+      type: "text",
+      placeholder: node.nodeType === "goal" ? "New strategy..." : "New action...",
+      cls: "jira-subtask-input hidden"
+    });
+    addBtn.addEventListener("click", () => {
+      inputEl.removeClass("hidden");
+      inputEl.focus();
+    });
+    inputEl.addEventListener("keydown", async (e) => {
+      if (e.key === "Enter") {
+        const val = inputEl.value.trim();
+        if (val) {
+          const childNodeType = node.nodeType === "goal" ? "strategy" : "action";
+          await this.taskService.createTaskNode(val, childNodeType, "todo", { parentId: node.id });
+          this.render();
+        }
+      }
+    });
+  }
+  renderStrategyNodeRow(container, node, allNodes) {
+    const stratRow = container.createDiv({ cls: `jira-tree-node-row strategy-node status-${node.status}` });
+    const titleArea = stratRow.createDiv({ cls: "jira-tree-title-area" });
+    const badge = titleArea.createEl("span", {
+      cls: `jira-node-badge badge-strategy`,
+      text: "STRATEGY"
+    });
+    const idBadge = titleArea.createEl("span", { cls: "jira-card-id", text: node.id });
+    idBadge.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await this.taskService.openTaskNote(node.file);
+    });
+    const titleEl = titleArea.createEl("span", {
+      cls: `jira-tree-node-title ${node.status === "done" ? "is-done" : ""}`,
+      text: node.title
+    });
+    titleEl.addEventListener("click", async () => {
+      await this.taskService.openTaskNote(node.file);
+    });
+    const adrControls = stratRow.createDiv({ cls: "jira-adr-controls" });
+    const activeBtn = adrControls.createEl("button", {
+      text: "\u{1F7E2} Active",
+      cls: `jira-adr-btn btn-active ${node.status === "in_progress" || node.status === "todo" ? "is-selected" : ""}`
+    });
+    activeBtn.title = "\u73FE\u5728\u63A1\u7528\u30FB\u5B9F\u884C\u4E2D\u306E\u4F5C\u6226";
+    activeBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await this.taskService.updateTaskStatus(node.file, "in_progress");
+      this.render();
+    });
+    const deprecateBtn = adrControls.createEl("button", {
+      text: "\u26A0\uFE0F Deprecated",
+      cls: `jira-adr-btn btn-deprecated ${node.status === "deprecated" ? "is-selected" : ""}`
+    });
+    deprecateBtn.title = "\u72B6\u6CC1\u5909\u5316\u306B\u3088\u308A\u30DC\u30C4\u30FB\u5DEE\u3057\u66FF\u3048\u3068\u306A\u3063\u305F\u4F5C\u6226";
+    deprecateBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await this.taskService.updateTaskStatus(node.file, "deprecated");
+      this.render();
+    });
+    const completeBtn = adrControls.createEl("button", {
+      text: "\u2705 Complete",
+      cls: `jira-adr-btn btn-complete ${node.status === "done" ? "is-selected" : ""}`
+    });
+    completeBtn.title = "\u7121\u4E8B\u9054\u6210\u3055\u308C\u305F\u4F5C\u6226";
+    completeBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await this.taskService.updateTaskStatus(node.file, "done");
+      this.render();
+    });
+    const aiBtn = stratRow.createEl("button", {
+      text: "\u2728 AI",
+      cls: "jira-action-btn jira-ai-btn"
+    });
+    aiBtn.title = "AI Copilot \u3067 15\u301C30\u5206\u7269\u7406\u884C\u52D5(Action)\u5C55\u958B";
+    aiBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const modal = new AICopilotModal(
+        this.app,
+        node,
+        this.aiService,
+        this.taskService,
+        this.undoService,
+        () => this.render()
+      );
+      modal.open();
+    });
+    const childActions = allNodes.filter((child) => child.parentId === node.id);
+    if (childActions.length > 0) {
+      const actionContainer = container.createDiv({ cls: "jira-tree-actions-container" });
+      for (const action of childActions) {
+        this.renderActionNodeRow(actionContainer, action);
+      }
+    }
+  }
+  renderActionNodeRow(container, node) {
+    const actionRow = container.createDiv({ cls: `jira-tree-node-row action-node ${node.status === "done" ? "is-done" : ""}` });
+    const chk = actionRow.createEl("input", {
+      type: "checkbox",
+      cls: "jira-subtask-chk"
+    });
+    chk.checked = node.status === "done";
+    chk.addEventListener("change", async (e) => {
+      e.stopPropagation();
+      const newStatus = chk.checked ? "done" : "todo";
+      await this.taskService.updateTaskStatus(node.file, newStatus);
+      this.render();
+    });
+    const badge = actionRow.createEl("span", {
+      cls: `jira-node-badge badge-action`,
+      text: "ACTION"
+    });
+    const idBadge = actionRow.createEl("span", { cls: "jira-card-id", text: node.id });
+    idBadge.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await this.taskService.openTaskNote(node.file);
+    });
+    const titleEl = actionRow.createEl("span", {
+      cls: `jira-tree-node-title ${node.status === "done" ? "is-done" : ""}`,
+      text: node.title
+    });
+    titleEl.addEventListener("click", async () => {
+      await this.taskService.openTaskNote(node.file);
     });
   }
 };

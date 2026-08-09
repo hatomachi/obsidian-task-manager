@@ -35,15 +35,15 @@
     - [x] AIが提案・承認された作戦 / TODO が自動的に正確な `parentId` 付きで生成・保存されること。
     - [x] `npm run build` が正常に通ること。
 
-- [ ] **Phase 4: 思考ツリー ＆ ADRノード操作UI**
+- [x] **Phase 4: 思考ツリー ＆ ADRノード操作UI**
   - **概要**: 「Goal ➔ Strategy ➔ Action」の文脈系譜を可視化・対話操作する専用ビューとモーダルの刷新。
   - **主な実装範囲**:
     - `src/views/TaskManagerView.ts`: Context Tree View の描画（アコーディオンツリー、作戦の Active/Deprecated/Completed ステータス表示）。
     - `src/views/AICopilotModal.ts`: AI提案の作戦/TODOを人間が評価・合意・一括ノード化するプレビュー操作フロー。
   - **完了条件 (DoD)**:
-    - [ ] `TaskManagerView` 上で Goal ➔ Strategy ➔ Action の階層文脈ツリーが表示され、ノード操作が可能であること。
-    - [ ] 作戦ノードのステータス切り替え（Accept / Deprecate / Complete）が直感的に行えること。
-    - [ ] `npm run build` が正常に通り、テストVaultへの同期コピーが完了すること。
+    - [x] `TaskManagerView` 上で Goal ➔ Strategy ➔ Action の階層文脈ツリーが表示され、ノード操作が可能であること。
+    - [x] 作戦ノードのステータス切り替え（Accept / Deprecate / Complete）が直感的に行えること。
+    - [x] `npm run build` が正常に通り、テストVaultへの同期コピーが完了すること。
 
 - [ ] **Phase 5: 実行モード (Focus / Today View) ＆ シナリオ実証検証**
   - **概要**: 「今日やるべき物理行動 (Action)」に集中する Focus タブの実装と、壁打ち「Mythos」シナリオによる実証検証。
