@@ -1,11 +1,6 @@
 import { App, TFile, normalizePath, MarkdownView, Notice } from "obsidian";
-import { TaskItem, TaskNode, NodeType, NodeStatus, TaskPattern, TaskPriority, TaskStatus, TaskType, StrategyResult } from "../types";
+import { TaskNode, NodeType, NodeStatus, TaskPattern, TaskPriority, TaskStatus, StrategyResult } from "../types";
 import TaskManagerPlugin from "../main";
-
-export interface TaskTreeNode {
-	task: TaskItem;
-	depth: number;
-}
 
 export interface TaskNodeTreeNode {
 	node: TaskNode;
@@ -62,48 +57,6 @@ export class TaskService {
 	}
 
 	/**
-	 * Get all task notes inside configured folder or vault (Backward Compatible)
-	 */
-	getAllTasks(): TaskItem[] {
-		const nodes = this.getAllTaskNodes();
-		return nodes.map((node) => ({
-			id: node.id,
-			title: node.title,
-			status: node.status,
-			priority: node.priority || "medium",
-			type: (node.nodeType === "goal" ? "epic" : node.nodeType === "strategy" ? "task" : "subtask") as TaskType,
-			nodeType: node.nodeType,
-			parent: node.parentId,
-			parentId: node.parentId,
-			due: node.due,
-			scheduled: node.scheduled,
-			assignee: node.assignee,
-			created: node.created,
-			updated: node.updated,
-			file: node.file,
-		}));
-	}
-
-	/**
-	 * Recursively get all descendant tasks (subtasks, sub-subtasks, etc.) for a root task
-	 */
-	getTaskSubtree(rootTaskId: string): TaskTreeNode[] {
-		const allTasks = this.getAllTasks();
-		const result: TaskTreeNode[] = [];
-
-		const traverse = (parentId: string, currentDepth: number) => {
-			const children = allTasks.filter((t) => t.parent === parentId);
-			for (const child of children) {
-				result.push({ task: child, depth: currentDepth });
-				traverse(child.id, currentDepth + 1);
-			}
-		};
-
-		traverse(rootTaskId, 1);
-		return result;
-	}
-
-	/**
 	 * Generate collision-free ASCII ID and filename: Prefix + Timestamp + Jitter
 	 * Example: TASK-20260808225340-a8f3
 	 */
@@ -157,7 +110,6 @@ export class TaskService {
 
 		if (options?.parentId) {
 			frontmatterLines.push(`parentId: "${options.parentId}"`);
-			frontmatterLines.push(`parent: "${options.parentId}"`);
 		}
 		if (options?.due) frontmatterLines.push(`due: "${options.due}"`);
 		if (options?.scheduled) frontmatterLines.push(`scheduled: "${options.scheduled}"`);
@@ -190,35 +142,6 @@ export class TaskService {
 			assignedId = fm.id;
 		});
 		return assignedId;
-	}
-
-	/**
-	 * Create a new Task note with standard Frontmatter (Backward Compatible)
-	 */
-	async createTask(
-		title: string,
-		status: TaskStatus = "todo",
-		priority: TaskPriority = "medium",
-		options?: { parent?: string; due?: string; scheduled?: string; type?: TaskType }
-	): Promise<TFile> {
-		const nodeType: NodeType = options?.type === "epic" ? "goal" : options?.parent ? "action" : "strategy";
-		return this.createTaskNode(title, nodeType, status, {
-			parentId: options?.parent,
-			priority,
-			due: options?.due,
-			scheduled: options?.scheduled,
-		});
-	}
-
-	/**
-	 * Convenient wrapper to create a subtask under a parent task or subtask
-	 */
-	async createSubtask(parentTask: TaskItem, title: string): Promise<TFile> {
-		return this.createTaskNode(title, "action", "todo", {
-			parentId: parentTask.id,
-			due: parentTask.due,
-			scheduled: parentTask.scheduled,
-		});
 	}
 
 	/**
@@ -296,7 +219,7 @@ export class TaskService {
 
 	/**
 	 * Save strategy memo and Phase 1 tasks.
-	 * Priority: targetFile (開き元ノート) > active editor > existing task with matching title > create new work folder.
+	 * Priority: targetFile (開き元ノート) > active editor > existing task with matching title > create new Goal node.
 	 */
 	async saveStrategyToNote(
 		topic: string,
@@ -340,25 +263,16 @@ export class TaskService {
 		}
 
 		// Case 4: 同じタイトルの既存タスクノートを探す
-		const existingTask = this.findTaskByTitle(topic);
+		const existingTask = this.findNodeByTitle(topic);
 		if (existingTask) {
 			return this.appendContentToFile(existingTask.file, contentToInsert,
 				`✨ 既存ノート「${existingTask.title}」に作戦とPhase 1タスクを追記しました！`);
 		}
 
-		// Case 5: 1タスク1ワークフォルダ自動生成 ＆ テンプレート展開エンジン (Phase 2)
-		const workFolderRes = await this.plugin.workFolderService.createWorkFolder(topic, pattern);
-		await this.plugin.workFolderService.appendStrategyAndTasks(
-			workFolderRes.indexFile,
-			strategy,
-			selectedTasks
-		);
-		await this.openTaskNote(workFolderRes.indexFile);
-
-		const tmplMsg = workFolderRes.createdTemplates.length > 0
-			? `（成果物テンプレート ${workFolderRes.createdTemplates.length} 件を展開）`
-			: "";
-		new Notice(`✨ 「${topic}」のワークフォルダを作成し、作戦とPhase 1タスクを記録しました！${tmplMsg}`);
+		// Case 5: 新規 Goal ノードを作成し、作戦と Phase 1 タスクを記録
+		const newGoalFile = await this.createTaskNode(topic, "goal", "todo");
+		await this.appendContentToFile(newGoalFile, contentToInsert,
+			`✨ 「${topic}」の Goal ノードを作成し、作戦と Phase 1 タスクを記録しました！`);
 		return true;
 	}
 
@@ -374,11 +288,12 @@ export class TaskService {
 	}
 
 	/**
-	 * Find an existing task by title (case-insensitive, trimmed match)
+	 * Find an existing node by title (case-insensitive, trimmed match)
 	 */
-	findTaskByTitle(title: string): TaskItem | undefined {
-		const allTasks = this.getAllTasks();
+	findNodeByTitle(title: string): TaskNode | undefined {
+		const allNodes = this.getAllTaskNodes();
 		const normalized = title.trim().toLowerCase();
-		return allTasks.find((t) => t.title.trim().toLowerCase() === normalized);
+		return allNodes.find((t) => t.title.trim().toLowerCase() === normalized);
 	}
 }
+

@@ -90,44 +90,6 @@ var init_TaskService = __esm({
         return nodes;
       }
       /**
-       * Get all task notes inside configured folder or vault (Backward Compatible)
-       */
-      getAllTasks() {
-        const nodes = this.getAllTaskNodes();
-        return nodes.map((node) => ({
-          id: node.id,
-          title: node.title,
-          status: node.status,
-          priority: node.priority || "medium",
-          type: node.nodeType === "goal" ? "epic" : node.nodeType === "strategy" ? "task" : "subtask",
-          nodeType: node.nodeType,
-          parent: node.parentId,
-          parentId: node.parentId,
-          due: node.due,
-          scheduled: node.scheduled,
-          assignee: node.assignee,
-          created: node.created,
-          updated: node.updated,
-          file: node.file
-        }));
-      }
-      /**
-       * Recursively get all descendant tasks (subtasks, sub-subtasks, etc.) for a root task
-       */
-      getTaskSubtree(rootTaskId) {
-        const allTasks = this.getAllTasks();
-        const result = [];
-        const traverse = (parentId, currentDepth) => {
-          const children = allTasks.filter((t) => t.parent === parentId);
-          for (const child of children) {
-            result.push({ task: child, depth: currentDepth });
-            traverse(child.id, currentDepth + 1);
-          }
-        };
-        traverse(rootTaskId, 1);
-        return result;
-      }
-      /**
        * Generate collision-free ASCII ID and filename: Prefix + Timestamp + Jitter
        * Example: TASK-20260808225340-a8f3
        */
@@ -164,7 +126,6 @@ var init_TaskService = __esm({
         ];
         if (options == null ? void 0 : options.parentId) {
           frontmatterLines.push(`parentId: "${options.parentId}"`);
-          frontmatterLines.push(`parent: "${options.parentId}"`);
         }
         if (options == null ? void 0 : options.due)
           frontmatterLines.push(`due: "${options.due}"`);
@@ -196,28 +157,6 @@ var init_TaskService = __esm({
           assignedId = fm.id;
         });
         return assignedId;
-      }
-      /**
-       * Create a new Task note with standard Frontmatter (Backward Compatible)
-       */
-      async createTask(title, status = "todo", priority = "medium", options) {
-        const nodeType = (options == null ? void 0 : options.type) === "epic" ? "goal" : (options == null ? void 0 : options.parent) ? "action" : "strategy";
-        return this.createTaskNode(title, nodeType, status, {
-          parentId: options == null ? void 0 : options.parent,
-          priority,
-          due: options == null ? void 0 : options.due,
-          scheduled: options == null ? void 0 : options.scheduled
-        });
-      }
-      /**
-       * Convenient wrapper to create a subtask under a parent task or subtask
-       */
-      async createSubtask(parentTask, title) {
-        return this.createTaskNode(title, "action", "todo", {
-          parentId: parentTask.id,
-          due: parentTask.due,
-          scheduled: parentTask.scheduled
-        });
       }
       /**
        * Create a subtask under a specific parent ID string
@@ -299,7 +238,7 @@ var init_TaskService = __esm({
       }
       /**
        * Save strategy memo and Phase 1 tasks.
-       * Priority: targetFile (開き元ノート) > active editor > existing task with matching title > create new work folder.
+       * Priority: targetFile (開き元ノート) > active editor > existing task with matching title > create new Goal node.
        */
       async saveStrategyToNote(topic, strategy, selectedTasks, targetFile, pattern) {
         const taskLines = selectedTasks.map((t) => `- [ ] ${t}`).join("\n");
@@ -329,7 +268,7 @@ var init_TaskService = __esm({
         if (activeFile && activeFile.extension === "md") {
           return this.appendContentToFile(activeFile, contentToInsert);
         }
-        const existingTask = this.findTaskByTitle(topic);
+        const existingTask = this.findNodeByTitle(topic);
         if (existingTask) {
           return this.appendContentToFile(
             existingTask.file,
@@ -337,15 +276,12 @@ var init_TaskService = __esm({
             `\u2728 \u65E2\u5B58\u30CE\u30FC\u30C8\u300C${existingTask.title}\u300D\u306B\u4F5C\u6226\u3068Phase 1\u30BF\u30B9\u30AF\u3092\u8FFD\u8A18\u3057\u307E\u3057\u305F\uFF01`
           );
         }
-        const workFolderRes = await this.plugin.workFolderService.createWorkFolder(topic, pattern);
-        await this.plugin.workFolderService.appendStrategyAndTasks(
-          workFolderRes.indexFile,
-          strategy,
-          selectedTasks
+        const newGoalFile = await this.createTaskNode(topic, "goal", "todo");
+        await this.appendContentToFile(
+          newGoalFile,
+          contentToInsert,
+          `\u2728 \u300C${topic}\u300D\u306E Goal \u30CE\u30FC\u30C9\u3092\u4F5C\u6210\u3057\u3001\u4F5C\u6226\u3068 Phase 1 \u30BF\u30B9\u30AF\u3092\u8A18\u9332\u3057\u307E\u3057\u305F\uFF01`
         );
-        await this.openTaskNote(workFolderRes.indexFile);
-        const tmplMsg = workFolderRes.createdTemplates.length > 0 ? `\uFF08\u6210\u679C\u7269\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8 ${workFolderRes.createdTemplates.length} \u4EF6\u3092\u5C55\u958B\uFF09` : "";
-        new import_obsidian2.Notice(`\u2728 \u300C${topic}\u300D\u306E\u30EF\u30FC\u30AF\u30D5\u30A9\u30EB\u30C0\u3092\u4F5C\u6210\u3057\u3001\u4F5C\u6226\u3068Phase 1\u30BF\u30B9\u30AF\u3092\u8A18\u9332\u3057\u307E\u3057\u305F\uFF01${tmplMsg}`);
         return true;
       }
       /**
@@ -359,12 +295,12 @@ var init_TaskService = __esm({
         return true;
       }
       /**
-       * Find an existing task by title (case-insensitive, trimmed match)
+       * Find an existing node by title (case-insensitive, trimmed match)
        */
-      findTaskByTitle(title) {
-        const allTasks = this.getAllTasks();
+      findNodeByTitle(title) {
+        const allNodes = this.getAllTaskNodes();
         const normalized = title.trim().toLowerCase();
-        return allTasks.find((t) => t.title.trim().toLowerCase() === normalized);
+        return allNodes.find((t) => t.title.trim().toLowerCase() === normalized);
       }
     };
   }
@@ -1634,12 +1570,11 @@ __export(main_exports, {
   default: () => TaskManagerPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian10 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 
 // src/types.ts
 var DEFAULT_SETTINGS = {
   taskFolder: "tasks",
-  workFolderPath: "_task_works",
   idPrefix: "TASK-",
   defaultStatus: "todo",
   defaultPriority: "medium",
@@ -1659,16 +1594,10 @@ var TaskManagerSettingTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "JIRA-style Task Manager Settings" });
+    containerEl.createEl("h2", { text: "Task Manager Settings" });
     new import_obsidian.Setting(containerEl).setName("Task Folder").setDesc("Folder path where 1-task-1-note files are stored (e.g. 'tasks').").addText(
       (text) => text.setPlaceholder("tasks").setValue(this.plugin.settings.taskFolder).onChange(async (value) => {
         this.plugin.settings.taskFolder = value.trim();
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian.Setting(containerEl).setName("Work Folder Path").setDesc("Directory where task work folders (_task_works/<task-id>/) are stored.").addText(
-      (text) => text.setPlaceholder("_task_works").setValue(this.plugin.settings.workFolderPath || "_task_works").onChange(async (value) => {
-        this.plugin.settings.workFolderPath = value.trim() || "_task_works";
         await this.plugin.saveSettings();
       })
     );
@@ -1713,7 +1642,7 @@ init_TaskService();
 init_AIService();
 init_UndoService();
 init_AICopilotModal();
-var VIEW_TYPE_TASK_MANAGER = "jira-task-manager-view";
+var VIEW_TYPE_TASK_MANAGER = "task-manager-view";
 var TaskManagerView = class extends import_obsidian6.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
@@ -1721,7 +1650,6 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     this.searchFilter = "";
     this.activeViewMode = "focus";
     this.eventListeners = [];
-    this.isProcessingAI = false;
     this.taskService = new TaskService(this.app, this.plugin);
     this.aiService = new AIService(this.plugin);
     this.undoService = new UndoService(this.app);
@@ -1730,7 +1658,7 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     return VIEW_TYPE_TASK_MANAGER;
   }
   getDisplayText() {
-    return "Task Manager (JIRA)";
+    return "Task Manager";
   }
   getIcon() {
     return "kanban";
@@ -1756,7 +1684,7 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     container.addClass("jira-task-manager-container");
     const headerEl = container.createDiv({ cls: "jira-tm-header" });
     const titleGroup = headerEl.createDiv({ cls: "jira-tm-title-group" });
-    titleGroup.createEl("h2", { text: "JIRA Task Manager" });
+    titleGroup.createEl("h2", { text: "Task Manager" });
     const switcherEl = titleGroup.createDiv({ cls: "jira-view-switcher" });
     const focusTab = switcherEl.createEl("button", {
       text: "\u26A1 Focus",
@@ -1772,22 +1700,6 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
     });
     treeTab.addEventListener("click", () => {
       this.activeViewMode = "tree";
-      this.render();
-    });
-    const statusTab = switcherEl.createEl("button", {
-      text: "Status Board",
-      cls: `jira-tab-btn ${this.activeViewMode === "status" ? "active" : ""}`
-    });
-    statusTab.addEventListener("click", () => {
-      this.activeViewMode = "status";
-      this.render();
-    });
-    const scheduleTab = switcherEl.createEl("button", {
-      text: "Schedule Board",
-      cls: `jira-tab-btn ${this.activeViewMode === "schedule" ? "active" : ""}`
-    });
-    scheduleTab.addEventListener("click", () => {
-      this.activeViewMode = "schedule";
       this.render();
     });
     const createForm = headerEl.createDiv({ cls: "jira-tm-create-form" });
@@ -1825,7 +1737,7 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
       undoBtn.addEventListener("click", async () => {
         const desc = await this.undoService.undo();
         if (desc) {
-          new import_obsidian6.Notice(`\u21A9\uFE0F Undone: ${desc}`);
+          new Notice(`\u21A9\uFE0F Undone: ${desc}`);
         }
         this.render();
       });
@@ -1845,38 +1757,6 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
         () => this.render()
       );
       modal.open();
-    });
-    const aiRescheduleBtn = controlsEl.createEl("button", {
-      text: "\u{1F504} AI Reschedule",
-      cls: "jira-tm-btn-ai"
-    });
-    aiRescheduleBtn.title = "AI automatically re-assigns scheduled dates for overdue & unscheduled tasks";
-    aiRescheduleBtn.addEventListener("click", async () => {
-      if (this.isProcessingAI)
-        return;
-      this.isProcessingAI = true;
-      new import_obsidian6.Notice("\u{1F916} AI is rescheduling tasks...");
-      aiRescheduleBtn.text = "\u23F3 Rescheduling...";
-      try {
-        const tasks = this.taskService.getAllTasks();
-        this.undoService.recordSnapshot("AI Reschedule", tasks);
-        const newSchedules = await this.aiService.rescheduleTasks(tasks);
-        let count = 0;
-        for (const [taskId, newDate] of Object.entries(newSchedules)) {
-          const target = tasks.find((t) => t.id === taskId);
-          if (target) {
-            await this.taskService.updateTaskSchedule(target.file, newDate);
-            count++;
-          }
-        }
-        new import_obsidian6.Notice(`\u2728 AI rescheduled ${count} tasks!`);
-      } catch (e) {
-        console.error(e);
-        new import_obsidian6.Notice("\u274C Failed to AI reschedule tasks.");
-      } finally {
-        this.isProcessingAI = false;
-        this.render();
-      }
     });
     const searchInput = controlsEl.createEl("input", {
       type: "text",
@@ -1898,241 +1778,11 @@ var TaskManagerView = class extends import_obsidian6.ItemView {
   }
   renderBoard(boardEl) {
     boardEl.empty();
-    const allTasks = this.taskService.getAllTasks();
-    const filteredTasks = allTasks.filter((t) => {
-      if (!this.searchFilter)
-        return true;
-      const query = this.searchFilter.toLowerCase();
-      return t.title.toLowerCase().includes(query) || t.id.toLowerCase().includes(query);
-    });
     if (this.activeViewMode === "focus") {
       this.renderFocusBoard(boardEl);
-    } else if (this.activeViewMode === "tree") {
-      this.renderContextTreeBoard(boardEl);
-    } else if (this.activeViewMode === "status") {
-      this.renderStatusBoard(boardEl, filteredTasks, allTasks);
     } else {
-      this.renderScheduleBoard(boardEl, filteredTasks);
+      this.renderContextTreeBoard(boardEl);
     }
-  }
-  renderStatusBoard(boardEl, tasks, allTasks) {
-    const columns = [
-      { status: "todo", title: "TO DO" },
-      { status: "in_progress", title: "IN PROGRESS" },
-      { status: "done", title: "DONE" }
-    ];
-    const rootTasks = tasks.filter((t) => !t.parent || !allTasks.some((p) => p.id === t.parent));
-    for (const col of columns) {
-      const colTasks = rootTasks.filter((t) => t.status === col.status);
-      const colEl = boardEl.createDiv({ cls: "jira-column" });
-      colEl.dataset.status = col.status;
-      const colHeader = colEl.createDiv({ cls: "jira-column-header" });
-      colHeader.createEl("span", { text: col.title, cls: "jira-column-title" });
-      colHeader.createEl("span", {
-        text: `${colTasks.length}`,
-        cls: "jira-column-count"
-      });
-      const cardList = colEl.createDiv({ cls: "jira-card-list" });
-      cardList.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        cardList.addClass("jira-drag-over");
-      });
-      cardList.addEventListener("dragleave", () => {
-        cardList.removeClass("jira-drag-over");
-      });
-      cardList.addEventListener("drop", async (e) => {
-        var _a;
-        e.preventDefault();
-        cardList.removeClass("jira-drag-over");
-        const filePath = (_a = e.dataTransfer) == null ? void 0 : _a.getData("text/plain");
-        if (filePath) {
-          const targetTask = tasks.find((t) => t.file.path === filePath);
-          if (targetTask && targetTask.status !== col.status) {
-            await this.taskService.updateTaskStatus(targetTask.file, col.status);
-            this.render();
-          }
-        }
-      });
-      for (const task of colTasks) {
-        this.renderCard(cardList, task, allTasks);
-      }
-    }
-  }
-  renderScheduleBoard(boardEl, tasks) {
-    const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-    const tomorrow = /* @__PURE__ */ new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split("T")[0];
-    const columns = [
-      {
-        key: "overdue",
-        title: "OVERDUE",
-        filter: (t) => t.status !== "done" && t.scheduled && t.scheduled < todayStr
-      },
-      {
-        key: "today",
-        title: "TODAY",
-        filter: (t) => t.scheduled === todayStr
-      },
-      {
-        key: "tomorrow",
-        title: "TOMORROW",
-        filter: (t) => t.scheduled === tomorrowStr
-      },
-      {
-        key: "later",
-        title: "LATER / UNSCHEDULED",
-        filter: (t) => !t.scheduled || t.scheduled > tomorrowStr && t.status !== "done"
-      }
-    ];
-    for (const col of columns) {
-      const colTasks = tasks.filter(col.filter);
-      const colEl = boardEl.createDiv({ cls: "jira-column" });
-      colEl.dataset.scheduleKey = col.key;
-      const colHeader = colEl.createDiv({ cls: "jira-column-header" });
-      colHeader.createEl("span", { text: col.title, cls: "jira-column-title" });
-      colHeader.createEl("span", {
-        text: `${colTasks.length}`,
-        cls: "jira-column-count"
-      });
-      const cardList = colEl.createDiv({ cls: "jira-card-list" });
-      for (const task of colTasks) {
-        this.renderCard(cardList, task, []);
-      }
-    }
-  }
-  renderCard(parentEl, task, allTasks) {
-    const cardEl = parentEl.createDiv({ cls: "jira-task-card" });
-    cardEl.draggable = true;
-    cardEl.addEventListener("dragstart", (e) => {
-      if (e.dataTransfer) {
-        e.dataTransfer.setData("text/plain", task.file.path);
-      }
-    });
-    const cardHeader = cardEl.createDiv({ cls: "jira-card-card-header" });
-    const idBadge = cardHeader.createEl("span", { cls: "jira-card-id", text: task.id });
-    idBadge.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      await this.taskService.openTaskNote(task.file);
-    });
-    if (task.scheduled) {
-      cardHeader.createEl("span", {
-        cls: "jira-card-date",
-        text: `\u{1F4C5} ${task.scheduled}`
-      });
-    }
-    cardEl.createDiv({ cls: "jira-card-title", text: task.title });
-    const subtree = this.taskService.getTaskSubtree(task.id);
-    if (subtree.length > 0) {
-      const subtasksContainer = cardEl.createDiv({ cls: "jira-subtasks-container" });
-      const doneCount = subtree.filter((s) => s.task.status === "done").length;
-      subtasksContainer.createDiv({
-        cls: "jira-subtasks-header",
-        text: `Subtasks (${doneCount}/${subtree.length})`
-      });
-      const subtaskListEl = subtasksContainer.createDiv({ cls: "jira-subtask-list" });
-      for (const node of subtree) {
-        const sub = node.task;
-        const indentPx = (node.depth - 1) * 14;
-        const subRow = subtaskListEl.createDiv({ cls: "jira-subtask-row" });
-        subRow.style.paddingLeft = `${indentPx}px`;
-        const chk = subRow.createEl("input", {
-          type: "checkbox",
-          cls: "jira-subtask-chk"
-        });
-        chk.checked = sub.status === "done";
-        chk.addEventListener("change", async (e) => {
-          e.stopPropagation();
-          const newStatus = chk.checked ? "done" : "todo";
-          await this.taskService.updateTaskStatus(sub.file, newStatus);
-          this.render();
-        });
-        const subTitle = subRow.createEl("span", {
-          cls: `jira-subtask-title ${sub.status === "done" ? "is-done" : ""}`,
-          text: `${node.depth > 1 ? "\u21B3 " : ""}${sub.id}: ${sub.title}`
-        });
-        subTitle.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          await this.taskService.openTaskNote(sub.file);
-        });
-      }
-    }
-    const subtaskInputRow = cardEl.createDiv({ cls: "jira-subtask-input-row hidden" });
-    const subInput = subtaskInputRow.createEl("input", {
-      type: "text",
-      placeholder: "Subtask title...",
-      cls: "jira-subtask-input"
-    });
-    const submitSub = async () => {
-      const val = subInput.value.trim();
-      if (val) {
-        subInput.value = "";
-        await this.taskService.createSubtask(task, val);
-        this.render();
-      }
-    };
-    subInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        submitSub();
-      }
-    });
-    const footerEl = cardEl.createDiv({ cls: "jira-card-footer" });
-    const priorityBadge = footerEl.createEl("span", {
-      cls: `jira-priority-badge priority-${task.priority}`,
-      text: task.priority.toUpperCase()
-    });
-    const actionEl = footerEl.createDiv({ cls: "jira-card-actions" });
-    const addSubBtn = actionEl.createEl("button", {
-      text: "+ Subtask",
-      cls: "jira-action-btn"
-    });
-    addSubBtn.title = "Add child TODO";
-    addSubBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      subtaskInputRow.toggleClass("hidden", false);
-      subInput.focus();
-    });
-    const aiBtn = actionEl.createEl("button", {
-      text: "\u2728 AI",
-      cls: "jira-action-btn jira-ai-btn"
-    });
-    aiBtn.title = "Open AI Copilot for interactive wall-striking & task refinement";
-    aiBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const modal = new AICopilotModal(
-        this.app,
-        task,
-        this.aiService,
-        this.taskService,
-        this.undoService,
-        () => this.render()
-      );
-      modal.open();
-    });
-    if (task.status !== "todo") {
-      const prevBtn = actionEl.createEl("button", { text: "\u25C0", cls: "jira-action-btn" });
-      prevBtn.title = "Move Back";
-      prevBtn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        const prevStatus = task.status === "done" ? "in_progress" : "todo";
-        await this.taskService.updateTaskStatus(task.file, prevStatus);
-        this.render();
-      });
-    }
-    if (task.status !== "done") {
-      const nextBtn = actionEl.createEl("button", { text: "\u25B6", cls: "jira-action-btn" });
-      nextBtn.title = "Move Forward";
-      nextBtn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        const nextStatus = task.status === "todo" ? "in_progress" : "done";
-        await this.taskService.updateTaskStatus(task.file, nextStatus);
-        this.render();
-      });
-    }
-    cardEl.addEventListener("click", async () => {
-      await this.taskService.openTaskNote(task.file);
-    });
   }
   renderContextTreeBoard(boardEl) {
     boardEl.empty();
@@ -2654,194 +2304,6 @@ var PatternService = class {
   }
 };
 
-// src/services/WorkFolderService.ts
-var import_obsidian8 = require("obsidian");
-var WorkFolderService = class {
-  constructor(app, plugin) {
-    this.app = app;
-    this.plugin = plugin;
-  }
-  /**
-   * Generate collision-free ASCII folder ID: Timestamp + Jitter
-   * Example: 20260810153012-a8f3
-   */
-  generateFolderId() {
-    const now = /* @__PURE__ */ new Date();
-    const timestamp = now.toISOString().replace(/[-T:]/g, "").slice(0, 14);
-    const jitter = Math.random().toString(36).substring(2, 6).toLowerCase();
-    return `${timestamp}-${jitter}`;
-  }
-  /**
-   * Create a new task work folder (_task_works/<folder-id>/) with index.md and expanded templates
-   */
-  async createWorkFolder(taskTitle, pattern, parentLink) {
-    const rootWorkFolder = (0, import_obsidian8.normalizePath)(this.plugin.settings.workFolderPath || "_task_works");
-    if (rootWorkFolder && rootWorkFolder !== "." && rootWorkFolder !== "/") {
-      const rootFolder = this.app.vault.getAbstractFileByPath(rootWorkFolder);
-      if (!rootFolder) {
-        await this.app.vault.createFolder(rootWorkFolder);
-      }
-    }
-    const folderId = this.generateFolderId();
-    const folderPath = `${rootWorkFolder}/${folderId}`;
-    await this.app.vault.createFolder(folderPath);
-    const createdTemplates = [];
-    const artifactWikiLinks = [];
-    if (pattern && pattern.templates && Object.keys(pattern.templates).length > 0) {
-      for (const [tmplName, tmplContent] of Object.entries(pattern.templates)) {
-        let fileName = tmplName.endsWith(".md") ? tmplName : `${tmplName}.md`;
-        const tmplFilePath = `${folderPath}/${fileName}`;
-        const templateFile = await this.app.vault.create(tmplFilePath, tmplContent);
-        createdTemplates.push(templateFile);
-        const linkText = fileName.replace(/\.md$/, "");
-        artifactWikiLinks.push(`- [[${folderPath}/${fileName}|${linkText}]]`);
-      }
-    }
-    const nowIso = (/* @__PURE__ */ new Date()).toISOString();
-    const escapedTitle = taskTitle.replace(/"/g, '\\"');
-    const cassetteName = pattern ? pattern.name : "\u6307\u5B9A\u306A\u3057";
-    const cassetteId = pattern ? pattern.id : "none";
-    let parentFrontmatterVal = '""';
-    let parentBodySection = [];
-    if (parentLink && parentLink.trim()) {
-      const trimmedLink = parentLink.trim();
-      const wikiMatch = trimmedLink.match(/\[\[([^\|\]]+)(?:\|([^\]]+))?\]\]/);
-      if (wikiMatch) {
-        const parentPathOnly = wikiMatch[1];
-        parentFrontmatterVal = `"[[${parentPathOnly}]]"`;
-        parentBodySection = [
-          "## \u{1F4CC} \u89AA\u30BF\u30B9\u30AF / \u30C6\u30FC\u30DE",
-          `- ${trimmedLink}`,
-          ""
-        ];
-      } else {
-        const cleanPath = trimmedLink.replace(/^\[\[|\]\]$/g, "");
-        parentFrontmatterVal = `"[[${cleanPath}]]"`;
-        parentBodySection = [
-          "## \u{1F4CC} \u89AA\u30BF\u30B9\u30AF / \u30C6\u30FC\u30DE",
-          `- [[${cleanPath}]]`,
-          ""
-        ];
-      }
-    }
-    const artifactSectionContent = artifactWikiLinks.length > 0 ? artifactWikiLinks.join("\n") : "(\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8\u6210\u679C\u7269\u306A\u3057)";
-    const indexContentLines = [
-      "---",
-      `task_id: ${folderId}`,
-      `title: "${escapedTitle}"`,
-      "status: in_progress",
-      `created_at: ${nowIso}`,
-      `cassette: ${cassetteId}`,
-      `parent_task: ${parentFrontmatterVal}`,
-      "---",
-      "",
-      `# ${taskTitle}`,
-      "",
-      ...parentBodySection,
-      "## \u{1F916} \u9069\u7528\u4E2D\u306E\u696D\u52D9\u30EB\u30FC\u30EB\uFF08\u30AB\u30BB\u30C3\u30C8\uFF09",
-      `> ${cassetteName}`,
-      "",
-      "## \u{1F4CB} \u30B5\u30D6\u30BF\u30B9\u30AF",
-      "",
-      "## \u{1F4C1} \u95A2\u9023\u6210\u679C\u7269 (Artifacts)",
-      artifactSectionContent,
-      ""
-    ];
-    const indexFilePath = `${folderPath}/index.md`;
-    const indexFile = await this.app.vault.create(indexFilePath, indexContentLines.join("\n"));
-    return {
-      folderId,
-      folderPath,
-      indexFile,
-      createdTemplates
-    };
-  }
-  /**
-   * Append/inject AI Strategy Result and Phase 1 Subtasks into work folder index.md
-   */
-  async appendStrategyAndTasks(indexFile, strategy, selectedTasks) {
-    const existingContent = await this.app.vault.read(indexFile);
-    const taskLines = selectedTasks.map((t) => `- [ ] ${t}`).join("\n");
-    const strategyCallout = [
-      "> [!strategy] AI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u306E\u4F5C\u6226\u30E1\u30E2",
-      `> - **\u6700\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF**: ${strategy.bottleneck}`,
-      `> - **\u4F9D\u5B58\u95A2\u4FC2**: ${strategy.dependency}`,
-      `> - **\u57FA\u672C\u65B9\u91DD**: ${strategy.policy}`
-    ].join("\n");
-    let updatedContent = existingContent;
-    if (updatedContent.includes("## \u{1F4CB} \u30B5\u30D6\u30BF\u30B9\u30AF")) {
-      const subtaskSectionReplacement = [
-        "## \u{1F4CB} \u30B5\u30D6\u30BF\u30B9\u30AF",
-        strategyCallout,
-        "",
-        "### \u{1F4CD} Phase 1: \u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u30FB\u4E0D\u78BA\u5B9F\u6027\u306E\u89E3\u6D88",
-        taskLines,
-        ""
-      ].join("\n");
-      updatedContent = updatedContent.replace("## \u{1F4CB} \u30B5\u30D6\u30BF\u30B9\u30AF", subtaskSectionReplacement);
-    } else {
-      updatedContent += "\n\n" + strategyCallout + "\n\n### \u{1F4CD} Phase 1: \u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u30FB\u4E0D\u78BA\u5B9F\u6027\u306E\u89E3\u6D88\n" + taskLines + "\n";
-    }
-    await this.app.vault.modify(indexFile, updatedContent);
-  }
-};
-
-// src/services/PromoteService.ts
-var import_obsidian9 = require("obsidian");
-var PromoteService = class {
-  constructor(app, plugin) {
-    this.app = app;
-    this.plugin = plugin;
-  }
-  /**
-   * Promotes an inline task subtask (- [ ] ...) at the active editor cursor line
-   * into a new dedicated work folder _task_works/<child-id>/index.md
-   */
-  async promoteSubtask(editor, view) {
-    var _a, _b;
-    const cursor = editor.getCursor();
-    const lineText = editor.getLine(cursor.line);
-    const taskMatch = lineText.match(/^(\s*[-*]\s*\[[ xX]\]\s*)(.+)$/);
-    if (!taskMatch) {
-      new import_obsidian9.Notice("\u30AB\u30FC\u30BD\u30EB\u884C\u304C\u30A4\u30F3\u30E9\u30A4\u30F3\u30BF\u30B9\u30AF\uFF08- [ ] ...\uFF09\u3067\u306F\u3042\u308A\u307E\u305B\u3093\u3002");
-      return false;
-    }
-    const fullTaskText = taskMatch[2];
-    let cleanTitle = fullTaskText.replace(/#[\w\u3000-\u30FE\u4E00-\u9FA5\uFF00-\uFFEF_-]+/g, "").replace(/📅\s*\d{4}-\d{2}-\d{2}/g, "").replace(/(?:due|scheduled):\s*\d{4}-\d{2}-\d{2}/gi, "").trim();
-    if (!cleanTitle) {
-      cleanTitle = fullTaskText.trim();
-    }
-    const patterns = await this.plugin.patternService.loadAllPatterns();
-    const taskTags = this.plugin.patternService.extractTagsFromText(fullTaskText);
-    const matchedPatterns = this.plugin.patternService.findMatchingPatterns(taskTags, patterns);
-    const matchedPattern = matchedPatterns.length > 0 ? matchedPatterns[0] : void 0;
-    const activeFile = this.app.workspace.getActiveFile();
-    if (!activeFile) {
-      new import_obsidian9.Notice("\u30A2\u30AF\u30C6\u30A3\u30D6\u306A\u30CE\u30FC\u30C8\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093\u3002");
-      return false;
-    }
-    const parentPathNoExt = activeFile.path.replace(/\.md$/, "");
-    const cache = this.app.metadataCache.getFileCache(activeFile);
-    let parentTitle = (_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.title;
-    if (!parentTitle) {
-      const h1 = (_b = cache == null ? void 0 : cache.headings) == null ? void 0 : _b.find((h) => h.level === 1);
-      parentTitle = h1 ? h1.heading : activeFile.basename;
-    }
-    const parentLink = `[[${parentPathNoExt}|${parentTitle}]]`;
-    const workFolderResult = await this.plugin.workFolderService.createWorkFolder(
-      cleanTitle,
-      matchedPattern,
-      parentLink
-    );
-    const childWikiLink = `[[${workFolderResult.folderPath}/index|${cleanTitle}]]`;
-    const newLineText = lineText.replace(cleanTitle, childWikiLink);
-    editor.setLine(cursor.line, newLineText);
-    new import_obsidian9.Notice(`\u30B5\u30D6\u30BF\u30B9\u30AF\u300C${cleanTitle}\u300D\u3092\u30EF\u30FC\u30AF\u30D5\u30A9\u30EB\u30C0\u3078\u6607\u683C\u3057\u307E\u3057\u305F\u3002`);
-    await this.app.workspace.getLeaf().openFile(workFolderResult.indexFile);
-    return true;
-  }
-};
-
 // src/main.ts
 init_TaskService();
 
@@ -2962,35 +2424,24 @@ var TaskGraphService = class {
 };
 
 // src/main.ts
-var TaskManagerPlugin = class extends import_obsidian10.Plugin {
+var TaskManagerPlugin = class extends import_obsidian8.Plugin {
   async onload() {
     await this.loadSettings();
     this.taskService = new TaskService(this.app, this);
     this.taskGraphService = new TaskGraphService(this.app, this, this.taskService);
     this.patternService = new PatternService(this);
-    this.workFolderService = new WorkFolderService(this.app, this);
-    this.promoteService = new PromoteService(this.app, this);
     this.registerView(
       VIEW_TYPE_TASK_MANAGER,
       (leaf) => new TaskManagerView(leaf, this)
     );
-    this.addRibbonIcon("kanban", "Open Task Manager (JIRA)", () => {
+    this.addRibbonIcon("kanban", "Open Task Manager", () => {
       this.activateView();
     });
     this.addCommand({
-      id: "open-jira-task-manager",
-      name: "Open JIRA Task Manager",
+      id: "open-task-manager",
+      name: "Open Task Manager",
       callback: () => {
         this.activateView();
-      }
-    });
-    this.addCommand({
-      id: "promote-subtask-to-work-folder",
-      name: "Obsidian JIRA: Promote Subtask to Work Folder",
-      editorCallback: async (editor, view) => {
-        if ("file" in view) {
-          await this.promoteService.promoteSubtask(editor, view);
-        }
       }
     });
     this.addCommand({

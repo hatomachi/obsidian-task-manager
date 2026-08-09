@@ -170,8 +170,8 @@
 
 /* Kanban Board Container */
 .jira-board-container {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	display: flex;
+	flex-direction: column;
 	gap: 16px;
 	flex: 1;
 	overflow-x: auto;
@@ -179,168 +179,9 @@
 	align-items: stretch;
 }
 
-/* Kanban Column */
-.jira-column {
-	display: flex;
-	flex-direction: column;
-	background: var(--background-secondary);
-	border-radius: 8px;
-	border: 1px solid var(--background-modifier-border);
-	padding: 12px;
-	height: 100%;
-	box-sizing: border-box;
-	overflow: hidden;
-}
-
-.jira-column-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding-bottom: 10px;
-	margin-bottom: 8px;
-	border-bottom: 2px solid var(--background-modifier-border);
-}
-
-.jira-column[data-status="todo"] .jira-column-header {
-	border-bottom-color: var(--text-muted);
-}
-.jira-column[data-status="in_progress"] .jira-column-header {
-	border-bottom-color: #3b82f6;
-}
-.jira-column[data-status="done"] .jira-column-header {
-	border-bottom-color: #10b981;
-}
-.jira-column[data-schedule-key="overdue"] .jira-column-header {
-	border-bottom-color: #ef4444;
-}
-
-.jira-column-title {
-	font-size: 0.85rem;
-	font-weight: 700;
-	letter-spacing: 0.05em;
-	color: var(--text-muted);
-}
-
-.jira-column-count {
-	font-size: 0.75rem;
-	font-weight: 600;
-	background: var(--background-primary);
-	padding: 2px 8px;
-	border-radius: 12px;
-	color: var(--text-muted);
-}
-
-/* Card List */
-.jira-card-list {
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
-	flex: 1;
-	overflow-y: auto;
-	padding-right: 4px;
-	min-height: 100px;
-	transition: background-color 0.2s ease;
-}
-
-.jira-card-list.jira-drag-over {
-	background-color: var(--background-modifier-hover);
-	border-radius: 6px;
-}
-
-/* Task Card */
-.jira-task-card {
-	background: var(--background-primary);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 6px;
-	padding: 12px;
-	cursor: grab;
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-	transition: all 0.2s ease-in-out;
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
-
-.jira-task-card:hover {
-	transform: translateY(-2px);
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-	border-color: var(--interactive-accent);
-}
-
-.jira-task-card:active {
-	cursor: grabbing;
-}
-
-.jira-card-card-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	font-size: 0.75rem;
-}
-
-.jira-card-date {
-	font-size: 0.7rem;
-	color: var(--text-muted);
-	background: var(--background-secondary);
-	padding: 2px 6px;
-	border-radius: 4px;
-}
-
-.jira-card-title {
-	font-size: 0.95rem;
-	font-weight: 600;
-	color: var(--text-normal);
-	line-height: 1.4;
-	word-break: break-word;
-}
-
-/* Subtasks Container */
-.jira-subtasks-container {
-	background: var(--background-secondary);
-	border-radius: 6px;
-	padding: 8px;
-	margin-top: 4px;
-	border: 1px solid var(--background-modifier-border);
-}
-
-.jira-subtasks-header {
-	font-size: 0.7rem;
-	font-weight: 700;
-	color: var(--text-muted);
-	margin-bottom: 6px;
-}
-
-.jira-subtask-list {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-}
-
-.jira-subtask-row {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	font-size: 0.8rem;
-}
-
+/* Card List & Items Common */
 .jira-subtask-chk {
 	cursor: pointer;
-}
-
-.jira-subtask-title {
-	cursor: pointer;
-	color: var(--text-normal);
-	flex: 1;
-}
-
-.jira-subtask-title:hover {
-	text-decoration: underline;
-	color: var(--interactive-accent);
-}
-
-.jira-subtask-title.is-done {
-	text-decoration: line-through;
-	color: var(--text-muted);
 }
 
 .jira-subtask-input-row {
@@ -360,6 +201,7 @@
 	background: var(--background-primary);
 	color: var(--text-normal);
 }
+
 
 /* Card Footer */
 .jira-card-footer {

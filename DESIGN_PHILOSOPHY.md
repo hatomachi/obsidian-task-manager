@@ -1,4 +1,4 @@
-# Obsidian JIRA Task Manager - 設計思想 (Design Philosophy)
+# Obsidian Task Manager - 設計思想 (Design Philosophy)
 
 このドキュメントは、本プラグイン（`obsidian-task-manager`）の目指すビジョン、アーキテクチャの根幹、および今後の機能拡張の指針を記録した「不変の憲法」です。
 

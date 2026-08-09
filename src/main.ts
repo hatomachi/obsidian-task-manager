@@ -3,16 +3,12 @@ import { DEFAULT_SETTINGS, TaskManagerSettings } from "./types";
 import { TaskManagerSettingTab } from "./settings";
 import { TaskManagerView, VIEW_TYPE_TASK_MANAGER } from "./views/TaskManagerView";
 import { PatternService } from "./services/PatternService";
-import { WorkFolderService } from "./services/WorkFolderService";
-import { PromoteService } from "./services/PromoteService";
 import { TaskService } from "./services/TaskService";
 import { TaskGraphService } from "./services/TaskGraphService";
 
 export default class TaskManagerPlugin extends Plugin {
 	settings: TaskManagerSettings;
 	patternService: PatternService;
-	workFolderService: WorkFolderService;
-	promoteService: PromoteService;
 	taskService: TaskService;
 	taskGraphService: TaskGraphService;
 
@@ -21,8 +17,6 @@ export default class TaskManagerPlugin extends Plugin {
 		this.taskService = new TaskService(this.app, this);
 		this.taskGraphService = new TaskGraphService(this.app, this, this.taskService);
 		this.patternService = new PatternService(this);
-		this.workFolderService = new WorkFolderService(this.app, this);
-		this.promoteService = new PromoteService(this.app, this);
 
 		// Register Main Panel ItemView
 		this.registerView(
@@ -31,27 +25,16 @@ export default class TaskManagerPlugin extends Plugin {
 		);
 
 		// Add Ribbon Icon to open view in main leaf
-		this.addRibbonIcon("kanban", "Open Task Manager (JIRA)", () => {
+		this.addRibbonIcon("kanban", "Open Task Manager", () => {
 			this.activateView();
 		});
 
 		// Add Command: Open Task Manager View
 		this.addCommand({
-			id: "open-jira-task-manager",
-			name: "Open JIRA Task Manager",
+			id: "open-task-manager",
+			name: "Open Task Manager",
 			callback: () => {
 				this.activateView();
-			},
-		});
-
-		// Add Command: Promote Subtask to Work Folder
-		this.addCommand({
-			id: "promote-subtask-to-work-folder",
-			name: "Obsidian JIRA: Promote Subtask to Work Folder",
-			editorCallback: async (editor, view) => {
-				if ("file" in view) {
-					await this.promoteService.promoteSubtask(editor, view);
-				}
 			},
 		});
 
@@ -111,3 +94,4 @@ export default class TaskManagerPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 }
+

@@ -2,7 +2,6 @@ import { TFile } from "obsidian";
 
 export type TaskStatus = "todo" | "in_progress" | "done" | "deprecated";
 export type TaskPriority = "low" | "medium" | "high" | "highest";
-export type TaskType = "epic" | "task" | "subtask";
 
 export type NodeType = "goal" | "strategy" | "action";
 export type NodeStatus = TaskStatus;
@@ -29,24 +28,6 @@ export interface AIContextPayload {
 	ancestors: TaskNode[];       // Root (Goal) から selectedNode の親までの思考系譜
 	children: TaskNode[];        // selectedNode の直下の子ノード群
 	siblingStrategies?: TaskNode[]; // 関連する同階層・他 Strategy ノード群 (ADR文脈把握用)
-}
-
-export interface TaskItem {
-	id: string;
-	title: string;
-	status: TaskStatus;
-	priority: TaskPriority;
-	type?: TaskType;
-	nodeType?: NodeType;
-	parent?: string; // ID of parent task
-	parentId?: string; // Alias for parent ID (思考の系譜)
-	due?: string; // YYYY-MM-DD
-	scheduled?: string; // YYYY-MM-DD
-	assignee?: string;
-	epic?: string;
-	created?: string;
-	updated?: string;
-	file: TFile;
 }
 
 export interface TaskPattern {
@@ -89,7 +70,6 @@ export interface AIActionResponse {
 
 export interface TaskManagerSettings {
 	taskFolder: string;
-	workFolderPath: string;
 	idPrefix: string;
 	defaultStatus: TaskStatus;
 	defaultPriority: TaskPriority;
@@ -101,7 +81,6 @@ export interface TaskManagerSettings {
 
 export const DEFAULT_SETTINGS: TaskManagerSettings = {
 	taskFolder: "tasks",
-	workFolderPath: "_task_works",
 	idPrefix: "TASK-",
 	defaultStatus: "todo",
 	defaultPriority: "medium",
@@ -110,4 +89,5 @@ export const DEFAULT_SETTINGS: TaskManagerSettings = {
 	customRuleFilePath: "",
 	patternFolderPath: "_task_patterns",
 };
+
 

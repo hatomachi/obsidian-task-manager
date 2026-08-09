@@ -1,14 +1,13 @@
-import { ItemView, WorkspaceLeaf, EventRef, Notice } from "obsidian";
-import { TaskItem, TaskStatus } from "../types";
+import { ItemView, WorkspaceLeaf, EventRef } from "obsidian";
 import TaskManagerPlugin from "../main";
 import { TaskService } from "../services/TaskService";
 import { AIService } from "../services/AIService";
 import { UndoService } from "../services/UndoService";
 import { AICopilotModal } from "./AICopilotModal";
 
-export const VIEW_TYPE_TASK_MANAGER = "jira-task-manager-view";
+export const VIEW_TYPE_TASK_MANAGER = "task-manager-view";
 
-export type ViewMode = "focus" | "tree" | "status" | "schedule";
+export type ViewMode = "focus" | "tree";
 
 export class TaskManagerView extends ItemView {
 	private taskService: TaskService;
@@ -17,7 +16,6 @@ export class TaskManagerView extends ItemView {
 	private searchFilter = "";
 	private activeViewMode: ViewMode = "focus";
 	private eventListeners: EventRef[] = [];
-	private isProcessingAI = false;
 
 	constructor(leaf: WorkspaceLeaf, private plugin: TaskManagerPlugin) {
 		super(leaf);
@@ -31,7 +29,7 @@ export class TaskManagerView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return "Task Manager (JIRA)";
+		return "Task Manager";
 	}
 
 	getIcon(): string {
@@ -66,7 +64,7 @@ export class TaskManagerView extends ItemView {
 		const headerEl = container.createDiv({ cls: "jira-tm-header" });
 		
 		const titleGroup = headerEl.createDiv({ cls: "jira-tm-title-group" });
-		titleGroup.createEl("h2", { text: "JIRA Task Manager" });
+		titleGroup.createEl("h2", { text: "Task Manager" });
 
 		// View Mode Switcher
 		const switcherEl = titleGroup.createDiv({ cls: "jira-view-switcher" });
@@ -86,24 +84,6 @@ export class TaskManagerView extends ItemView {
 		});
 		treeTab.addEventListener("click", () => {
 			this.activeViewMode = "tree";
-			this.render();
-		});
-
-		const statusTab = switcherEl.createEl("button", {
-			text: "Status Board",
-			cls: `jira-tab-btn ${this.activeViewMode === "status" ? "active" : ""}`,
-		});
-		statusTab.addEventListener("click", () => {
-			this.activeViewMode = "status";
-			this.render();
-		});
-
-		const scheduleTab = switcherEl.createEl("button", {
-			text: "Schedule Board",
-			cls: `jira-tab-btn ${this.activeViewMode === "schedule" ? "active" : ""}`,
-		});
-		scheduleTab.addEventListener("click", () => {
-			this.activeViewMode = "schedule";
 			this.render();
 		});
 
@@ -136,7 +116,7 @@ export class TaskManagerView extends ItemView {
 			}
 		});
 
-		// Controls (Search, Undo, AI Reschedule & Refresh)
+		// Controls (Search, Undo, AI Strategy & Refresh)
 		const controlsEl = headerEl.createDiv({ cls: "jira-tm-controls" });
 
 		// Undo Button
@@ -173,42 +153,6 @@ export class TaskManagerView extends ItemView {
 			modal.open();
 		});
 
-		// Global AI Reschedule Button
-		const aiRescheduleBtn = controlsEl.createEl("button", {
-			text: "🔄 AI Reschedule",
-			cls: "jira-tm-btn-ai",
-		});
-		aiRescheduleBtn.title = "AI automatically re-assigns scheduled dates for overdue & unscheduled tasks";
-		aiRescheduleBtn.addEventListener("click", async () => {
-			if (this.isProcessingAI) return;
-			this.isProcessingAI = true;
-			new Notice("🤖 AI is rescheduling tasks...");
-			aiRescheduleBtn.text = "⏳ Rescheduling...";
-
-			try {
-				const tasks = this.taskService.getAllTasks();
-				this.undoService.recordSnapshot("AI Reschedule", tasks);
-
-				const newSchedules = await this.aiService.rescheduleTasks(tasks);
-				
-				let count = 0;
-				for (const [taskId, newDate] of Object.entries(newSchedules)) {
-					const target = tasks.find((t) => t.id === taskId);
-					if (target) {
-						await this.taskService.updateTaskSchedule(target.file, newDate);
-						count++;
-					}
-				}
-				new Notice(`✨ AI rescheduled ${count} tasks!`);
-			} catch (e) {
-				console.error(e);
-				new Notice("❌ Failed to AI reschedule tasks.");
-			} finally {
-				this.isProcessingAI = false;
-				this.render();
-			}
-		});
-
 		const searchInput = controlsEl.createEl("input", {
 			type: "text",
 			placeholder: "Filter tasks...",
@@ -226,7 +170,7 @@ export class TaskManagerView extends ItemView {
 		});
 		refreshBtn.addEventListener("click", () => this.render());
 
-		// Board Columns Container
+		// Board Container
 		const boardEl = container.createDiv({ cls: "jira-board-container" });
 		this.renderBoard(boardEl);
 	}
@@ -234,291 +178,13 @@ export class TaskManagerView extends ItemView {
 	private renderBoard(boardEl: HTMLElement): void {
 		boardEl.empty();
 
-		const allTasks = this.taskService.getAllTasks();
-		const filteredTasks = allTasks.filter((t) => {
-			if (!this.searchFilter) return true;
-			const query = this.searchFilter.toLowerCase();
-			return (
-				t.title.toLowerCase().includes(query) ||
-				t.id.toLowerCase().includes(query)
-			);
-		});
-
 		if (this.activeViewMode === "focus") {
 			this.renderFocusBoard(boardEl);
-		} else if (this.activeViewMode === "tree") {
-			this.renderContextTreeBoard(boardEl);
-		} else if (this.activeViewMode === "status") {
-			this.renderStatusBoard(boardEl, filteredTasks, allTasks);
 		} else {
-			this.renderScheduleBoard(boardEl, filteredTasks);
+			this.renderContextTreeBoard(boardEl);
 		}
 	}
 
-	private renderStatusBoard(boardEl: HTMLElement, tasks: TaskItem[], allTasks: TaskItem[]): void {
-		const columns: { status: TaskStatus; title: string }[] = [
-			{ status: "todo", title: "TO DO" },
-			{ status: "in_progress", title: "IN PROGRESS" },
-			{ status: "done", title: "DONE" },
-		];
-
-		const rootTasks = tasks.filter((t) => !t.parent || !allTasks.some((p) => p.id === t.parent));
-
-		for (const col of columns) {
-			const colTasks = rootTasks.filter((t) => t.status === col.status);
-
-			const colEl = boardEl.createDiv({ cls: "jira-column" });
-			colEl.dataset.status = col.status;
-
-			const colHeader = colEl.createDiv({ cls: "jira-column-header" });
-			colHeader.createEl("span", { text: col.title, cls: "jira-column-title" });
-			colHeader.createEl("span", {
-				text: `${colTasks.length}`,
-				cls: "jira-column-count",
-			});
-
-			const cardList = colEl.createDiv({ cls: "jira-card-list" });
-
-			cardList.addEventListener("dragover", (e) => {
-				e.preventDefault();
-				cardList.addClass("jira-drag-over");
-			});
-			cardList.addEventListener("dragleave", () => {
-				cardList.removeClass("jira-drag-over");
-			});
-			cardList.addEventListener("drop", async (e) => {
-				e.preventDefault();
-				cardList.removeClass("jira-drag-over");
-				const filePath = e.dataTransfer?.getData("text/plain");
-				if (filePath) {
-					const targetTask = tasks.find((t) => t.file.path === filePath);
-					if (targetTask && targetTask.status !== col.status) {
-						await this.taskService.updateTaskStatus(targetTask.file, col.status);
-						this.render();
-					}
-				}
-			});
-
-			for (const task of colTasks) {
-				this.renderCard(cardList, task, allTasks);
-			}
-		}
-	}
-
-	private renderScheduleBoard(boardEl: HTMLElement, tasks: TaskItem[]): void {
-		const todayStr = new Date().toISOString().split("T")[0];
-		
-		const tomorrow = new Date();
-		tomorrow.setDate(tomorrow.getDate() + 1);
-		const tomorrowStr = tomorrow.toISOString().split("T")[0];
-
-		const columns = [
-			{
-				key: "overdue",
-				title: "OVERDUE",
-				filter: (t: TaskItem) => t.status !== "done" && t.scheduled && t.scheduled < todayStr,
-			},
-			{
-				key: "today",
-				title: "TODAY",
-				filter: (t: TaskItem) => t.scheduled === todayStr,
-			},
-			{
-				key: "tomorrow",
-				title: "TOMORROW",
-				filter: (t: TaskItem) => t.scheduled === tomorrowStr,
-			},
-			{
-				key: "later",
-				title: "LATER / UNSCHEDULED",
-				filter: (t: TaskItem) => !t.scheduled || (t.scheduled > tomorrowStr && t.status !== "done"),
-			},
-		];
-
-		for (const col of columns) {
-			const colTasks = tasks.filter(col.filter);
-
-			const colEl = boardEl.createDiv({ cls: "jira-column" });
-			colEl.dataset.scheduleKey = col.key;
-
-			const colHeader = colEl.createDiv({ cls: "jira-column-header" });
-			colHeader.createEl("span", { text: col.title, cls: "jira-column-title" });
-			colHeader.createEl("span", {
-				text: `${colTasks.length}`,
-				cls: "jira-column-count",
-			});
-
-			const cardList = colEl.createDiv({ cls: "jira-card-list" });
-
-			for (const task of colTasks) {
-				this.renderCard(cardList, task, []);
-			}
-		}
-	}
-
-	private renderCard(parentEl: HTMLElement, task: TaskItem, allTasks: TaskItem[]): void {
-		const cardEl = parentEl.createDiv({ cls: "jira-task-card" });
-		cardEl.draggable = true;
-
-		cardEl.addEventListener("dragstart", (e) => {
-			if (e.dataTransfer) {
-				e.dataTransfer.setData("text/plain", task.file.path);
-			}
-		});
-
-		// Header area
-		const cardHeader = cardEl.createDiv({ cls: "jira-card-card-header" });
-		
-		const idBadge = cardHeader.createEl("span", { cls: "jira-card-id", text: task.id });
-		idBadge.addEventListener("click", async (e) => {
-			e.stopPropagation();
-			await this.taskService.openTaskNote(task.file);
-		});
-
-		if (task.scheduled) {
-			cardHeader.createEl("span", {
-				cls: "jira-card-date",
-				text: `📅 ${task.scheduled}`,
-			});
-		}
-
-		// Title
-		cardEl.createDiv({ cls: "jira-card-title", text: task.title });
-
-		// Subtree Container (Recursive Multi-level Subtasks)
-		const subtree = this.taskService.getTaskSubtree(task.id);
-		if (subtree.length > 0) {
-			const subtasksContainer = cardEl.createDiv({ cls: "jira-subtasks-container" });
-			const doneCount = subtree.filter((s) => s.task.status === "done").length;
-			subtasksContainer.createDiv({
-				cls: "jira-subtasks-header",
-				text: `Subtasks (${doneCount}/${subtree.length})`,
-			});
-
-			const subtaskListEl = subtasksContainer.createDiv({ cls: "jira-subtask-list" });
-			for (const node of subtree) {
-				const sub = node.task;
-				const indentPx = (node.depth - 1) * 14;
-
-				const subRow = subtaskListEl.createDiv({ cls: "jira-subtask-row" });
-				subRow.style.paddingLeft = `${indentPx}px`;
-
-				const chk = subRow.createEl("input", {
-					type: "checkbox",
-					cls: "jira-subtask-chk",
-				});
-				chk.checked = sub.status === "done";
-				chk.addEventListener("change", async (e) => {
-					e.stopPropagation();
-					const newStatus: TaskStatus = chk.checked ? "done" : "todo";
-					await this.taskService.updateTaskStatus(sub.file, newStatus);
-					this.render();
-				});
-
-				const subTitle = subRow.createEl("span", {
-					cls: `jira-subtask-title ${sub.status === "done" ? "is-done" : ""}`,
-					text: `${node.depth > 1 ? "↳ " : ""}${sub.id}: ${sub.title}`,
-				});
-				subTitle.addEventListener("click", async (e) => {
-					e.stopPropagation();
-					await this.taskService.openTaskNote(sub.file);
-				});
-			}
-		}
-
-		// Quick Subtask Creation Input Row
-		const subtaskInputRow = cardEl.createDiv({ cls: "jira-subtask-input-row hidden" });
-		const subInput = subtaskInputRow.createEl("input", {
-			type: "text",
-			placeholder: "Subtask title...",
-			cls: "jira-subtask-input",
-		});
-		
-		const submitSub = async () => {
-			const val = subInput.value.trim();
-			if (val) {
-				subInput.value = "";
-				await this.taskService.createSubtask(task, val);
-				this.render();
-			}
-		};
-		
-		subInput.addEventListener("keydown", (e) => {
-			if (e.key === "Enter") {
-				e.preventDefault();
-				submitSub();
-			}
-		});
-
-		// Metadata Footer & Actions
-		const footerEl = cardEl.createDiv({ cls: "jira-card-footer" });
-
-		const priorityBadge = footerEl.createEl("span", {
-			cls: `jira-priority-badge priority-${task.priority}`,
-			text: task.priority.toUpperCase(),
-		});
-
-		const actionEl = footerEl.createDiv({ cls: "jira-card-actions" });
-
-		// Quick Add Subtask Button
-		const addSubBtn = actionEl.createEl("button", {
-			text: "+ Subtask",
-			cls: "jira-action-btn",
-		});
-		addSubBtn.title = "Add child TODO";
-		addSubBtn.addEventListener("click", (e) => {
-			e.stopPropagation();
-			subtaskInputRow.toggleClass("hidden", false);
-			subInput.focus();
-		});
-
-		// ✨ AI Copilot Modal Button
-		const aiBtn = actionEl.createEl("button", {
-			text: "✨ AI",
-			cls: "jira-action-btn jira-ai-btn",
-		});
-		aiBtn.title = "Open AI Copilot for interactive wall-striking & task refinement";
-		aiBtn.addEventListener("click", (e) => {
-			e.stopPropagation();
-			const modal = new AICopilotModal(
-				this.app,
-				task,
-				this.aiService,
-				this.taskService,
-				this.undoService,
-				() => this.render()
-			);
-			modal.open();
-		});
-
-		// Status move buttons
-		if (task.status !== "todo") {
-			const prevBtn = actionEl.createEl("button", { text: "◀", cls: "jira-action-btn" });
-			prevBtn.title = "Move Back";
-			prevBtn.addEventListener("click", async (e) => {
-				e.stopPropagation();
-				const prevStatus: TaskStatus = task.status === "done" ? "in_progress" : "todo";
-				await this.taskService.updateTaskStatus(task.file, prevStatus);
-				this.render();
-			});
-		}
-
-		if (task.status !== "done") {
-			const nextBtn = actionEl.createEl("button", { text: "▶", cls: "jira-action-btn" });
-			nextBtn.title = "Move Forward";
-			nextBtn.addEventListener("click", async (e) => {
-				e.stopPropagation();
-				const nextStatus: TaskStatus = task.status === "todo" ? "in_progress" : "done";
-				await this.taskService.updateTaskStatus(task.file, nextStatus);
-				this.render();
-			});
-		}
-
-		// Click card to open task note
-		cardEl.addEventListener("click", async () => {
-			await this.taskService.openTaskNote(task.file);
-		});
-	}
 
 	private renderContextTreeBoard(boardEl: HTMLElement): void {
 		boardEl.empty();
