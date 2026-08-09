@@ -24,6 +24,13 @@ export interface TaskNode {
 	content?: string;         // 本文・補足メモ
 }
 
+export interface AIContextPayload {
+	selectedNode: TaskNode;
+	ancestors: TaskNode[];       // Root (Goal) から selectedNode の親までの思考系譜
+	children: TaskNode[];        // selectedNode の直下の子ノード群
+	siblingStrategies?: TaskNode[]; // 関連する同階層・他 Strategy ノード群 (ADR文脈把握用)
+}
+
 export interface TaskItem {
 	id: string;
 	title: string;
@@ -56,11 +63,28 @@ export interface TaskPattern {
 
 export type ModalState = "STATE_INPUT" | "STATE_GENERATING" | "STATE_PREVIEW" | "STATE_COMMITTED";
 
+export interface ProposedStrategy {
+	title: string;
+	description?: string;
+}
+
 export interface StrategyResult {
 	bottleneck: string;
 	dependency: string;
 	policy: string;
+	proposedStrategies?: ProposedStrategy[];
 	phase1Tasks: string[];
+}
+
+export interface AIStrategyResponse extends StrategyResult {}
+
+export interface ActionItem {
+	title: string;
+	estimatedMinutes?: number;
+}
+
+export interface AIActionResponse {
+	actions: ActionItem[];
 }
 
 export interface TaskManagerSettings {

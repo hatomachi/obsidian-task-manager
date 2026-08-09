@@ -4,7 +4,7 @@ import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
 import { normalizePath, TFile } from "obsidian";
-import { TaskItem, StrategyResult } from "../types";
+import { TaskItem, StrategyResult, AIContextPayload, TaskNode } from "../types";
 import TaskManagerPlugin from "../main";
 import { TaskTreeNode } from "./TaskService";
 import {
@@ -166,9 +166,63 @@ export class AIService {
 	}
 
 	/**
+	 * Ask AI (Antigravity CLI) to break down a node using 前裁き context payload (AIContextPayload)
+	 */
+	async breakdownTaskWithContext(context: AIContextPayload): Promise<string[]> {
+		const vaultRule = await this.getVaultRuleContent();
+
+		let matchedPatterns: any[] = [];
+		if (this.plugin.patternService) {
+			const allPatterns = await this.plugin.patternService.loadAllPatterns();
+			const taskTags = this.plugin.patternService.extractTagsFromText(context.selectedNode.title);
+			matchedPatterns = this.plugin.patternService.findMatchingPatterns(taskTags, allPatterns);
+		}
+
+		const dummyTask: TaskItem = {
+			id: context.selectedNode.id,
+			title: context.selectedNode.title,
+			status: context.selectedNode.status,
+			priority: context.selectedNode.priority || "medium",
+			file: context.selectedNode.file,
+		};
+
+		const prompt = buildTaskBreakdownPrompt(
+			dummyTask,
+			this.plugin.settings.customTaskRules,
+			vaultRule,
+			matchedPatterns,
+			context
+		);
+
+		try {
+			const output = await this.runCLI(prompt);
+			const parsed = this.extractJSONArray(output);
+			if (parsed && parsed.length > 0) {
+				return parsed;
+			}
+		} catch (err) {
+			console.warn("[TaskManager AI] breakdownTaskWithContext CLI failed, using fallback:", err);
+		}
+
+		return [
+			`ノートを開き「${context.selectedNode.title}」のアウトラインを1行書く`,
+			`ブラウザを開き「${context.selectedNode.title}」の関連資料を検索する`,
+			`ターミナルを開き実行ログを確認する`,
+		];
+	}
+
+	/**
 	 * Ask AI (Antigravity CLI) to break down a parent task into subtask titles
 	 */
 	async breakdownTask(task: TaskItem): Promise<string[]> {
+		const context = this.plugin.taskGraphService
+			? this.plugin.taskGraphService.buildAIContext(task.id)
+			: null;
+
+		if (context) {
+			return this.breakdownTaskWithContext(context);
+		}
+
 		const vaultRule = await this.getVaultRuleContent();
 
 		let matchedPatterns: any[] = [];
@@ -256,6 +310,65 @@ export class AIService {
 	}
 
 	/**
+	 * Formulate strategy (bottleneck analysis) with 前裁き context payload (AIContextPayload)
+	 */
+	async generateStrategyWithContext(
+		context: AIContextPayload,
+		topic: string,
+		feedback?: string,
+		existingStrategy?: StrategyResult
+	): Promise<StrategyResult> {
+		const vaultRule = await this.getVaultRuleContent();
+
+		let matchedPatterns: any[] = [];
+		if (this.plugin.patternService) {
+			const allPatterns = await this.plugin.patternService.loadAllPatterns();
+			const topicTags = this.plugin.patternService.extractTagsFromText(topic);
+			matchedPatterns = this.plugin.patternService.findMatchingPatterns(topicTags, allPatterns);
+		}
+
+		const prompt = buildStrategyPrompt(
+			topic,
+			feedback,
+			existingStrategy,
+			this.plugin.settings.customTaskRules,
+			vaultRule,
+			matchedPatterns,
+			context
+		);
+
+		try {
+			const output = await this.runCLI(prompt);
+			const parsed = this.extractJSONObject<StrategyResult>(output);
+			if (parsed && parsed.bottleneck && Array.isArray(parsed.phase1Tasks)) {
+				return {
+					bottleneck: parsed.bottleneck || "優先ボトルネックの特定",
+					dependency: parsed.dependency || "事前の基本条件設定",
+					policy: parsed.policy || "Phase 1による不確実性の早期解消",
+					proposedStrategies: parsed.proposedStrategies || [],
+					phase1Tasks: parsed.phase1Tasks.length > 0 ? parsed.phase1Tasks : [
+						`ブラウザを開き「${topic}」に関連する情報を検索する`,
+						`ノートを開き「${topic}」の前提条件を1行入力する`,
+					],
+				};
+			}
+		} catch (err) {
+			console.warn("[TaskManager AI] Strategy CLI execution failed, using fallback:", err);
+		}
+
+		return {
+			bottleneck: `「${topic}」における初期調査と不確実性の整理`,
+			dependency: "情報収集 ➔ 実行プラン決定",
+			policy: "まずは最少手数の物理行動で前提情報を揃える",
+			proposedStrategies: [{ title: `${topic}の基本分析と対応方針` }],
+			phase1Tasks: [
+				`ブラウザを開き「${topic}」の基本情報を検索する`,
+				`ノートを開き「${topic}」で必要な項目を1行入力する`,
+			],
+		};
+	}
+
+	/**
 	 * Formulate strategy (bottleneck analysis) and Phase 1 tasks for a topic or user feedback
 	 */
 	async generateStrategy(
@@ -289,6 +402,7 @@ export class AIService {
 					bottleneck: parsed.bottleneck || "優先ボトルネックの特定",
 					dependency: parsed.dependency || "事前の基本条件設定",
 					policy: parsed.policy || "Phase 1による不確実性の早期解消",
+					proposedStrategies: parsed.proposedStrategies || [],
 					phase1Tasks: parsed.phase1Tasks.length > 0 ? parsed.phase1Tasks : [
 						`ブラウザを開き「${topic}」に関連する情報を検索する`,
 						`ノートを開き「${topic}」の前提条件を1行入力する`,
@@ -303,11 +417,83 @@ export class AIService {
 			bottleneck: `「${topic}」における初期調査と不確実性の整理`,
 			dependency: "情報収集 ➔ 実行プラン決定",
 			policy: "まずは最少手数の物理行動で前提情報を揃える",
+			proposedStrategies: [{ title: `${topic}の基本分析と対応方針` }],
 			phase1Tasks: [
 				`ブラウザを開き「${topic}」の基本情報を検索する`,
 				`ノートを開き「${topic}」で必要な項目を1行入力する`,
 			],
 		};
+	}
+
+	/**
+	 * Programmatically generate Markdown nodes for proposed strategies and phase 1 actions with parentId
+	 */
+	async createStrategyAndActionsFromAI(
+		parentId: string | undefined,
+		strategyResult: StrategyResult
+	): Promise<{ strategyFiles: TFile[]; actionFiles: TFile[] }> {
+		const taskService = this.plugin.taskService;
+		const strategyFiles: TFile[] = [];
+		const actionFiles: TFile[] = [];
+
+		const strategiesToCreate = strategyResult.proposedStrategies && strategyResult.proposedStrategies.length > 0
+			? strategyResult.proposedStrategies
+			: [{ title: strategyResult.policy || "主要攻略方針" }];
+
+		for (const strat of strategiesToCreate) {
+			const stratFile = await taskService.createTaskNode(
+				strat.title,
+				"strategy",
+				"todo",
+				{ parentId }
+			);
+			strategyFiles.push(stratFile);
+
+			const stratId = await taskService.ensureNodeId(stratFile);
+
+			for (const actionTitle of strategyResult.phase1Tasks) {
+				const actionFile = await taskService.createTaskNode(
+					actionTitle,
+					"action",
+					"todo",
+					{ parentId: stratId }
+				);
+				actionFiles.push(actionFile);
+			}
+		}
+
+		if (this.plugin.taskGraphService) {
+			this.plugin.taskGraphService.refreshGraph();
+		}
+
+		return { strategyFiles, actionFiles };
+	}
+
+	/**
+	 * Programmatically generate Action nodes under a specified parent ID with parentId preserved
+	 */
+	async createActionNodesFromAI(
+		parentId: string,
+		actionTitles: string[]
+	): Promise<TFile[]> {
+		const taskService = this.plugin.taskService;
+		const actionFiles: TFile[] = [];
+
+		for (const title of actionTitles) {
+			const actionFile = await taskService.createTaskNode(
+				title,
+				"action",
+				"todo",
+				{ parentId }
+			);
+			actionFiles.push(actionFile);
+		}
+
+		if (this.plugin.taskGraphService) {
+			this.plugin.taskGraphService.refreshGraph();
+		}
+
+		return actionFiles;
 	}
 
 	private extractJSONArray(text: string): string[] | null {

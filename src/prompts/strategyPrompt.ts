@@ -1,5 +1,5 @@
 import { buildFullSystemRules } from "./systemRules";
-import { StrategyResult, TaskPattern } from "../types";
+import { StrategyResult, TaskPattern, AIContextPayload } from "../types";
 
 export function buildStrategyPrompt(
 	topic: string,
@@ -7,7 +7,8 @@ export function buildStrategyPrompt(
 	existingStrategy?: StrategyResult,
 	customSettingsPrompt?: string,
 	vaultRuleContent?: string,
-	patterns?: TaskPattern[]
+	patterns?: TaskPattern[],
+	aiContextPayload?: AIContextPayload
 ): string {
 	const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
 
@@ -56,6 +57,31 @@ ${patternBlocks.join("\n--------------------------------------------------\n")}
 --------------------------------------------------`;
 	}
 
+	let contextPayloadSection = "";
+	if (aiContextPayload) {
+		const { selectedNode, ancestors, children, siblingStrategies } = aiContextPayload;
+		const ancestorLines = ancestors.map(
+			(a) => `  - [${a.nodeType.toUpperCase()}] ${a.title} (ID: ${a.id}, Status: ${a.status})`
+		);
+		const childrenLines = children.map(
+			(c) => `  - [${c.nodeType.toUpperCase()}] ${c.title} (ID: ${c.id}, Status: ${c.status})`
+		);
+		const siblingLines = (siblingStrategies || []).map(
+			(s) => `  - [STRATEGY] ${s.title} (ID: ${s.id}, Status: ${s.status})`
+		);
+
+		contextPayloadSection = `
+【前裁きインメモリデータ (Context Chain Payload)】:
+- 選択されたノード (Selected): [${selectedNode.nodeType.toUpperCase()}] ${selectedNode.title} (ID: ${selectedNode.id}, Status: ${selectedNode.status})
+- 上位祖先ツリー (Ancestors - Goal/Strategy):
+${ancestorLines.length > 0 ? ancestorLines.join("\n") : "  (なし - 本ノードがルート)"}
+- 既存の直下子ノード (Direct Children):
+${childrenLines.length > 0 ? childrenLines.join("\n") : "  (なし)"}
+- 関連同階層 Strategy ノード群 (ADR文脈):
+${siblingLines.length > 0 ? siblingLines.join("\n") : "  (なし)"}
+`;
+	}
+
 	let currentContext = "";
 	if (existingStrategy) {
 		currentContext = `
@@ -78,9 +104,9 @@ ${existingStrategy.phase1Tasks.map((t, i) => `  ${i + 1}. ${t}`).join("\n")}
 	}
 
 	return `あなたは伴走型のAIスクラムマスターです。
-ユーザーから与えられたお題に対して「作戦（ボトルネック分析）」と「Phase 1 の具体的物理行動タスク案」を策定してください。
+ユーザーから与えられたお題および前裁きコンテキストに対して「作戦（ボトルネック分析および具体作戦案）」と「Phase 1 の具体的物理行動タスク案」を策定してください。
 
-${systemRules}${patternPromptSection}
+${systemRules}${patternPromptSection}${contextPayloadSection}
 
 【お題】:
 "${topic}"
@@ -91,6 +117,7 @@ ${currentContext}${feedbackContext}
    - 最優先ボトルネック: 何が最大の不確実性/障壁であるかを明確化
    - 依存関係: 何が決まれば次に何が決まるかの流れ
    - 基本方針: ボトルネックを解消するための戦略
+   - 提案作戦 (proposedStrategies): 目標達成のための具体的作戦 (Strategy) のタイトルと概要（1〜3件）
 2. **Phase 1 タスク案の制約**:
    - 一発で大量の全タスクを作らず、**「不確実性を潰すための最初の1〜3個のPhase 1タスク」のみ**を提案してください。
    - タスクのタイトルは**必ず「〜を開く」「〜を入力する」「〜を検索する」などの具体的物理行動（Next Physical Action / 15〜30分で完了する作業）**で始めてください。
@@ -104,6 +131,12 @@ ${currentContext}${feedbackContext}
   "bottleneck": "最優先ボトルネックの解説",
   "dependency": "依存関係の流れ",
   "policy": "基本方針",
+  "proposedStrategies": [
+    {
+      "title": "NDPシステムのSWバージョンアップ",
+      "description": "バージョンアップ手順を整理し結合テストを実施する方針"
+    }
+  ],
   "phase1Tasks": [
     "ブラウザを開き〇〇のサイトで料金プランを確認する",
     "ノートを開き〇〇の要件を1行でメモする"
@@ -111,4 +144,5 @@ ${currentContext}${feedbackContext}
 }
 `;
 }
+
 

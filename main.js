@@ -406,7 +406,8 @@ var init_systemRules = __esm({
 });
 
 // src/prompts/taskBreakdownPrompt.ts
-function buildTaskBreakdownPrompt(task, customSettingsPrompt, vaultRuleContent, patterns) {
+function buildTaskBreakdownPrompt(task, customSettingsPrompt, vaultRuleContent, patterns, aiContextPayload) {
+  var _a;
   const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
   let patternPromptSection = "";
   if (patterns && patterns.length > 0) {
@@ -448,10 +449,34 @@ function buildTaskBreakdownPrompt(task, customSettingsPrompt, vaultRuleContent, 
 ${patternBlocks.join("\n--------------------------------------------------\n")}
 --------------------------------------------------`;
   }
+  let contextPayloadSection = "";
+  if (aiContextPayload) {
+    const { selectedNode, ancestors, children, siblingStrategies } = aiContextPayload;
+    const ancestorLines = ancestors.map(
+      (a) => `  - [${a.nodeType.toUpperCase()}] ${a.title} (ID: ${a.id}, Status: ${a.status})`
+    );
+    const childrenLines = children.map(
+      (c) => `  - [${c.nodeType.toUpperCase()}] ${c.title} (ID: ${c.id}, Status: ${c.status})`
+    );
+    const siblingLines = (siblingStrategies || []).map(
+      (s) => `  - [STRATEGY] ${s.title} (ID: ${s.id}, Status: ${s.status})`
+    );
+    contextPayloadSection = `
+\u3010\u524D\u88C1\u304D\u30A4\u30F3\u30E1\u30E2\u30EA\u30C7\u30FC\u30BF (Context Chain Payload)\u3011:
+- \u5BFE\u8C61\u30CE\u30FC\u30C9 (Selected Target): [${selectedNode.nodeType.toUpperCase()}] ${selectedNode.title} (ID: ${selectedNode.id})
+- \u4E0A\u4F4D\u601D\u8003\u306E\u7CFB\u8B5C (Ancestors - Goal/Strategy):
+${ancestorLines.length > 0 ? ancestorLines.join("\n") : "  (\u306A\u3057)"}
+- \u65E2\u5B58\u306E\u76F4\u4E0B\u7269\u7406\u884C\u52D5/\u5B50\u30BF\u30B9\u30AF (Existing Children):
+${childrenLines.length > 0 ? childrenLines.join("\n") : "  (\u306A\u3057)"}
+- \u540C\u968E\u5C64 Strategy \u30CE\u30FC\u30C9\u7FA4 (ADR Context):
+${siblingLines.length > 0 ? siblingLines.join("\n") : "  (\u306A\u3057)"}
+`;
+  }
+  const targetTitle = ((_a = aiContextPayload == null ? void 0 : aiContextPayload.selectedNode) == null ? void 0 : _a.title) || task.title;
   return `\u3042\u306A\u305F\u306FAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
-\u89AA\u30BF\u30B9\u30AF\u300C${task.title}\u300D\u3092\u300115\u301C30\u5206\u3067\u5B9F\u884C\u53EF\u80FD\u306A3\u301C5\u500B\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF08Next Physical Action\uFF09\u306E\u30B5\u30D6\u30BF\u30B9\u30AF\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u89AA\u30CE\u30FC\u30C9/\u4F5C\u6226\u300C${targetTitle}\u300D\u304A\u3088\u3073\u4E0A\u4F4D\u306E\u601D\u8003\u7CFB\u8B5C\u306B\u57FA\u3065\u304D\u300115\u301C30\u5206\u3067\u5B9F\u884C\u53EF\u80FD\u306A3\u301C5\u500B\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF08Next Physical Action / Action\u30CE\u30FC\u30C9\uFF09\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
 
-${systemRules}${patternPromptSection}
+${systemRules}${patternPromptSection}${contextPayloadSection}
 
 \u3010\u51FA\u529B\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u306E\u5F37\u5236\u3011:
 \u4EE5\u4E0B\u306E\u5F62\u5F0F\u306E\u6709\u52B9\u306AJSON\u914D\u5217\uFF08\u6587\u5B57\u5217\u306E\u914D\u5217\uFF09\u306E\u307F\u3092\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
@@ -595,7 +620,7 @@ var init_taskReschedulePrompt = __esm({
 });
 
 // src/prompts/strategyPrompt.ts
-function buildStrategyPrompt(topic, feedback, existingStrategy, customSettingsPrompt, vaultRuleContent, patterns) {
+function buildStrategyPrompt(topic, feedback, existingStrategy, customSettingsPrompt, vaultRuleContent, patterns, aiContextPayload) {
   const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
   let patternPromptSection = "";
   if (patterns && patterns.length > 0) {
@@ -637,6 +662,29 @@ function buildStrategyPrompt(topic, feedback, existingStrategy, customSettingsPr
 ${patternBlocks.join("\n--------------------------------------------------\n")}
 --------------------------------------------------`;
   }
+  let contextPayloadSection = "";
+  if (aiContextPayload) {
+    const { selectedNode, ancestors, children, siblingStrategies } = aiContextPayload;
+    const ancestorLines = ancestors.map(
+      (a) => `  - [${a.nodeType.toUpperCase()}] ${a.title} (ID: ${a.id}, Status: ${a.status})`
+    );
+    const childrenLines = children.map(
+      (c) => `  - [${c.nodeType.toUpperCase()}] ${c.title} (ID: ${c.id}, Status: ${c.status})`
+    );
+    const siblingLines = (siblingStrategies || []).map(
+      (s) => `  - [STRATEGY] ${s.title} (ID: ${s.id}, Status: ${s.status})`
+    );
+    contextPayloadSection = `
+\u3010\u524D\u88C1\u304D\u30A4\u30F3\u30E1\u30E2\u30EA\u30C7\u30FC\u30BF (Context Chain Payload)\u3011:
+- \u9078\u629E\u3055\u308C\u305F\u30CE\u30FC\u30C9 (Selected): [${selectedNode.nodeType.toUpperCase()}] ${selectedNode.title} (ID: ${selectedNode.id}, Status: ${selectedNode.status})
+- \u4E0A\u4F4D\u7956\u5148\u30C4\u30EA\u30FC (Ancestors - Goal/Strategy):
+${ancestorLines.length > 0 ? ancestorLines.join("\n") : "  (\u306A\u3057 - \u672C\u30CE\u30FC\u30C9\u304C\u30EB\u30FC\u30C8)"}
+- \u65E2\u5B58\u306E\u76F4\u4E0B\u5B50\u30CE\u30FC\u30C9 (Direct Children):
+${childrenLines.length > 0 ? childrenLines.join("\n") : "  (\u306A\u3057)"}
+- \u95A2\u9023\u540C\u968E\u5C64 Strategy \u30CE\u30FC\u30C9\u7FA4 (ADR\u6587\u8108):
+${siblingLines.length > 0 ? siblingLines.join("\n") : "  (\u306A\u3057)"}
+`;
+  }
   let currentContext = "";
   if (existingStrategy) {
     currentContext = `
@@ -657,9 +705,9 @@ ${existingStrategy.phase1Tasks.map((t, i) => `  ${i + 1}. ${t}`).join("\n")}
 `;
   }
   return `\u3042\u306A\u305F\u306F\u4F34\u8D70\u578B\u306EAI\u30B9\u30AF\u30E9\u30E0\u30DE\u30B9\u30BF\u30FC\u3067\u3059\u3002
-\u30E6\u30FC\u30B6\u30FC\u304B\u3089\u4E0E\u3048\u3089\u308C\u305F\u304A\u984C\u306B\u5BFE\u3057\u3066\u300C\u4F5C\u6226\uFF08\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u5206\u6790\uFF09\u300D\u3068\u300CPhase 1 \u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u30BF\u30B9\u30AF\u6848\u300D\u3092\u7B56\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u30E6\u30FC\u30B6\u30FC\u304B\u3089\u4E0E\u3048\u3089\u308C\u305F\u304A\u984C\u304A\u3088\u3073\u524D\u88C1\u304D\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8\u306B\u5BFE\u3057\u3066\u300C\u4F5C\u6226\uFF08\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u5206\u6790\u304A\u3088\u3073\u5177\u4F53\u4F5C\u6226\u6848\uFF09\u300D\u3068\u300CPhase 1 \u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\u30BF\u30B9\u30AF\u6848\u300D\u3092\u7B56\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
 
-${systemRules}${patternPromptSection}
+${systemRules}${patternPromptSection}${contextPayloadSection}
 
 \u3010\u304A\u984C\u3011:
 "${topic}"
@@ -670,6 +718,7 @@ ${currentContext}${feedbackContext}
    - \u6700\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF: \u4F55\u304C\u6700\u5927\u306E\u4E0D\u78BA\u5B9F\u6027/\u969C\u58C1\u3067\u3042\u308B\u304B\u3092\u660E\u78BA\u5316
    - \u4F9D\u5B58\u95A2\u4FC2: \u4F55\u304C\u6C7A\u307E\u308C\u3070\u6B21\u306B\u4F55\u304C\u6C7A\u307E\u308B\u304B\u306E\u6D41\u308C
    - \u57FA\u672C\u65B9\u91DD: \u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u3092\u89E3\u6D88\u3059\u308B\u305F\u3081\u306E\u6226\u7565
+   - \u63D0\u6848\u4F5C\u6226 (proposedStrategies): \u76EE\u6A19\u9054\u6210\u306E\u305F\u3081\u306E\u5177\u4F53\u7684\u4F5C\u6226 (Strategy) \u306E\u30BF\u30A4\u30C8\u30EB\u3068\u6982\u8981\uFF081\u301C3\u4EF6\uFF09
 2. **Phase 1 \u30BF\u30B9\u30AF\u6848\u306E\u5236\u7D04**:
    - \u4E00\u767A\u3067\u5927\u91CF\u306E\u5168\u30BF\u30B9\u30AF\u3092\u4F5C\u3089\u305A\u3001**\u300C\u4E0D\u78BA\u5B9F\u6027\u3092\u6F70\u3059\u305F\u3081\u306E\u6700\u521D\u306E1\u301C3\u500B\u306EPhase 1\u30BF\u30B9\u30AF\u300D\u306E\u307F**\u3092\u63D0\u6848\u3057\u3066\u304F\u3060\u3055\u3044\u3002
    - \u30BF\u30B9\u30AF\u306E\u30BF\u30A4\u30C8\u30EB\u306F**\u5FC5\u305A\u300C\u301C\u3092\u958B\u304F\u300D\u300C\u301C\u3092\u5165\u529B\u3059\u308B\u300D\u300C\u301C\u3092\u691C\u7D22\u3059\u308B\u300D\u306A\u3069\u306E\u5177\u4F53\u7684\u7269\u7406\u884C\u52D5\uFF08Next Physical Action / 15\u301C30\u5206\u3067\u5B8C\u4E86\u3059\u308B\u4F5C\u696D\uFF09**\u3067\u59CB\u3081\u3066\u304F\u3060\u3055\u3044\u3002
@@ -683,6 +732,12 @@ ${currentContext}${feedbackContext}
   "bottleneck": "\u6700\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u306E\u89E3\u8AAC",
   "dependency": "\u4F9D\u5B58\u95A2\u4FC2\u306E\u6D41\u308C",
   "policy": "\u57FA\u672C\u65B9\u91DD",
+  "proposedStrategies": [
+    {
+      "title": "NDP\u30B7\u30B9\u30C6\u30E0\u306ESW\u30D0\u30FC\u30B8\u30E7\u30F3\u30A2\u30C3\u30D7",
+      "description": "\u30D0\u30FC\u30B8\u30E7\u30F3\u30A2\u30C3\u30D7\u624B\u9806\u3092\u6574\u7406\u3057\u7D50\u5408\u30C6\u30B9\u30C8\u3092\u5B9F\u65BD\u3059\u308B\u65B9\u91DD"
+    }
+  ],
   "phase1Tasks": [
     "\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u3007\u3007\u306E\u30B5\u30A4\u30C8\u3067\u6599\u91D1\u30D7\u30E9\u30F3\u3092\u78BA\u8A8D\u3059\u308B",
     "\u30CE\u30FC\u30C8\u3092\u958B\u304D\u3007\u3007\u306E\u8981\u4EF6\u30921\u884C\u3067\u30E1\u30E2\u3059\u308B"
@@ -840,9 +895,53 @@ var init_AIService = __esm({
         };
       }
       /**
+       * Ask AI (Antigravity CLI) to break down a node using 前裁き context payload (AIContextPayload)
+       */
+      async breakdownTaskWithContext(context) {
+        const vaultRule = await this.getVaultRuleContent();
+        let matchedPatterns = [];
+        if (this.plugin.patternService) {
+          const allPatterns = await this.plugin.patternService.loadAllPatterns();
+          const taskTags = this.plugin.patternService.extractTagsFromText(context.selectedNode.title);
+          matchedPatterns = this.plugin.patternService.findMatchingPatterns(taskTags, allPatterns);
+        }
+        const dummyTask = {
+          id: context.selectedNode.id,
+          title: context.selectedNode.title,
+          status: context.selectedNode.status,
+          priority: context.selectedNode.priority || "medium",
+          file: context.selectedNode.file
+        };
+        const prompt = buildTaskBreakdownPrompt(
+          dummyTask,
+          this.plugin.settings.customTaskRules,
+          vaultRule,
+          matchedPatterns,
+          context
+        );
+        try {
+          const output = await this.runCLI(prompt);
+          const parsed = this.extractJSONArray(output);
+          if (parsed && parsed.length > 0) {
+            return parsed;
+          }
+        } catch (err) {
+          console.warn("[TaskManager AI] breakdownTaskWithContext CLI failed, using fallback:", err);
+        }
+        return [
+          `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${context.selectedNode.title}\u300D\u306E\u30A2\u30A6\u30C8\u30E9\u30A4\u30F3\u30921\u884C\u66F8\u304F`,
+          `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${context.selectedNode.title}\u300D\u306E\u95A2\u9023\u8CC7\u6599\u3092\u691C\u7D22\u3059\u308B`,
+          `\u30BF\u30FC\u30DF\u30CA\u30EB\u3092\u958B\u304D\u5B9F\u884C\u30ED\u30B0\u3092\u78BA\u8A8D\u3059\u308B`
+        ];
+      }
+      /**
        * Ask AI (Antigravity CLI) to break down a parent task into subtask titles
        */
       async breakdownTask(task) {
+        const context = this.plugin.taskGraphService ? this.plugin.taskGraphService.buildAIContext(task.id) : null;
+        if (context) {
+          return this.breakdownTaskWithContext(context);
+        }
         const vaultRule = await this.getVaultRuleContent();
         let matchedPatterns = [];
         if (this.plugin.patternService) {
@@ -913,6 +1012,55 @@ var init_AIService = __esm({
         return stdout.trim();
       }
       /**
+       * Formulate strategy (bottleneck analysis) with 前裁き context payload (AIContextPayload)
+       */
+      async generateStrategyWithContext(context, topic, feedback, existingStrategy) {
+        const vaultRule = await this.getVaultRuleContent();
+        let matchedPatterns = [];
+        if (this.plugin.patternService) {
+          const allPatterns = await this.plugin.patternService.loadAllPatterns();
+          const topicTags = this.plugin.patternService.extractTagsFromText(topic);
+          matchedPatterns = this.plugin.patternService.findMatchingPatterns(topicTags, allPatterns);
+        }
+        const prompt = buildStrategyPrompt(
+          topic,
+          feedback,
+          existingStrategy,
+          this.plugin.settings.customTaskRules,
+          vaultRule,
+          matchedPatterns,
+          context
+        );
+        try {
+          const output = await this.runCLI(prompt);
+          const parsed = this.extractJSONObject(output);
+          if (parsed && parsed.bottleneck && Array.isArray(parsed.phase1Tasks)) {
+            return {
+              bottleneck: parsed.bottleneck || "\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u306E\u7279\u5B9A",
+              dependency: parsed.dependency || "\u4E8B\u524D\u306E\u57FA\u672C\u6761\u4EF6\u8A2D\u5B9A",
+              policy: parsed.policy || "Phase 1\u306B\u3088\u308B\u4E0D\u78BA\u5B9F\u6027\u306E\u65E9\u671F\u89E3\u6D88",
+              proposedStrategies: parsed.proposedStrategies || [],
+              phase1Tasks: parsed.phase1Tasks.length > 0 ? parsed.phase1Tasks : [
+                `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306B\u95A2\u9023\u3059\u308B\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`,
+                `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u524D\u63D0\u6761\u4EF6\u30921\u884C\u5165\u529B\u3059\u308B`
+              ]
+            };
+          }
+        } catch (err) {
+          console.warn("[TaskManager AI] Strategy CLI execution failed, using fallback:", err);
+        }
+        return {
+          bottleneck: `\u300C${topic}\u300D\u306B\u304A\u3051\u308B\u521D\u671F\u8ABF\u67FB\u3068\u4E0D\u78BA\u5B9F\u6027\u306E\u6574\u7406`,
+          dependency: "\u60C5\u5831\u53CE\u96C6 \u2794 \u5B9F\u884C\u30D7\u30E9\u30F3\u6C7A\u5B9A",
+          policy: "\u307E\u305A\u306F\u6700\u5C11\u624B\u6570\u306E\u7269\u7406\u884C\u52D5\u3067\u524D\u63D0\u60C5\u5831\u3092\u63C3\u3048\u308B",
+          proposedStrategies: [{ title: `${topic}\u306E\u57FA\u672C\u5206\u6790\u3068\u5BFE\u5FDC\u65B9\u91DD` }],
+          phase1Tasks: [
+            `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u57FA\u672C\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`,
+            `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u3067\u5FC5\u8981\u306A\u9805\u76EE\u30921\u884C\u5165\u529B\u3059\u308B`
+          ]
+        };
+      }
+      /**
        * Formulate strategy (bottleneck analysis) and Phase 1 tasks for a topic or user feedback
        */
       async generateStrategy(topic, feedback, existingStrategy) {
@@ -939,6 +1087,7 @@ var init_AIService = __esm({
               bottleneck: parsed.bottleneck || "\u512A\u5148\u30DC\u30C8\u30EB\u30CD\u30C3\u30AF\u306E\u7279\u5B9A",
               dependency: parsed.dependency || "\u4E8B\u524D\u306E\u57FA\u672C\u6761\u4EF6\u8A2D\u5B9A",
               policy: parsed.policy || "Phase 1\u306B\u3088\u308B\u4E0D\u78BA\u5B9F\u6027\u306E\u65E9\u671F\u89E3\u6D88",
+              proposedStrategies: parsed.proposedStrategies || [],
               phase1Tasks: parsed.phase1Tasks.length > 0 ? parsed.phase1Tasks : [
                 `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306B\u95A2\u9023\u3059\u308B\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`,
                 `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u524D\u63D0\u6761\u4EF6\u30921\u884C\u5165\u529B\u3059\u308B`
@@ -952,11 +1101,64 @@ var init_AIService = __esm({
           bottleneck: `\u300C${topic}\u300D\u306B\u304A\u3051\u308B\u521D\u671F\u8ABF\u67FB\u3068\u4E0D\u78BA\u5B9F\u6027\u306E\u6574\u7406`,
           dependency: "\u60C5\u5831\u53CE\u96C6 \u2794 \u5B9F\u884C\u30D7\u30E9\u30F3\u6C7A\u5B9A",
           policy: "\u307E\u305A\u306F\u6700\u5C11\u624B\u6570\u306E\u7269\u7406\u884C\u52D5\u3067\u524D\u63D0\u60C5\u5831\u3092\u63C3\u3048\u308B",
+          proposedStrategies: [{ title: `${topic}\u306E\u57FA\u672C\u5206\u6790\u3068\u5BFE\u5FDC\u65B9\u91DD` }],
           phase1Tasks: [
             `\u30D6\u30E9\u30A6\u30B6\u3092\u958B\u304D\u300C${topic}\u300D\u306E\u57FA\u672C\u60C5\u5831\u3092\u691C\u7D22\u3059\u308B`,
             `\u30CE\u30FC\u30C8\u3092\u958B\u304D\u300C${topic}\u300D\u3067\u5FC5\u8981\u306A\u9805\u76EE\u30921\u884C\u5165\u529B\u3059\u308B`
           ]
         };
+      }
+      /**
+       * Programmatically generate Markdown nodes for proposed strategies and phase 1 actions with parentId
+       */
+      async createStrategyAndActionsFromAI(parentId, strategyResult) {
+        const taskService = this.plugin.taskService;
+        const strategyFiles = [];
+        const actionFiles = [];
+        const strategiesToCreate = strategyResult.proposedStrategies && strategyResult.proposedStrategies.length > 0 ? strategyResult.proposedStrategies : [{ title: strategyResult.policy || "\u4E3B\u8981\u653B\u7565\u65B9\u91DD" }];
+        for (const strat of strategiesToCreate) {
+          const stratFile = await taskService.createTaskNode(
+            strat.title,
+            "strategy",
+            "todo",
+            { parentId }
+          );
+          strategyFiles.push(stratFile);
+          const stratId = await taskService.ensureNodeId(stratFile);
+          for (const actionTitle of strategyResult.phase1Tasks) {
+            const actionFile = await taskService.createTaskNode(
+              actionTitle,
+              "action",
+              "todo",
+              { parentId: stratId }
+            );
+            actionFiles.push(actionFile);
+          }
+        }
+        if (this.plugin.taskGraphService) {
+          this.plugin.taskGraphService.refreshGraph();
+        }
+        return { strategyFiles, actionFiles };
+      }
+      /**
+       * Programmatically generate Action nodes under a specified parent ID with parentId preserved
+       */
+      async createActionNodesFromAI(parentId, actionTitles) {
+        const taskService = this.plugin.taskService;
+        const actionFiles = [];
+        for (const title of actionTitles) {
+          const actionFile = await taskService.createTaskNode(
+            title,
+            "action",
+            "todo",
+            { parentId }
+          );
+          actionFiles.push(actionFile);
+        }
+        if (this.plugin.taskGraphService) {
+          this.plugin.taskGraphService.refreshGraph();
+        }
+        return actionFiles;
       }
       extractJSONArray(text) {
         try {
@@ -2294,9 +2496,130 @@ var PromoteService = class {
 };
 
 // src/main.ts
+init_TaskService();
+
+// src/services/TaskGraphService.ts
+var TaskGraphService = class {
+  constructor(app, plugin, taskService) {
+    this.app = app;
+    this.plugin = plugin;
+    this.taskService = taskService;
+    this.graph = /* @__PURE__ */ new Map();
+  }
+  /**
+   * Scan all markdown task nodes in vault and refresh the in-memory graph
+   */
+  refreshGraph() {
+    this.graph.clear();
+    const nodes = this.taskService.getAllTaskNodes();
+    for (const node of nodes) {
+      this.graph.set(node.id, node);
+    }
+    return this.graph;
+  }
+  /**
+   * Get the current in-memory graph map
+   */
+  getGraph() {
+    return this.graph;
+  }
+  /**
+   * Find node by ID from in-memory graph
+   */
+  getNode(id) {
+    return this.graph.get(id);
+  }
+  /**
+   * Recursively trace parentId up to Root (Goal) node.
+   * Returns array ordered from Root -> Parent (excluding selected node itself).
+   */
+  getAncestors(nodeId) {
+    const ancestors = [];
+    let current = this.graph.get(nodeId);
+    const visited = /* @__PURE__ */ new Set();
+    if (current)
+      visited.add(current.id);
+    while (current && current.parentId) {
+      if (visited.has(current.parentId)) {
+        break;
+      }
+      const parent = this.graph.get(current.parentId);
+      if (!parent)
+        break;
+      ancestors.unshift(parent);
+      visited.add(parent.id);
+      current = parent;
+    }
+    return ancestors;
+  }
+  /**
+   * Get direct children of a specific node
+   */
+  getChildren(nodeId) {
+    const children = [];
+    for (const node of this.graph.values()) {
+      if (node.parentId === nodeId) {
+        children.push(node);
+      }
+    }
+    return children;
+  }
+  /**
+   * Get sibling nodes sharing the same parentId
+   */
+  getSiblings(nodeId) {
+    const node = this.graph.get(nodeId);
+    if (!node || !node.parentId)
+      return [];
+    const siblings = [];
+    for (const n of this.graph.values()) {
+      if (n.parentId === node.parentId && n.id !== nodeId) {
+        siblings.push(n);
+      }
+    }
+    return siblings;
+  }
+  /**
+   * Build AI Context Payload: Extracts ancestors, direct children, and sibling strategies
+   * for prompt context building (前裁き).
+   */
+  buildAIContext(selectedNodeId) {
+    this.refreshGraph();
+    const selectedNode = this.graph.get(selectedNodeId);
+    if (!selectedNode)
+      return null;
+    const ancestors = this.getAncestors(selectedNodeId);
+    const children = this.getChildren(selectedNodeId);
+    let siblingStrategies = [];
+    if (selectedNode.nodeType === "strategy") {
+      siblingStrategies = this.getSiblings(selectedNodeId).filter(
+        (n) => n.nodeType === "strategy"
+      );
+    } else if (selectedNode.nodeType === "action" && ancestors.length > 0) {
+      const strategyAncestor = ancestors.find((a) => a.nodeType === "strategy");
+      if (strategyAncestor && strategyAncestor.parentId) {
+        siblingStrategies = this.getChildren(strategyAncestor.parentId).filter(
+          (n) => n.nodeType === "strategy" && n.id !== strategyAncestor.id
+        );
+      }
+    } else if (selectedNode.nodeType === "goal") {
+      siblingStrategies = children.filter((n) => n.nodeType === "strategy");
+    }
+    return {
+      selectedNode,
+      ancestors,
+      children,
+      siblingStrategies
+    };
+  }
+};
+
+// src/main.ts
 var TaskManagerPlugin = class extends import_obsidian10.Plugin {
   async onload() {
     await this.loadSettings();
+    this.taskService = new TaskService(this.app, this);
+    this.taskGraphService = new TaskGraphService(this.app, this, this.taskService);
     this.patternService = new PatternService(this);
     this.workFolderService = new WorkFolderService(this.app, this);
     this.promoteService = new PromoteService(this.app, this);

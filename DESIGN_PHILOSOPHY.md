@@ -82,8 +82,9 @@ Vault内の .md ノード群 (分散ストレージ)
    - `nodeType`: `'goal' | 'strategy' | 'action'`
    - `parentId`: 親ノードの UUID（思考の系譜）
    - `status`: `'todo' | 'in_progress' | 'done' | 'deprecated'`
-2. **AI前裁き (Context Builder)**:
-   - 全ノートを渡すのではなく、選択したノードと `parentId` を遡った祖先ツリー、およびその直下の子タスクだけを抽出した純粋な JSON ペイロードを組み立てます。
+2. **AI前裁き (Context Builder - `TaskGraphService.buildAIContext`) と完全JSON生成**:
+   - Vault全体をプロンプトに渡すのではなく、選択ノード (`selectedNode`)、親を遡った祖先ツリー (`ancestors`: Goal ➔ Strategy)、直下の子ノード (`children`)、および関連する他Strategy (`siblingStrategies`) を抽出した `AIContextPayload` 構造化 JSON を組み立てて LLM に投入します。
+   - `AIService` は LLM から返却された構造化 JSON レスポンスをパースし、`createStrategyAndActionsFromAI` および `createActionNodesFromAI` メソッドを経由して、`parentId` (思考の系譜) を正確に維持した Markdown ノード群を自動的に Vault 内へ書き込み生成します。
 
 ---
 

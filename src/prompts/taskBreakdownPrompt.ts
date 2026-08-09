@@ -1,11 +1,12 @@
 import { buildFullSystemRules } from "./systemRules";
-import { TaskItem, TaskPattern } from "../types";
+import { TaskItem, TaskPattern, AIContextPayload } from "../types";
 
 export function buildTaskBreakdownPrompt(
 	task: TaskItem,
 	customSettingsPrompt?: string,
 	vaultRuleContent?: string,
-	patterns?: TaskPattern[]
+	patterns?: TaskPattern[],
+	aiContextPayload?: AIContextPayload
 ): string {
 	const systemRules = buildFullSystemRules(customSettingsPrompt, vaultRuleContent);
 
@@ -54,10 +55,37 @@ ${patternBlocks.join("\n--------------------------------------------------\n")}
 --------------------------------------------------`;
 	}
 
-	return `あなたはAIスクラムマスターです。
-親タスク「${task.title}」を、15〜30分で実行可能な3〜5個の具体的物理行動（Next Physical Action）のサブタスクに分解してください。
+	let contextPayloadSection = "";
+	if (aiContextPayload) {
+		const { selectedNode, ancestors, children, siblingStrategies } = aiContextPayload;
+		const ancestorLines = ancestors.map(
+			(a) => `  - [${a.nodeType.toUpperCase()}] ${a.title} (ID: ${a.id}, Status: ${a.status})`
+		);
+		const childrenLines = children.map(
+			(c) => `  - [${c.nodeType.toUpperCase()}] ${c.title} (ID: ${c.id}, Status: ${c.status})`
+		);
+		const siblingLines = (siblingStrategies || []).map(
+			(s) => `  - [STRATEGY] ${s.title} (ID: ${s.id}, Status: ${s.status})`
+		);
 
-${systemRules}${patternPromptSection}
+		contextPayloadSection = `
+【前裁きインメモリデータ (Context Chain Payload)】:
+- 対象ノード (Selected Target): [${selectedNode.nodeType.toUpperCase()}] ${selectedNode.title} (ID: ${selectedNode.id})
+- 上位思考の系譜 (Ancestors - Goal/Strategy):
+${ancestorLines.length > 0 ? ancestorLines.join("\n") : "  (なし)"}
+- 既存の直下物理行動/子タスク (Existing Children):
+${childrenLines.length > 0 ? childrenLines.join("\n") : "  (なし)"}
+- 同階層 Strategy ノード群 (ADR Context):
+${siblingLines.length > 0 ? siblingLines.join("\n") : "  (なし)"}
+`;
+	}
+
+	const targetTitle = aiContextPayload?.selectedNode?.title || task.title;
+
+	return `あなたはAIスクラムマスターです。
+親ノード/作戦「${targetTitle}」および上位の思考系譜に基づき、15〜30分で実行可能な3〜5個の具体的物理行動（Next Physical Action / Actionノード）に分解してください。
+
+${systemRules}${patternPromptSection}${contextPayloadSection}
 
 【出力フォーマットの強制】:
 以下の形式の有効なJSON配列（文字列の配列）のみを出力してください。
@@ -66,4 +94,5 @@ ${systemRules}${patternPromptSection}
 例:
 ["Chromeを開いて公式ドキュメントURLにアクセスする", "エディタを開きsrc/main.tsの1行目にコメントを書く", "ターミナルを開きnpm run testコマンドを実行する"]`;
 }
+
 

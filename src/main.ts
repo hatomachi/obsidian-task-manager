@@ -5,15 +5,21 @@ import { TaskManagerView, VIEW_TYPE_TASK_MANAGER } from "./views/TaskManagerView
 import { PatternService } from "./services/PatternService";
 import { WorkFolderService } from "./services/WorkFolderService";
 import { PromoteService } from "./services/PromoteService";
+import { TaskService } from "./services/TaskService";
+import { TaskGraphService } from "./services/TaskGraphService";
 
 export default class TaskManagerPlugin extends Plugin {
 	settings: TaskManagerSettings;
 	patternService: PatternService;
 	workFolderService: WorkFolderService;
 	promoteService: PromoteService;
+	taskService: TaskService;
+	taskGraphService: TaskGraphService;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
+		this.taskService = new TaskService(this.app, this);
+		this.taskGraphService = new TaskGraphService(this.app, this, this.taskService);
 		this.patternService = new PatternService(this);
 		this.workFolderService = new WorkFolderService(this.app, this);
 		this.promoteService = new PromoteService(this.app, this);

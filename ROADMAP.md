@@ -14,26 +14,26 @@
     - [x] Markdown ノードの新規作成・更新時に Frontmatter (`id`, `nodeType`, `parentId`, `status`) が正確に同期されること。
     - [x] `npm run build` がエラーなく正常終了すること。
 
-- [ ] **Phase 2: インメモリ前裁きエンジンの構築 (`TaskGraphService`)**
+- [x] **Phase 2: インメモリ前裁きエンジンの構築 (`TaskGraphService`)**
   - **概要**: Vault内全ノードをスキャンしてインメモリグラフを組み立て、AIへ渡すノード文脈（祖先 ＋ 直近子タスク）を抽出する前裁きエンジン。
   - **主な実装範囲**:
     - `src/services/TaskGraphService.ts`: `Map<string, TaskNode>` インメモリグラフの構築・検索ロジック。
     - `buildAIContext(selectedNodeId)`: 選択ノードの `parentId` を遡る祖先ツリー (Goal / Strategy) および直近の子ノードを抽出し、AI用 JSON ペイロードを組み立てるメソッド。
   - **完了条件 (DoD)**:
-    - [ ] 選択ノードから祖先および直近子ノードの JSON コンテキストが正確に生成されること。
-    - [ ] テスト用ノード構造でインメモリグラフが高速に構築・取得できること。
-    - [ ] `npm run build` が正常に通ること。
+    - [x] 選択ノードから祖先および直近子ノードの JSON コンテキストが正確に生成されること。
+    - [x] テスト用ノード構造でインメモリグラフが高速に構築・取得できること。
+    - [x] `npm run build` が正常に通ること。
 
-- [ ] **Phase 3: AIプロンプト・前裁きパイプラインの完全JSON化**
-  - **概要**: `strategyPrompt` と `taskBreakdownPrompt` を完全構造化 JSON レスポンス対応にし、AIが返した JSON から自動で Markdown ノード群をプログラム生成。
+- [x] **Phase 3: AIプロンプト・前裁きパイプラインの完全JSON化**
+  - **概要**: `strategyPrompt` と `taskBreakdownPrompt` を完全構造化 JSON レスポンス対応にし、前裁きインメモリデータ (`AIContextPayload`) と連動して AIが返した JSON から自動で Markdown ノード群を `parentId` 付きでプログラム生成。
   - **主な実装範囲**:
-    - `src/prompts/strategyPrompt.ts`: 目標 (Goal) と既存文脈から Strategy 候補リストを出力させる JSON プロンプト。
-    - `src/prompts/taskBreakdownPrompt.ts`: 合意 Strategy と制約から Action リストを出力させる JSON プロンプト。
-    - `src/services/AIService.ts`: JSON レスポンスをパースし、`TaskService` を経由して `parentId` を保持したノート/タスクを自動生成する処理。
+    - `src/prompts/strategyPrompt.ts`: 目標 (Goal) と既存文脈 (`AIContextPayload`) から Strategy / Phase 1 Action 候補を出力させる完全構造化 JSON プロンプト。
+    - `src/prompts/taskBreakdownPrompt.ts`: 合意 Strategy と制約・前裁き文脈から 15〜30分物理行動 (Action) リストを出力させる JSON プロンプト。
+    - `src/services/AIService.ts`: 前裁きコンテキスト連携メソッド (`generateStrategyWithContext`, `breakdownTaskWithContext`) と、JSON レスポンスをパースして `parentId` を保持した Markdown ノード群を全自動生成・保存する処理 (`createStrategyAndActionsFromAI`, `createActionNodesFromAI`)。
   - **完了条件 (DoD)**:
-    - [ ] AIへのリクエストとレスポンスが完全構造化 JSON でやり取りされること。
-    - [ ] AIが提案・承認された作戦 / TODO が自動的に正確な `parentId` 付きで生成・保存されること。
-    - [ ] `npm run build` が正常に通ること。
+    - [x] AIへのリクエストとレスポンスが完全構造化 JSON でやり取りされること。
+    - [x] AIが提案・承認された作戦 / TODO が自動的に正確な `parentId` 付きで生成・保存されること。
+    - [x] `npm run build` が正常に通ること。
 
 - [ ] **Phase 4: 思考ツリー ＆ ADRノード操作UI**
   - **概要**: 「Goal ➔ Strategy ➔ Action」の文脈系譜を可視化・対話操作する専用ビューとモーダルの刷新。
