@@ -104,3 +104,53 @@
     - [x] ブロック発生時や予算オーバー時に AI へ適切なコンテキストが渡り、順序の変更や前倒しなどの再編成提案を受け取ってノード反映できること。
     - [x] `npm run build` およびテストVault同期コピーが正常終了すること。
 
+---
+
+## 🛠️ Action内部Subtask導入 ＆ AIプロンプト改善ロードマップ
+
+- [x] **Phase 10: Subtask データモデル & Frontmatter 永続化**
+  - **概要**: `TaskNode` への `subtasks` プロパティ追加と Frontmatter での透過的な読み書き・パースおよびトグル関数追加。
+  - **主な実装範囲**:
+    - `src/types.ts`: `SubTask` 型 (`id`, `title`, `completed`) の定義と `TaskNode` (`subtasks?: SubTask[]`) 拡張。
+    - `src/services/TaskService.ts`: Frontmatter (`subtasks`) のパース・保存ロジックおよび `toggleSubtask(nodeId, subtaskId)` メソッド実装。
+  - **完了条件 (DoD)**:
+    - [x] `SubTask` 型定義が追加され、`TaskNode` から参照可能であること。
+    - [x] Frontmatter の `subtasks` が壊れずに正しく読み書き・保存され、Subtask の完了トグルが動作すること。
+    - [x] `npm run build` が正常に通ること。
+
+- [ ] **Phase 11: AIプロンプト改修（戦略アプローチ化 ＋ Action Deliverable化 & Subtask同時生成）**
+  - **概要**: Strategy提案プロンプト・Action分解プロンプトの改修による操作マニュアル化防止と、Actionへの `subtasks` 同時出力対応。
+  - **主な実装範囲**:
+    - `src/prompts/strategyPrompt.ts`: Strategy を「工程」ではなく「達成のための具体方針・戦い方・アプローチ」として出力させるルール調整。
+    - `src/prompts/taskBreakdownPrompt.ts`:
+      - PC操作マニュアル（「ブラウザを開く」「メモ帳に書く」等）の禁止（ネガティブプロンプト）追加。
+      - Action 単位を 1〜3時間の成果物 (Deliverable) に変更。
+      - 15〜30分単位の実行手順・章立てを `subtasks` 配列オブジェクトとして同時生成させる出力フォーマット拡張。
+    - `src/services/AIService.ts`: JSON パースロジックの修正と `subtasks` 付き Action ノード生成処理。
+  - **完了条件 (DoD)**:
+    - [ ] AIが提案する Strategy が具体アプローチ・方針表現になること。
+    - [ ] AIが生成する Action からチープな操作手順が排除され、成果物単位の Action とその内部 `subtasks` 配列が自動出力・生成保存されること。
+    - [ ] `npm run build` が正常に通ること。
+
+- [ ] **Phase 12: UI表示 & Subtask インタラクション**
+  - **概要**: `TaskManagerView` での Action カード内 Subtask アコーディオン描画および1クリックトグル操作。
+  - **主な実装範囲**:
+    - `src/views/TaskManagerView.ts`: Action カード内部に Subtasks アコーディオン（展開式チェックリスト）を描画。
+    - チェックボックスのクリックで `TaskService.toggleSubtask` を呼び出し、Frontmatter と UI の状態を連動更新。
+    - `styles.css`: Subtasks アコーディオンおよびチェックリストのスタイリング。
+  - **完了条件 (DoD)**:
+    - [ ] Context Tree View および Focus View で Action カード内の Subtasks が展開・折りたたみ表示できること。
+    - [ ] Subtask のチェックボックスクリックで Frontmatter が更新され、画面描画が正しく反映されること。
+    - [ ] `npm run build` およびテストVaultへの同期コピーが正常終了すること。
+
+---
+
+## 🔮 将来の大型UI改修ロードマップ（スコープ外）
+
+- [ ] **Phase 13: プロジェクト (Goal) ダッシュボード ＆ ドリルダウン詳細画面**
+  - **概要**: トップ画面での Goal カード化・進捗表示と、クリックで開く GoalDetailView（Strategy バナー ＋ タイムライン / Action リスト）への画面構造の刷新。
+  - **主な実装範囲**:
+    - `GoalDashboardView`: Goal 一覧のカード形式描画とプロジェクト全体俯瞰。
+    - `GoalDetailView`: 選択された Goal の専有画面。ヘッダーでの Strategy 独立強調表示と Action ツリーの詳細描画。
+
+

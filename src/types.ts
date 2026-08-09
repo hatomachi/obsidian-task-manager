@@ -6,6 +6,12 @@ export type TaskPriority = "low" | "medium" | "high" | "highest";
 export type NodeType = "goal" | "strategy" | "action";
 export type NodeStatus = TaskStatus;
 
+export interface SubTask {
+	id: string;        // subtask識別子 (例: "sub-1", "sub-2")
+	title: string;     // 具体的な実行ステップ・章立て
+	completed: boolean;// 完了フラグ
+}
+
 export interface TaskNode {
 	id: string;               // 不変のUUID/ID
 	title: string;            // ノード名（目的・作戦名・TODO名）
@@ -29,6 +35,9 @@ export interface TaskNode {
 	sequenceOrder?: number;   // Action用: 着手順序 (例: 1, 2, 3...)
 	estimatedMinutes?: number;// Action用: 予想所要分 (例: 15, 30, 60)
 	dependsOn?: string[];     // Action用: 先行依存タスクのIDリスト
+
+	// --- Action用 サブタスク拡張フィールド (Phase 10) ---
+	subtasks?: SubTask[];     // Action用: 内部の軽量チェックリスト
 }
 
 export interface AIContextPayload {
@@ -75,6 +84,7 @@ export interface ActionItem {
 	sequenceOrder?: number;
 	dependsOn?: string[];
 	rationale?: string;
+	subtasks?: (SubTask | string)[];
 }
 
 export interface AIActionResponse {

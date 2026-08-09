@@ -83,6 +83,19 @@ var init_TaskService = __esm({
           } else if (typeof rawDepends === "string" && rawDepends.trim().length > 0) {
             dependsOn = rawDepends.split(",").map((s) => s.trim()).filter(Boolean);
           }
+          let subtasks = void 0;
+          if (Array.isArray(fm.subtasks)) {
+            subtasks = fm.subtasks.map((item, idx) => {
+              if (typeof item === "string") {
+                return { id: `sub-${idx + 1}`, title: item, completed: false };
+              }
+              return {
+                id: item.id ? String(item.id) : `sub-${idx + 1}`,
+                title: item.title ? String(item.title) : "",
+                completed: Boolean(item.completed)
+              };
+            });
+          }
           nodes.push({
             id,
             title,
@@ -102,7 +115,8 @@ var init_TaskService = __esm({
             blockedReason,
             sequenceOrder,
             estimatedMinutes,
-            dependsOn
+            dependsOn,
+            subtasks
           });
         }
         return nodes;
@@ -161,6 +175,17 @@ var init_TaskService = __esm({
           frontmatterLines.push(`estimatedMinutes: ${options.estimatedMinutes}`);
         if ((options == null ? void 0 : options.dependsOn) && options.dependsOn.length > 0) {
           frontmatterLines.push(`dependsOn: [${options.dependsOn.map((id) => `"${id}"`).join(", ")}]`);
+        }
+        if ((options == null ? void 0 : options.subtasks) && options.subtasks.length > 0) {
+          frontmatterLines.push(`subtasks:`);
+          options.subtasks.forEach((st, idx) => {
+            const stId = typeof st === "string" ? `sub-${idx + 1}` : st.id || `sub-${idx + 1}`;
+            const stTitle = typeof st === "string" ? st : st.title;
+            const stComp = typeof st === "string" ? false : Boolean(st.completed);
+            frontmatterLines.push(`  - id: "${stId}"`);
+            frontmatterLines.push(`    title: "${stTitle.replace(/"/g, '\\"')}"`);
+            frontmatterLines.push(`    completed: ${stComp}`);
+          });
         }
         frontmatterLines.push(
           `created: ${now}`,
@@ -235,8 +260,42 @@ var init_TaskService = __esm({
             fm.due = updates.due;
           if (updates.scheduled !== void 0)
             fm.scheduled = updates.scheduled;
+          if (updates.subtasks !== void 0) {
+            fm.subtasks = updates.subtasks.map((st, idx) => ({
+              id: st.id || `sub-${idx + 1}`,
+              title: st.title || "",
+              completed: Boolean(st.completed)
+            }));
+          }
           fm.updated = (/* @__PURE__ */ new Date()).toISOString();
         });
+      }
+      /**
+       * Toggle completion status of a subtask inside an Action node's Frontmatter
+       */
+      async toggleSubtask(nodeId, subtaskId) {
+        const allNodes = this.getAllTaskNodes();
+        const node = allNodes.find((n) => n.id === nodeId);
+        if (!node || !node.file)
+          return null;
+        await this.app.fileManager.processFrontMatter(node.file, (fm) => {
+          if (Array.isArray(fm.subtasks)) {
+            fm.subtasks = fm.subtasks.map((st, idx) => {
+              const id = st.id ? String(st.id) : `sub-${idx + 1}`;
+              if (id === subtaskId) {
+                return {
+                  ...st,
+                  id,
+                  completed: !Boolean(st.completed)
+                };
+              }
+              return st;
+            });
+          }
+          fm.updated = (/* @__PURE__ */ new Date()).toISOString();
+        });
+        const updatedNodes = this.getAllTaskNodes();
+        return updatedNodes.find((n) => n.id === nodeId) || null;
       }
       /**
        * Update scheduled date and due date

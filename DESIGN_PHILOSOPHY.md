@@ -8,16 +8,17 @@
 
 一般的なタスク管理ツールは、「工程」や「カテゴリー」といった静的な分類箱（タクソノミー）にタスクを押し込めるため、「なぜこのTODOが存在するのか？」という**思考の文脈（Why）**が喪失し、不確実性の高いプロジェクトで破綻しがちでした。
 
-本プラグインでは、**「人間とAIが合意した【攻略方針・思考の筋道 (Strategy)】そのものをノード化し、そこから 15〜30分単位の具体的物理行動 (Next Physical Action: Action) を展開・連結する文脈チェーン (Context Chain)」** を目指します。
+本プラグインでは、**「人間とAIが合意した【攻略方針・思考の筋道 (Strategy)】そのものをノード化し、そこから 1〜3時間単位の成果物 (Deliverable: Action) とその内部ステップ (15〜30分単位の subtasks) を展開・連結する文脈チェーン (Context Chain)」** を目指します。
 
 1. **人間の役割**:
    - やりたいことの大枠・目標 (`Goal`) を1行入力する。
-   - AIが提案した攻略方針 (`Strategy`) や具体的物理行動 (`Action`) を対話を通じて評価し、直感的に合意・調整・選択する。
+   - AIが提案した攻略方針 (`Strategy`) や具体的成果物 (`Action`) を対話を通じて評価し、直感的に合意・調整・選択する。
    - 各 Strategy に投資可能な「時間予算 (`appetiteHours`)」を決定する。
 2. **AI（スクラムマスター）の役割**:
    - **日本語出力の絶対強制**: すべての生成タイトル・解説テキストは自然な日本語で生成。
-   - **文脈に沿った Next Physical Action への強制分解**: 曖昧な表現を排除し、「〜を開く」「〜を1行書く」「〜をブラウザで検索する」といった15〜30分単位の物理行動へ強制変換。
-   - **ローリングウェーブ分解と時間軸の管理**: 近い未来（直近で実行する Strategy）のみを具体行動へ分解し、着手順序 (`sequenceOrder`) と予想時間 (`estimatedMinutes`) を付加。
+   - **戦い方・アプローチとしての Strategy 生成**: 単なる工程分割ではなく、「目標を達成するための具体方針・トレードオフ」として提案。
+   - **成果物 (Deliverable) 単位への Action 分解 ＋ PC操作手順の禁止**: 「ブラウザを開く」「メモする」といったPC操作マニュアル化（チープ化）を厳禁とし、1〜3時間で明確な成果物（仕様書、実装、検証等）が得られる Action を生成。
+   - **Action 内部への Subtasks (15〜30分ステップ) の同時生成**: Action ノードの Frontmatter に、15〜30分単位で実行可能な具体的手順・章立て (`subtasks`) を配列オブジェクトとして保持。
    - **前裁き（Context Builder）による精緻なAIプロンプト投入**: Vault全体の生のテキストではなく、選択されたノードの「祖先 (Goal/Strategy) ＋ 直近の既存子タスク」を抽出した純粋な JSON ペイロードを投入。
    - **プロンプトモジュールの完全分離 (`src/prompts/`)**: AIへのプロンプト文を専用ディレクトリで構造化・管理。
 
@@ -88,7 +89,7 @@ Vault内の .md ノード群 (分散ストレージ)
        │   [TaskService]: 確定した JSON からノード生成・Frontmatter(parentId, sequenceOrder, appetiteHours等)を自動更新
 ```
 
-1. **Frontmatter 不変キー仕様**:
+1. **Frontmatter 不変キー仕様（プラグイン完全隠蔽管理）**:
    - `id`: 不変の UUID
    - `nodeType`: `'goal' | 'strategy' | 'action'`
    - `parentId`: 親ノードの UUID（思考の系譜）
@@ -99,6 +100,7 @@ Vault内の .md ノード群 (分散ストレージ)
    - `sequence_order`: Action 着手順序 (number)
    - `estimated_minutes`: Action 予想時間 (number)
    - `depends_on`: Action 先行依存ID配列 (string[])
+   - `subtasks`: Action 内部の軽量実行ステップ配列 (オブジェクト型: `[{ id: string, title: string, completed: boolean }]`)
 2. **AI前裁き (Context Builder - `TaskGraphService.buildAIContext`) と完全JSON生成**:
    - Vault全体をプロンプトに渡すのではなく、選択ノード (`selectedNode`)、親を遡った祖先ツリー (`ancestors`: Goal ➔ Strategy)、直下の子ノード (`children`)、および関連する他Strategy (`siblingStrategies`) を抽出した `AIContextPayload` 構造化 JSON を組み立てて LLM に投入します。
 

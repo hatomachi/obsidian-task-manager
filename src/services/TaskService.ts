@@ -1,5 +1,5 @@
 import { App, TFile, normalizePath, MarkdownView, Notice } from "obsidian";
-import { TaskNode, NodeType, NodeStatus, TaskPattern, TaskPriority, TaskStatus, StrategyResult } from "../types";
+import { TaskNode, NodeType, NodeStatus, TaskPattern, TaskPriority, TaskStatus, StrategyResult, SubTask } from "../types";
 import TaskManagerPlugin from "../main";
 
 export interface TaskNodeTreeNode {
@@ -59,6 +59,20 @@ export class TaskService {
 				dependsOn = rawDepends.split(",").map((s) => s.trim()).filter(Boolean);
 			}
 
+			let subtasks: SubTask[] | undefined = undefined;
+			if (Array.isArray(fm.subtasks)) {
+				subtasks = fm.subtasks.map((item: any, idx: number) => {
+					if (typeof item === "string") {
+						return { id: `sub-${idx + 1}`, title: item, completed: false };
+					}
+					return {
+						id: item.id ? String(item.id) : `sub-${idx + 1}`,
+						title: item.title ? String(item.title) : "",
+						completed: Boolean(item.completed),
+					};
+				});
+			}
+
 			nodes.push({
 				id,
 				title,
@@ -79,6 +93,7 @@ export class TaskService {
 				sequenceOrder,
 				estimatedMinutes,
 				dependsOn,
+				subtasks,
 			});
 		}
 
@@ -119,6 +134,7 @@ export class TaskService {
 			sequenceOrder?: number;
 			estimatedMinutes?: number;
 			dependsOn?: string[];
+			subtasks?: (SubTask | string)[];
 		}
 	): Promise<TFile> {
 		const folderPath = normalizePath(this.plugin.settings.taskFolder);
@@ -162,6 +178,17 @@ export class TaskService {
 		if (options?.estimatedMinutes !== undefined) frontmatterLines.push(`estimatedMinutes: ${options.estimatedMinutes}`);
 		if (options?.dependsOn && options.dependsOn.length > 0) {
 			frontmatterLines.push(`dependsOn: [${options.dependsOn.map((id) => `"${id}"`).join(", ")}]`);
+		}
+		if (options?.subtasks && options.subtasks.length > 0) {
+			frontmatterLines.push(`subtasks:`);
+			options.subtasks.forEach((st, idx) => {
+				const stId = typeof st === "string" ? `sub-${idx + 1}` : (st.id || `sub-${idx + 1}`);
+				const stTitle = typeof st === "string" ? st : st.title;
+				const stComp = typeof st === "string" ? false : Boolean(st.completed);
+				frontmatterLines.push(`  - id: "${stId}"`);
+				frontmatterLines.push(`    title: "${stTitle.replace(/"/g, '\\"')}"`);
+				frontmatterLines.push(`    completed: ${stComp}`);
+			});
 		}
 
 		frontmatterLines.push(
@@ -232,8 +259,44 @@ export class TaskService {
 			if (updates.dependsOn !== undefined) fm.dependsOn = updates.dependsOn;
 			if (updates.due !== undefined) fm.due = updates.due;
 			if (updates.scheduled !== undefined) fm.scheduled = updates.scheduled;
+			if (updates.subtasks !== undefined) {
+				fm.subtasks = updates.subtasks.map((st, idx) => ({
+					id: st.id || `sub-${idx + 1}`,
+					title: st.title || "",
+					completed: Boolean(st.completed),
+				}));
+			}
 			fm.updated = new Date().toISOString();
 		});
+	}
+
+	/**
+	 * Toggle completion status of a subtask inside an Action node's Frontmatter
+	 */
+	async toggleSubtask(nodeId: string, subtaskId: string): Promise<TaskNode | null> {
+		const allNodes = this.getAllTaskNodes();
+		const node = allNodes.find((n) => n.id === nodeId);
+		if (!node || !node.file) return null;
+
+		await this.app.fileManager.processFrontMatter(node.file, (fm) => {
+			if (Array.isArray(fm.subtasks)) {
+				fm.subtasks = fm.subtasks.map((st: any, idx: number) => {
+					const id = st.id ? String(st.id) : `sub-${idx + 1}`;
+					if (id === subtaskId) {
+						return {
+							...st,
+							id,
+							completed: !Boolean(st.completed),
+						};
+					}
+					return st;
+				});
+			}
+			fm.updated = new Date().toISOString();
+		});
+
+		const updatedNodes = this.getAllTaskNodes();
+		return updatedNodes.find((n) => n.id === nodeId) || null;
 	}
 
 	/**
